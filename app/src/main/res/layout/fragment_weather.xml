@@ -45,6 +45,14 @@
                 android:paddingBottom="6dp"/>
 
             <Button
+                android:id="@+id/btn_locate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/locate_me"
+                android:textSize="@dimen/small_text_size"/>
+
+            <Button
                 android:id="@+id/btn_refresh"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -92,6 +100,17 @@
             android:layout_gravity="center_horizontal"
             android:text="--"
             android:textSize="@dimen/subtitle_text_size"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="@dimen/spacing_small"/>
+
+        <!-- Date -->
+        <TextView
+            android:id="@+id/tv_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:text="--"
+            android:textSize="@dimen/small_text_size"
             android:textColor="@color/text_secondary"
             android:layout_marginBottom="@dimen/spacing_large"/>
 

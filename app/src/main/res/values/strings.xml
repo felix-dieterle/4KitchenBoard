@@ -15,4 +15,8 @@
     <string name="item_name_label">Item name</string>
     <string name="item_name_hint">e.g. Apples</string>
     <string name="category_label">Category</string>
+    <string name="locate_me">📍 Locate</string>
+    <string name="current_location">Current Location</string>
+    <string name="location_permission_denied">Location permission denied. Please enter city manually.</string>
+    <string name="location_unavailable">Location not available. Please enter city manually.</string>
 </resources>

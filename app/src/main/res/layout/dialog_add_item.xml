@@ -19,6 +19,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="@string/item_name_hint"
+        android:imeOptions="actionDone"
         android:inputType="textCapSentences"
         android:textSize="@dimen/body_text_size"
         android:layout_marginBottom="@dimen/spacing_normal"/>
