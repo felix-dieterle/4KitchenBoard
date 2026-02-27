@@ -10,7 +10,6 @@ import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
-import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -22,21 +21,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.kitchenboard.R;
 
-import java.util.Arrays;
 import java.util.List;
 
 public class ShoppingFragment extends Fragment {
-
-    static final String[] CATEGORIES = {
-            "Fruits & Vegetables",
-            "Dairy & Eggs",
-            "Meat & Fish",
-            "Bakery",
-            "Beverages",
-            "Snacks",
-            "Household",
-            "Other"
-    };
 
     private ShoppingDatabaseHelper db;
     private ShoppingAdapter adapter;
@@ -100,8 +87,8 @@ public class ShoppingFragment extends Fragment {
 
         final AutoCompleteTextView etName =
                 dialogView.findViewById(R.id.et_item_name);
-        final Spinner spinnerCategory =
-                dialogView.findViewById(R.id.spinner_category);
+        final AutoCompleteTextView etCategory =
+                dialogView.findViewById(R.id.et_category);
 
         // Populate name suggestions from history
         List<String> history = db.getAllItemNames();
@@ -110,11 +97,12 @@ public class ShoppingFragment extends Fragment {
         etName.setAdapter(suggestAdapter);
         etName.setThreshold(1);
 
-        // Populate category spinner
+        // Populate category suggestions from saved categories
+        List<String> categories = db.getCategories();
         ArrayAdapter<String> catAdapter = new ArrayAdapter<>(requireContext(),
-                android.R.layout.simple_spinner_item, Arrays.asList(CATEGORIES));
-        catAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerCategory.setAdapter(catAdapter);
+                android.R.layout.simple_dropdown_item_1line, categories);
+        etCategory.setAdapter(catAdapter);
+        etCategory.setThreshold(1);
 
         final AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.add_item)
@@ -123,8 +111,9 @@ public class ShoppingFragment extends Fragment {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         String name = etName.getText().toString().trim();
-                        String category = (String) spinnerCategory.getSelectedItem();
-                        if (!name.isEmpty() && category != null) {
+                        String category = etCategory.getText().toString().trim();
+                        if (!name.isEmpty() && !category.isEmpty()) {
+                            db.addCategory(category);
                             db.addItem(name, category);
                             refreshList();
                         }

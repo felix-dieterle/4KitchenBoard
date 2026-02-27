@@ -12,7 +12,7 @@ import java.util.List;
 public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "shopping.db";
-    private static final int DB_VERSION = 1;
+    private static final int DB_VERSION = 2;
 
     static final String TABLE = "shopping_items";
     static final String COL_ID = "_id";
@@ -20,6 +20,10 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     static final String COL_CATEGORY = "category";
     static final String COL_CHECKED = "checked";
     static final String COL_CREATED = "created_at";
+
+    static final String TABLE_CATEGORIES = "categories";
+    static final String COL_CAT_ID = "_id";
+    static final String COL_CAT_NAME = "name";
 
     public ShoppingDatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -30,14 +34,18 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE " + TABLE + " (" +
                 COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COL_NAME + " TEXT NOT NULL, " +
-                COL_CATEGORY + " TEXT NOT NULL DEFAULT 'Other', " +
+                COL_CATEGORY + " TEXT NOT NULL, " +
                 COL_CHECKED + " INTEGER DEFAULT 0, " +
                 COL_CREATED + " INTEGER DEFAULT 0)");
+        db.execSQL("CREATE TABLE " + TABLE_CATEGORIES + " (" +
+                COL_CAT_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COL_CAT_NAME + " TEXT NOT NULL UNIQUE)");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         db.execSQL("DROP TABLE IF EXISTS " + TABLE);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_CATEGORIES);
         onCreate(db);
     }
 
@@ -78,6 +86,34 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
         }
         c.close();
         return items;
+    }
+
+    /**
+     * Returns all user-defined categories ordered alphabetically.
+     */
+    public List<String> getCategories() {
+        List<String> categories = new ArrayList<>();
+        Cursor c = getReadableDatabase().query(
+                TABLE_CATEGORIES, new String[]{COL_CAT_NAME},
+                null, null, null, null, COL_CAT_NAME + " ASC");
+        try {
+            while (c.moveToNext()) {
+                categories.add(c.getString(0));
+            }
+        } finally {
+            c.close();
+        }
+        return categories;
+    }
+
+    /**
+     * Adds a new category if it does not already exist (case-sensitive).
+     */
+    public void addCategory(String name) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_CAT_NAME, name);
+        getWritableDatabase().insertWithOnConflict(
+                TABLE_CATEGORIES, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
     }
 
     /**
