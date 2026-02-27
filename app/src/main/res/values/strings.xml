@@ -19,4 +19,7 @@
     <string name="current_location">Current Location</string>
     <string name="location_permission_denied">Location permission denied. Please enter city manually.</string>
     <string name="location_unavailable">Location not available. Please enter city manually.</string>
+    <string name="update_available_title">Update Available</string>
+    <string name="update_available_message">Version %s is available. Download and install to update.</string>
+    <string name="update_download">Download</string>
 </resources>
