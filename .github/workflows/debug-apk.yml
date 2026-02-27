@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   build:
@@ -25,8 +26,10 @@ jobs:
         env:
           DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
         run: |
-          mkdir -p ~/.android
-          echo "$DEBUG_KEYSTORE" | base64 --decode > ~/.android/debug.keystore
+          if [ -n "$DEBUG_KEYSTORE" ]; then
+            mkdir -p ~/.android
+            echo "$DEBUG_KEYSTORE" | base64 --decode > ~/.android/debug.keystore
+          fi
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
@@ -34,7 +37,7 @@ jobs:
       - name: Extract version name
         id: version
         run: |
-          VERSION_NAME=$(./gradlew -q :app:printVersionName)
+          VERSION_NAME=$(grep -E '^\s*versionName\s*' app/build.gradle | awk -F"[\"']" '{print $2}' | head -1)
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Build debug APK
