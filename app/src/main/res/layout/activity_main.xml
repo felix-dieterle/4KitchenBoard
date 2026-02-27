@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Landscape two-panel layout: Weather on left (35%), Shopping on right (65%) -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@color/background">
+
+    <!-- Weather panel -->
+    <FrameLayout
+        android:id="@+id/container_weather"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="35"
+        android:background="@color/panel_bg"
+        android:elevation="2dp"/>
+
+    <!-- Divider -->
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="@color/divider"/>
+
+    <!-- Shopping panel -->
+    <FrameLayout
+        android:id="@+id/container_shopping"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="65"
+        android:background="@color/panel_bg"/>
+
+</LinearLayout>

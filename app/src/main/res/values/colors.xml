@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Backgrounds -->
+    <color name="background">#F0F2F5</color>
+    <color name="panel_bg">#FFFFFF</color>
+    <color name="category_header_bg">#F5F5F5</color>
+    <color name="divider">#E0E0E0</color>
+
+    <!-- Text -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+
+    <!-- Accent / brand -->
+    <color name="accent">#1565C0</color>
+    <color name="accent_light">#E3F2FD</color>
+
+    <!-- State -->
+    <color name="error">#B71C1C</color>
+
+    <!-- Material theme required colors -->
+    <color name="colorPrimary">#1565C0</color>
+    <color name="colorPrimaryDark">#0D47A1</color>
+    <color name="colorAccent">#1565C0</color>
+</resources>
