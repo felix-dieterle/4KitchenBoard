@@ -3,9 +3,11 @@ package com.kitchenboard.shopping;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Spinner;
@@ -114,7 +116,7 @@ public class ShoppingFragment extends Fragment {
         catAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCategory.setAdapter(catAdapter);
 
-        new AlertDialog.Builder(requireContext())
+        final AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.add_item)
                 .setView(dialogView)
                 .setPositiveButton(R.string.add, new DialogInterface.OnClickListener() {
@@ -129,7 +131,22 @@ public class ShoppingFragment extends Fragment {
                     }
                 })
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                .create();
+
+        dialog.show();
+
+        // Allow pressing Done on the keyboard to trigger the Add button directly.
+        // Must be set after show() so dialog.getButton() returns a non-null reference.
+        etName.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                if (actionId == EditorInfo.IME_ACTION_DONE) {
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+                    return true;
+                }
+                return false;
+            }
+        });
     }
 
     private void showDeleteConfirmation(final ShoppingItem item) {

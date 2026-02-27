@@ -31,6 +31,47 @@ public class WeatherApiClient {
         void onError(String message);
     }
 
+    /**
+     * Fetches weather directly from coordinates (skips geocoding step).
+     * @param cityName display name for the location (e.g. from reverse geocoding)
+     */
+    public static void fetchWeatherByCoords(final double latitude, final double longitude,
+                                             final String cityName, final WeatherCallback callback) {
+        final Handler mainHandler = new Handler(Looper.getMainLooper());
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    String weatherResponse = httpGet(String.format(WEATHER_URL,
+                            latitude, longitude));
+                    JSONObject weatherJson = new JSONObject(weatherResponse);
+
+                    JSONObject current = weatherJson.getJSONObject("current_weather");
+                    double currentTemp = current.getDouble("temperature");
+                    int weatherCode = current.getInt("weathercode");
+
+                    JSONObject daily = weatherJson.getJSONObject("daily");
+                    JSONArray maxTemps = daily.getJSONArray("temperature_2m_max");
+                    JSONArray precip = daily.getJSONArray("precipitation_sum");
+                    double highTemp = maxTemps.getDouble(0);
+                    double precipMm = precip.isNull(0) ? 0.0 : precip.getDouble(0);
+
+                    final WeatherData data = new WeatherData(
+                            currentTemp, highTemp, precipMm, weatherCode, cityName);
+                    mainHandler.post(new Runnable() {
+                        @Override public void run() { callback.onSuccess(data); }
+                    });
+                } catch (final Exception e) {
+                    mainHandler.post(new Runnable() {
+                        @Override public void run() {
+                            callback.onError("Failed to load weather: " + e.getMessage());
+                        }
+                    });
+                }
+            }
+        }).start();
+    }
+
     public static void fetchWeather(final String cityName, final WeatherCallback callback) {
         final Handler mainHandler = new Handler(Looper.getMainLooper());
         new Thread(new Runnable() {
