@@ -33,9 +33,12 @@
         android:textColor="@color/text_secondary"
         android:layout_marginBottom="4dp"/>
 
-    <Spinner
-        android:id="@+id/spinner_category"
+    <AutoCompleteTextView
+        android:id="@+id/et_category"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
+        android:layout_height="wrap_content"
+        android:hint="@string/category_hint"
+        android:inputType="textCapSentences"
+        android:textSize="@dimen/body_text_size"/>
 
 </LinearLayout>
