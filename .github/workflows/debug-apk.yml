@@ -1,0 +1,55 @@
+name: Build Debug APK
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Decode debug keystore
+        env:
+          DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
+        run: |
+          mkdir -p ~/.android
+          echo "$DEBUG_KEYSTORE" | base64 --decode > ~/.android/debug.keystore
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Extract version name
+        id: version
+        run: |
+          VERSION_NAME=$(./gradlew -q :app:printVersionName)
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build debug APK
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: ./gradlew assembleDebug
+
+      - name: Rename APK
+        run: |
+          mv app/build/outputs/apk/debug/app-debug.apk \
+            "app/build/outputs/apk/debug/kitchen-board-${{ steps.version.outputs.version_name }}-${{ github.run_number }}.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitchen-board-${{ steps.version.outputs.version_name }}-${{ github.run_number }}
+          path: app/build/outputs/apk/debug/kitchen-board-${{ steps.version.outputs.version_name }}-${{ github.run_number }}.apk
+          if-no-files-found: error
