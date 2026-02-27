@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -56,3 +56,11 @@ jobs:
           name: kitchen-board-${{ steps.version.outputs.version_name }}-${{ github.run_number }}
           path: app/build/outputs/apk/debug/kitchen-board-${{ steps.version.outputs.version_name }}-${{ github.run_number }}.apk
           if-no-files-found: error
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version_name }}-${{ github.run_number }}
+          name: Kitchen Board v${{ steps.version.outputs.version_name }} (build ${{ github.run_number }})
+          prerelease: true
+          files: app/build/outputs/apk/debug/kitchen-board-${{ steps.version.outputs.version_name }}-${{ github.run_number }}.apk
