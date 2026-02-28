@@ -12,6 +12,7 @@ import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.TextView;
@@ -103,6 +104,23 @@ public class ShoppingFragment extends Fragment {
             @Override
             public void onItemLongClick(final ShoppingItem item) {
                 showDeleteConfirmation(item);
+            }
+        });
+
+        adapter.setOnQuantityChangedListener(new ShoppingAdapter.OnQuantityChangedListener() {
+            @Override
+            public void onQuantityChanged(ShoppingItem item, int newQuantity) {
+                if (apiClient != null) {
+                    apiClient.updateItemQuantity(item.getId(), newQuantity,
+                            new ShoppingApiClient.Callback<Void>() {
+                        @Override
+                        public void onSuccess(Void result) { /* quantity updated on server */ }
+                        @Override
+                        public void onError(String message) { showSyncError(); }
+                    });
+                } else {
+                    db.updateItemQuantity(item.getId(), newQuantity);
+                }
             }
         });
 
@@ -215,6 +233,30 @@ public class ShoppingFragment extends Fragment {
                 dialogView.findViewById(R.id.et_item_name);
         final AutoCompleteTextView etCategory =
                 dialogView.findViewById(R.id.et_category);
+        final TextView tvQuantity = dialogView.findViewById(R.id.tv_quantity);
+        final Button btnMinus = dialogView.findViewById(R.id.btn_qty_minus);
+        final Button btnPlus = dialogView.findViewById(R.id.btn_qty_plus);
+
+        // Mutable quantity holder
+        final int[] quantity = {1};
+        tvQuantity.setText("1");
+
+        btnMinus.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (quantity[0] > 1) {
+                    quantity[0]--;
+                    tvQuantity.setText(String.valueOf(quantity[0]));
+                }
+            }
+        });
+        btnPlus.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                quantity[0]++;
+                tvQuantity.setText(String.valueOf(quantity[0]));
+            }
+        });
 
         // Populate name suggestions from history
         List<String> history = db.getAllItemNames();
@@ -237,11 +279,15 @@ public class ShoppingFragment extends Fragment {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         final String name = etName.getText().toString().trim();
-                        final String category = etCategory.getText().toString().trim();
-                        if (name.isEmpty() || category.isEmpty()) return;
+                        String rawCategory = etCategory.getText().toString().trim();
+                        // Use default category when none provided
+                        final String category = rawCategory.isEmpty()
+                                ? getString(R.string.category_default) : rawCategory;
+                        if (name.isEmpty()) return;
+                        final int qty = quantity[0];
 
                         if (apiClient != null) {
-                            apiClient.addItem(name, category,
+                            apiClient.addItem(name, category, qty,
                                     new ShoppingApiClient.Callback<ShoppingItem>() {
                                 @Override
                                 public void onSuccess(ShoppingItem item) {
@@ -256,7 +302,7 @@ public class ShoppingFragment extends Fragment {
                             });
                         } else {
                             db.addCategory(category);
-                            db.addItem(name, category);
+                            db.addItem(name, category, qty);
                             refreshList();
                         }
                     }
@@ -266,12 +312,25 @@ public class ShoppingFragment extends Fragment {
 
         dialog.show();
 
-        // Allow pressing Done on the keyboard to trigger the Add button directly.
+        // Pressing Next on the name field moves focus to the category field.
         // Must be set after show() so dialog.getButton() returns a non-null reference.
         etName.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
             public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-                if (actionId == EditorInfo.IME_ACTION_DONE) {
+                if (actionId == EditorInfo.IME_ACTION_NEXT) {
+                    etCategory.requestFocus();
+                    return true;
+                }
+                return false;
+            }
+        });
+
+        // Pressing Done or Next on the category field triggers Add.
+        etCategory.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                if (actionId == EditorInfo.IME_ACTION_NEXT
+                        || actionId == EditorInfo.IME_ACTION_DONE) {
                     dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
                     return true;
                 }

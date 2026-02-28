@@ -19,7 +19,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="@string/item_name_hint"
-        android:imeOptions="actionDone"
+        android:imeOptions="actionNext"
         android:inputType="textCapSentences"
         android:textSize="@dimen/body_text_size"
         android:layout_marginBottom="@dimen/spacing_normal"/>
@@ -38,7 +38,55 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="@string/category_hint"
+        android:imeOptions="actionNext"
         android:inputType="textCapSentences"
-        android:textSize="@dimen/body_text_size"/>
+        android:textSize="@dimen/body_text_size"
+        android:layout_marginBottom="@dimen/spacing_normal"/>
+
+    <!-- Quantity selection -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/quantity_label"
+        android:textSize="@dimen/small_text_size"
+        android:textColor="@color/text_secondary"
+        android:layout_marginBottom="4dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <Button
+            android:id="@+id/btn_qty_minus"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:text="−"
+            android:textSize="20sp"
+            android:textColor="@color/accent"
+            android:padding="0dp"/>
+
+        <TextView
+            android:id="@+id/tv_quantity"
+            android:layout_width="48dp"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="1"
+            android:textSize="@dimen/body_text_size"
+            android:textColor="@color/text_primary"/>
+
+        <Button
+            android:id="@+id/btn_qty_plus"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:text="+"
+            android:textSize="20sp"
+            android:textColor="@color/accent"
+            android:padding="0dp"/>
+
+    </LinearLayout>
 
 </LinearLayout>

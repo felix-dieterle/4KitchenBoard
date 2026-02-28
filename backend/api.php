@@ -3,10 +3,11 @@
  * 4KitchenBoard – Shopping List Sync API
  *
  * Endpoints (action= GET or POST parameter):
- *   GET  ?action=list          → JSON list of active items
- *   POST ?action=add           → body: name, category  → new item JSON
- *   POST ?action=check         → body: id              → {"success":true}
- *   POST ?action=delete        → body: id              → {"success":true}
+ *   GET  ?action=list            → JSON list of active items (includes quantity)
+ *   POST ?action=add             → body: name, category[, quantity] → new item JSON
+ *   POST ?action=check           → body: id              → {"success":true}
+ *   POST ?action=delete          → body: id              → {"success":true}
+ *   POST ?action=update_quantity → body: id, quantity    → {"success":true}
  *
  * Storage: SQLite3 file (shopping.db) placed beside this script.
  * The database file is protected by .htaccess so it cannot be downloaded.
@@ -42,8 +43,19 @@ $db->exec('CREATE TABLE IF NOT EXISTS items (
     name       TEXT    NOT NULL,
     category   TEXT    NOT NULL,
     checked    INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL DEFAULT 0
+    created_at INTEGER NOT NULL DEFAULT 0,
+    quantity   INTEGER NOT NULL DEFAULT 1
 )');
+
+// Add quantity column to existing tables that were created without it
+$columnExists = false;
+$result = $db->query('PRAGMA table_info(items)');
+while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+    if ($row['name'] === 'quantity') { $columnExists = true; break; }
+}
+if (!$columnExists) {
+    $db->exec('ALTER TABLE items ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1');
+}
 
 $db->exec('CREATE TABLE IF NOT EXISTS categories (
     id   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,6 +79,9 @@ switch ($action) {
     case 'delete':
         actionDelete($db);
         break;
+    case 'update_quantity':
+        actionUpdateQuantity($db);
+        break;
     default:
         http_response_code(400);
         echo json_encode(['error' => 'Unknown or missing action']);
@@ -80,7 +95,7 @@ exit;
 function actionList(SQLite3 $db): void
 {
     $result = $db->query(
-        'SELECT id, name, category FROM items
+        'SELECT id, name, category, quantity FROM items
          WHERE checked = 0
          ORDER BY category ASC, name ASC'
     );
@@ -90,6 +105,7 @@ function actionList(SQLite3 $db): void
             'id'       => (int)$row['id'],
             'name'     => $row['name'],
             'category' => $row['category'],
+            'quantity' => (int)$row['quantity'],
         ];
     }
     echo json_encode(['items' => $items]);
@@ -99,6 +115,7 @@ function actionAdd(SQLite3 $db): void
 {
     $name     = trim((string)($_POST['name']     ?? ''));
     $category = trim((string)($_POST['category'] ?? ''));
+    $quantity = max(1, (int)($_POST['quantity'] ?? 1));
 
     if ($name === '' || $category === '') {
         http_response_code(400);
@@ -107,12 +124,13 @@ function actionAdd(SQLite3 $db): void
     }
 
     $stmt = $db->prepare(
-        'INSERT INTO items (name, category, checked, created_at)
-         VALUES (:name, :category, 0, :ts)'
+        'INSERT INTO items (name, category, checked, created_at, quantity)
+         VALUES (:name, :category, 0, :ts, :quantity)'
     );
     $stmt->bindValue(':name',     $name,     SQLITE3_TEXT);
     $stmt->bindValue(':category', $category, SQLITE3_TEXT);
     $stmt->bindValue(':ts',       (int)(microtime(true) * 1000), SQLITE3_INTEGER);
+    $stmt->bindValue(':quantity', $quantity, SQLITE3_INTEGER);
     $stmt->execute();
 
     $id = $db->lastInsertRowID();
@@ -124,7 +142,7 @@ function actionAdd(SQLite3 $db): void
     $stmtCat->bindValue(':name', $category, SQLITE3_TEXT);
     $stmtCat->execute();
 
-    echo json_encode(['id' => $id, 'name' => $name, 'category' => $category]);
+    echo json_encode(['id' => $id, 'name' => $name, 'category' => $category, 'quantity' => $quantity]);
 }
 
 function actionCheck(SQLite3 $db): void
@@ -154,6 +172,24 @@ function actionDelete(SQLite3 $db): void
 
     $stmt = $db->prepare('DELETE FROM items WHERE id = :id');
     $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+function actionUpdateQuantity(SQLite3 $db): void
+{
+    $id       = (int)($_POST['id']       ?? 0);
+    $quantity = max(1, (int)($_POST['quantity'] ?? 1));
+    if ($id <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameter "id" is required']);
+        return;
+    }
+
+    $stmt = $db->prepare('UPDATE items SET quantity = :quantity WHERE id = :id');
+    $stmt->bindValue(':quantity', $quantity, SQLITE3_INTEGER);
+    $stmt->bindValue(':id',       $id,       SQLITE3_INTEGER);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
