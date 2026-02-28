@@ -37,15 +37,21 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         void onQuantityChanged(ShoppingItem item, int newQuantity);
     }
 
+    public interface OnShowQrListener {
+        void onShowQr(ShoppingItem item);
+    }
+
     // Each list entry is either a String (category header) or ShoppingItem
     private final List<Object> rows = new ArrayList<>();
     private OnItemCheckedListener checkedListener;
     private OnItemLongClickListener longClickListener;
     private OnQuantityChangedListener quantityChangedListener;
+    private OnShowQrListener showQrListener;
 
     public void setOnItemCheckedListener(OnItemCheckedListener l) { checkedListener = l; }
     public void setOnItemLongClickListener(OnItemLongClickListener l) { longClickListener = l; }
     public void setOnQuantityChangedListener(OnQuantityChangedListener l) { quantityChangedListener = l; }
+    public void setOnShowQrListener(OnShowQrListener l) { showQrListener = l; }
 
     /** Replaces the current data with a fresh grouped list. */
     public void setItems(List<ShoppingItem> items) {
@@ -112,6 +118,7 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         final Button btnMinus;
         final TextView tvQuantity;
         final Button btnPlus;
+        final Button btnShowQr;
 
         ItemViewHolder(View v) {
             super(v);
@@ -120,6 +127,7 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
             btnMinus = v.findViewById(R.id.btn_qty_minus);
             tvQuantity = v.findViewById(R.id.tv_quantity);
             btnPlus = v.findViewById(R.id.btn_qty_plus);
+            btnShowQr = v.findViewById(R.id.btn_show_qr);
         }
 
         void bind(final ShoppingItem item) {
@@ -159,6 +167,15 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
                     tvQuantity.setText(String.valueOf(newQty));
                     if (quantityChangedListener != null) {
                         quantityChangedListener.onQuantityChanged(item, newQty);
+                    }
+                }
+            });
+
+            btnShowQr.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (showQrListener != null) {
+                        showQrListener.onShowQr(item);
                     }
                 }
             });

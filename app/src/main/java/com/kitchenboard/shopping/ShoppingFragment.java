@@ -4,6 +4,8 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -15,8 +17,11 @@ import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
@@ -25,6 +30,10 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.zxing.BarcodeFormat;
+import com.journeyapps.barcodescanner.BarcodeEncoder;
+import com.journeyapps.barcodescanner.ScanContract;
+import com.journeyapps.barcodescanner.ScanOptions;
 import com.kitchenboard.R;
 
 import java.util.List;
@@ -33,6 +42,10 @@ public class ShoppingFragment extends Fragment {
 
     private static final String PREFS_NAME = "shopping_prefs";
     private static final String PREF_SERVER_URL = "server_url";
+    private static final String PREF_PENDING_QR_NAME = "pending_qr_name";
+    private static final String PREF_PENDING_QR_CATEGORY = "pending_qr_category";
+
+    private static final int QR_SIZE_PX = 512;
 
     private ShoppingDatabaseHelper db;
     private ShoppingAdapter adapter;
@@ -41,6 +54,18 @@ public class ShoppingFragment extends Fragment {
 
     /** Non-null when a valid server URL is configured. */
     private ShoppingApiClient apiClient;
+
+    private ActivityResultLauncher<ScanOptions> scanLauncher;
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        scanLauncher = registerForActivityResult(new ScanContract(), result -> {
+            if (result.getContents() != null) {
+                handleScanResult(result.getContents());
+            }
+        });
+    }
 
     @Nullable
     @Override
@@ -68,6 +93,14 @@ public class ShoppingFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 showAddItemDialog();
+            }
+        });
+
+        FloatingActionButton fabScan = view.findViewById(R.id.fab_scan);
+        fabScan.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                launchQrScanner();
             }
         });
 
@@ -107,6 +140,13 @@ public class ShoppingFragment extends Fragment {
             }
         });
 
+        adapter.setOnShowQrListener(new ShoppingAdapter.OnShowQrListener() {
+            @Override
+            public void onShowQr(ShoppingItem item) {
+                showQrCodeDialog(item);
+            }
+        });
+
         adapter.setOnQuantityChangedListener(new ShoppingAdapter.OnQuantityChangedListener() {
             @Override
             public void onQuantityChanged(ShoppingItem item, int newQuantity) {
@@ -137,6 +177,7 @@ public class ShoppingFragment extends Fragment {
         if (apiClient != null) {
             refreshList();
         }
+        checkPendingQrItem();
     }
 
     // ── Sync helpers ──────────────────────────────────────────────────────────
@@ -372,5 +413,155 @@ public class ShoppingFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         if (db != null) db.close();
+    }
+
+    // ── QR code helpers ───────────────────────────────────────────────────────
+
+    /** Stores a pending add-from-QR item so it survives the Activity lifecycle. */
+    public static void storePendingQrItem(Context context, String name, String category) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(PREF_PENDING_QR_NAME, name)
+                .putString(PREF_PENDING_QR_CATEGORY, category != null ? category : "")
+                .apply();
+    }
+
+    /** Called from onResume to process any pending deep-link/scan item. */
+    private void checkPendingQrItem() {
+        SharedPreferences prefs = requireContext()
+                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String name = prefs.getString(PREF_PENDING_QR_NAME, null);
+        String category = prefs.getString(PREF_PENDING_QR_CATEGORY, null);
+        if (name != null && !name.isEmpty()) {
+            prefs.edit()
+                    .remove(PREF_PENDING_QR_NAME)
+                    .remove(PREF_PENDING_QR_CATEGORY)
+                    .apply();
+            showQrConfirmDialog(name,
+                    category != null && !category.isEmpty()
+                            ? category : getString(R.string.category_default));
+        }
+    }
+
+    /** Launches the ZXing in-app QR/barcode scanner. */
+    private void launchQrScanner() {
+        ScanOptions options = new ScanOptions();
+        options.setBeepEnabled(false);
+        options.setOrientationLocked(false);
+        options.setPrompt(getString(R.string.scan_qr));
+        scanLauncher.launch(options);
+    }
+
+    /** Handles raw text returned by the scanner. */
+    private void handleScanResult(String content) {
+        try {
+            Uri uri = Uri.parse(content);
+            if ("kitchenboard".equals(uri.getScheme()) && "add".equals(uri.getHost())) {
+                String name = uri.getQueryParameter("name");
+                String category = uri.getQueryParameter("category");
+                if (name != null && !name.isEmpty()) {
+                    showQrConfirmDialog(name,
+                            category != null && !category.isEmpty()
+                                    ? category : getString(R.string.category_default));
+                    return;
+                }
+            }
+        } catch (Exception ignored) { /* fall through */ }
+        Toast.makeText(requireContext(), R.string.qr_invalid, Toast.LENGTH_SHORT).show();
+    }
+
+    /** Shows a pre-filled add-item dialog when an item is added via QR scan / deep link. */
+    private void showQrConfirmDialog(final String name, final String category) {
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_add_item, null);
+
+        final AutoCompleteTextView etName = dialogView.findViewById(R.id.et_item_name);
+        final AutoCompleteTextView etCategory = dialogView.findViewById(R.id.et_category);
+        final TextView tvQuantity = dialogView.findViewById(R.id.tv_quantity);
+        final Button btnMinus = dialogView.findViewById(R.id.btn_qty_minus);
+        final Button btnPlus = dialogView.findViewById(R.id.btn_qty_plus);
+
+        etName.setText(name);
+        etCategory.setText(category);
+
+        final int[] quantity = {1};
+        tvQuantity.setText("1");
+
+        btnMinus.setOnClickListener(v -> {
+            if (quantity[0] > 1) {
+                quantity[0]--;
+                tvQuantity.setText(String.valueOf(quantity[0]));
+            }
+        });
+        btnPlus.setOnClickListener(v -> {
+            quantity[0]++;
+            tvQuantity.setText(String.valueOf(quantity[0]));
+        });
+
+        List<String> categories = db.getCategories();
+        ArrayAdapter<String> catAdapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_dropdown_item_1line, categories);
+        etCategory.setAdapter(catAdapter);
+        etCategory.setThreshold(1);
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.qr_add_item)
+                .setView(dialogView)
+                .setPositiveButton(R.string.add, (dialog, which) -> {
+                    final String itemName = etName.getText().toString().trim();
+                    String rawCat = etCategory.getText().toString().trim();
+                    final String itemCategory = rawCat.isEmpty()
+                            ? getString(R.string.category_default) : rawCat;
+                    if (itemName.isEmpty()) return;
+                    final int qty = quantity[0];
+
+                    if (apiClient != null) {
+                        apiClient.addItem(itemName, itemCategory, qty,
+                                new ShoppingApiClient.Callback<ShoppingItem>() {
+                            @Override
+                            public void onSuccess(ShoppingItem item) {
+                                db.addCategory(itemCategory);
+                                refreshList();
+                            }
+                            @Override
+                            public void onError(String message) { showSyncError(); }
+                        });
+                    } else {
+                        db.addCategory(itemCategory);
+                        db.addItem(itemName, itemCategory, qty);
+                        refreshList();
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    /** Generates and displays a QR code for a shopping item. */
+    private void showQrCodeDialog(ShoppingItem item) {
+        Uri uri = new Uri.Builder()
+                .scheme("kitchenboard")
+                .authority("add")
+                .appendQueryParameter("name", item.getName())
+                .appendQueryParameter("category", item.getCategory())
+                .build();
+
+        try {
+            BarcodeEncoder encoder = new BarcodeEncoder();
+            Bitmap bitmap = encoder.encodeBitmap(
+                    uri.toString(), BarcodeFormat.QR_CODE, QR_SIZE_PX, QR_SIZE_PX);
+
+            View dialogView = LayoutInflater.from(requireContext())
+                    .inflate(R.layout.dialog_qr_code, null);
+            ImageView ivQr = dialogView.findViewById(R.id.iv_qr_code);
+            ivQr.setImageBitmap(bitmap);
+
+            new AlertDialog.Builder(requireContext())
+                    .setTitle(getString(R.string.qr_code_for, item.getName()))
+                    .setView(dialogView)
+                    .setPositiveButton(R.string.ok, null)
+                    .show();
+        } catch (Exception e) {
+            Toast.makeText(requireContext(), R.string.qr_generation_error, Toast.LENGTH_SHORT).show();
+        }
     }
 }

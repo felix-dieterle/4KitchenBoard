@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.viewpager2.widget.ViewPager2;
 
+import com.kitchenboard.shopping.ShoppingFragment;
 import com.kitchenboard.update.UpdateChecker;
 
 import java.io.File;
@@ -73,6 +74,34 @@ public class MainActivity extends AppCompatActivity {
         viewPager.registerOnPageChangeCallback(pageChangeCallback);
 
         checkForUpdates();
+        handleDeepLinkIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleDeepLinkIntent(intent);
+    }
+
+    /**
+     * Handles kitchenboard://add?name=...&amp;category=... deep links.
+     * Stores the pending item in SharedPreferences and navigates to the shopping page.
+     */
+    private void handleDeepLinkIntent(Intent intent) {
+        if (intent == null) return;
+        Uri data = intent.getData();
+        if (data == null) return;
+        if ("kitchenboard".equals(data.getScheme()) && "add".equals(data.getHost())) {
+            String name = data.getQueryParameter("name");
+            String category = data.getQueryParameter("category");
+            if (name != null && !name.isEmpty()) {
+                ShoppingFragment.storePendingQrItem(this, name, category);
+                if (viewPager != null) {
+                    viewPager.setCurrentItem(0, true);
+                }
+            }
+        }
     }
 
     // ── Dot indicator helpers ─────────────────────────────────────────────────
