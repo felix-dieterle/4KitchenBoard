@@ -9,37 +9,117 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.View;
+import android.widget.LinearLayout;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
-import androidx.fragment.app.FragmentTransaction;
+import androidx.viewpager2.widget.ViewPager2;
 
-import com.kitchenboard.shopping.ShoppingFragment;
 import com.kitchenboard.update.UpdateChecker;
-import com.kitchenboard.weather.WeatherFragment;
 
 import java.io.File;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final int AUTO_ADVANCE_DELAY_MS = 20_000;
+
     private long downloadId = -1;
     private BroadcastReceiver downloadReceiver;
+
+    private ViewPager2 viewPager;
+    private ScreenPagerAdapter pagerAdapter;
+    private View[] dots;
+    private LinearLayout dotContainer;
+    private ViewPager2.OnPageChangeCallback pageChangeCallback;
+
+    private final Handler autoAdvanceHandler = new Handler(Looper.getMainLooper());
+    private final Runnable autoAdvanceRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (viewPager == null || pagerAdapter == null) return;
+            int next = (viewPager.getCurrentItem() + 1) % pagerAdapter.getItemCount();
+            viewPager.setCurrentItem(next, true);
+            autoAdvanceHandler.postDelayed(this, AUTO_ADVANCE_DELAY_MS);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        if (savedInstanceState == null) {
-            FragmentTransaction ft = getSupportFragmentManager().beginTransaction();
-            ft.replace(R.id.container_weather, new WeatherFragment());
-            ft.replace(R.id.container_shopping, new ShoppingFragment());
-            ft.commit();
+        viewPager = findViewById(R.id.view_pager);
+        dotContainer = findViewById(R.id.dot_container);
 
-            checkForUpdates();
+        pagerAdapter = new ScreenPagerAdapter(this);
+        viewPager.setAdapter(pagerAdapter);
+
+        setupDots(pagerAdapter.getItemCount());
+
+        pageChangeCallback = new ViewPager2.OnPageChangeCallback() {
+            @Override
+            public void onPageSelected(int position) {
+                // Reset the auto-advance timer whenever the page changes
+                autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
+                autoAdvanceHandler.postDelayed(autoAdvanceRunnable, AUTO_ADVANCE_DELAY_MS);
+                updateDots(position);
+            }
+        };
+        viewPager.registerOnPageChangeCallback(pageChangeCallback);
+
+        checkForUpdates();
+    }
+
+    // ── Dot indicator helpers ─────────────────────────────────────────────────
+
+    private void setupDots(int count) {
+        dotContainer.removeAllViews();
+        dots = new View[count];
+        int sizePx = dpToPx(5);
+        int marginPx = dpToPx(3);
+        for (int i = 0; i < count; i++) {
+            View dot = new View(this);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(sizePx, sizePx);
+            lp.setMargins(marginPx, 0, marginPx, 0);
+            dot.setLayoutParams(lp);
+            dot.setBackground(ContextCompat.getDrawable(this, R.drawable.dot_indicator));
+            dots[i] = dot;
+            dotContainer.addView(dot);
+        }
+        updateDots(0);
+    }
+
+    private void updateDots(int activeIndex) {
+        if (dots == null) return;
+        for (int i = 0; i < dots.length; i++) {
+            dots[i].setAlpha(i == activeIndex ? 0.7f : 0.2f);
         }
     }
+
+    private int dpToPx(int dp) {
+        return Math.round(dp * getResources().getDisplayMetrics().density);
+    }
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        autoAdvanceHandler.postDelayed(autoAdvanceRunnable, AUTO_ADVANCE_DELAY_MS);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
+    }
+
+    // ── Update checker ────────────────────────────────────────────────────────
 
     private void checkForUpdates() {
         UpdateChecker.checkForUpdate(BuildConfig.VERSION_CODE, new UpdateChecker.UpdateCallback() {
@@ -132,9 +212,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
+        if (viewPager != null && pageChangeCallback != null) {
+            viewPager.unregisterOnPageChangeCallback(pageChangeCallback);
+        }
         if (downloadReceiver != null) {
             try { unregisterReceiver(downloadReceiver); } catch (IllegalArgumentException ignored) {}
             downloadReceiver = null;
         }
     }
 }
+
