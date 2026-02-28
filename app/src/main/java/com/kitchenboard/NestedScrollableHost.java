@@ -10,12 +10,38 @@ import android.widget.FrameLayout;
 import androidx.viewpager2.widget.ViewPager2;
 
 /**
- * Layout that wraps a scrollable component (e.g. ViewPager2) and ensures the
+ * Layout that wraps a scrollable component (e.g. ViewPager2) and ensures a
  * nested-scroll parent (another ViewPager2) does not intercept touch events
  * when the child can handle them.
  *
- * Based on the official AndroidX ViewPager2 sample:
- * https://github.com/android/views-widgets-samples/blob/master/ViewPager2/app/src/main/java/androidx/viewpager2/integration/testapp/NestedScrollableHost.kt
+ * <p><strong>Concept – preventing nested ViewPager2 conflicts:</strong></p>
+ * <p>When an inner {@link ViewPager2} lives inside an outer {@link ViewPager2}
+ * (both oriented horizontally), every horizontal swipe reaches the outer pager
+ * first via {@code onInterceptTouchEvent}. Without intervention the outer pager
+ * would consume the gesture and page away, making the inner pager impossible to
+ * swipe. The same problem arises if the inner pager is vertical inside a
+ * vertical outer pager.</p>
+ *
+ * <p>The fix uses {@link android.view.ViewParent#requestDisallowInterceptTouchEvent}:</p>
+ * <ul>
+ *   <li>On {@code ACTION_DOWN} the host immediately tells the parent chain
+ *       <em>not</em> to intercept, giving the inner view first access to the
+ *       gesture.</li>
+ *   <li>On {@code ACTION_MOVE}, once the dominant gesture direction is clear,
+ *       the host either keeps the "disallow" flag (inner pager handles it) or
+ *       clears it (outer pager may intercept) based on whether the child can
+ *       still scroll in that direction.</li>
+ *   <li>Perpendicular gestures (e.g. vertical swipe inside a horizontal pager)
+ *       are immediately released to the parent chain so they are not swallowed.</li>
+ * </ul>
+ *
+ * <p><strong>Important:</strong> the {@link ViewPager2} (or other scrollable
+ * child) must be the <em>first</em> direct child of this host so that
+ * {@link View#canScrollHorizontally} / {@link View#canScrollVertically} are
+ * evaluated on the pager itself and not on a non-scrolling wrapper.</p>
+ *
+ * <p>Based on the official AndroidX ViewPager2 sample:<br>
+ * https://github.com/android/views-widgets-samples/blob/master/ViewPager2/app/src/main/java/androidx/viewpager2/integration/testapp/NestedScrollableHost.kt</p>
  */
 public class NestedScrollableHost extends FrameLayout {
 
