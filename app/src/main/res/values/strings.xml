@@ -34,4 +34,13 @@
     <string name="sync_status_error">Sync failed</string>
     <string name="category_default">Other</string>
     <string name="quantity_label">Quantity</string>
+
+    <!-- Weather weekend forecast -->
+    <string name="weekend_forecast_title">Weekend Forecast</string>
+    <string name="weekend_saturday">Saturday</string>
+    <string name="weekend_sunday">Sunday</string>
+    <string name="weekend_max_temp">Max: %.0f°C</string>
+    <string name="weekend_dry_hours">Dry: %.0f h</string>
+    <string name="weekend_wind">Wind: %.0f / %.0f km/h</string>
+    <string name="weekend_no_data">No weekend data available.</string>
 </resources>

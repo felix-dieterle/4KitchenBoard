@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="@dimen/spacing_normal"
+        android:paddingBottom="@dimen/spacing_normal">
+
+        <!-- Weekend forecast title -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/weekend_forecast_title"
+            android:textSize="@dimen/subtitle_text_size"
+            android:textStyle="bold"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="@dimen/spacing_large"/>
+
+        <!-- ── Next Saturday ──────────────────────────────────── -->
+        <TextView
+            android:id="@+id/tv_sat_day"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/weekend_saturday"
+            android:textSize="@dimen/subtitle_text_size"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="@dimen/spacing_small"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="@dimen/spacing_small">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🌡  "
+                android:textSize="@dimen/body_text_size"/>
+
+            <TextView
+                android:id="@+id/tv_sat_max_temp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Max: --°C"
+                android:textSize="@dimen/body_text_size"
+                android:textColor="@color/text_primary"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="@dimen/spacing_small">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="☀  "
+                android:textSize="@dimen/body_text_size"/>
+
+            <TextView
+                android:id="@+id/tv_sat_dry_hours"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Dry: -- h"
+                android:textSize="@dimen/body_text_size"
+                android:textColor="@color/text_primary"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="@dimen/spacing_large">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💨  "
+                android:textSize="@dimen/body_text_size"/>
+
+            <TextView
+                android:id="@+id/tv_sat_wind"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Wind: -- / -- km/h"
+                android:textSize="@dimen/body_text_size"
+                android:textColor="@color/text_primary"/>
+        </LinearLayout>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider"
+            android:layout_marginBottom="@dimen/spacing_normal"/>
+
+        <!-- ── Next Sunday ────────────────────────────────────── -->
+        <TextView
+            android:id="@+id/tv_sun_day"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/weekend_sunday"
+            android:textSize="@dimen/subtitle_text_size"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="@dimen/spacing_small"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="@dimen/spacing_small">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🌡  "
+                android:textSize="@dimen/body_text_size"/>
+
+            <TextView
+                android:id="@+id/tv_sun_max_temp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Max: --°C"
+                android:textSize="@dimen/body_text_size"
+                android:textColor="@color/text_primary"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="@dimen/spacing_small">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="☀  "
+                android:textSize="@dimen/body_text_size"/>
+
+            <TextView
+                android:id="@+id/tv_sun_dry_hours"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Dry: -- h"
+                android:textSize="@dimen/body_text_size"
+                android:textColor="@color/text_primary"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💨  "
+                android:textSize="@dimen/body_text_size"/>
+
+            <TextView
+                android:id="@+id/tv_sun_wind"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Wind: -- / -- km/h"
+                android:textSize="@dimen/body_text_size"
+                android:textColor="@color/text_primary"/>
+        </LinearLayout>
+
+        <!-- No-data message -->
+        <TextView
+            android:id="@+id/tv_weekend_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_normal"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/small_text_size"
+            android:visibility="gone"/>
+
+    </LinearLayout>
+</ScrollView>
