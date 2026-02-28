@@ -15,9 +15,11 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -101,6 +103,14 @@ public class ShoppingFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 launchQrScanner();
+            }
+        });
+
+        FloatingActionButton fabPrint = view.findViewById(R.id.fab_print);
+        fabPrint.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showPrintQrDialog();
             }
         });
 
@@ -563,5 +573,65 @@ public class ShoppingFragment extends Fragment {
         } catch (Exception e) {
             Toast.makeText(requireContext(), R.string.qr_generation_error, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /** Shows a dialog to select items and options for QR code printing. */
+    private void showPrintQrDialog() {
+        // Snapshot of the current item list (headers are filtered out in the adapter's rows)
+        final List<ShoppingItem> allItems = adapter.getItems();
+        if (allItems.isEmpty()) {
+            Toast.makeText(requireContext(), R.string.shopping_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_print_qr, null);
+
+        // Paper size spinner
+        final Spinner spinnerSize = dialogView.findViewById(R.id.spinner_paper_size);
+        final QrCodePrintHelper.PaperSize defaultSize = QrCodePrintHelper.PaperSize.forLocale();
+        String[] sizeLabels = {"A4", "Letter"};
+        ArrayAdapter<String> sizeAdapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, sizeLabels);
+        sizeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerSize.setAdapter(sizeAdapter);
+        spinnerSize.setSelection(defaultSize == QrCodePrintHelper.PaperSize.A4 ? 0 : 1);
+
+        // Labels checkbox
+        final CheckBox cbLabels = dialogView.findViewById(R.id.cb_show_labels);
+
+        // Item selection recycler view
+        final RecyclerView rv = dialogView.findViewById(R.id.rv_print_items);
+        rv.setLayoutManager(new LinearLayoutManager(requireContext()));
+        final PrintItemSelectionAdapter selAdapter =
+                new PrintItemSelectionAdapter(allItems);
+        rv.setAdapter(selAdapter);
+
+        // Select-all checkbox
+        final CheckBox cbSelectAll = dialogView.findViewById(R.id.cb_select_all);
+        cbSelectAll.setOnCheckedChangeListener((buttonView, isChecked) ->
+                selAdapter.setAllChecked(isChecked));
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.print_qr_title)
+                .setView(dialogView)
+                .setPositiveButton(R.string.print, (dialog, which) -> {
+                    List<ShoppingItem> selected = selAdapter.getSelectedItems();
+                    if (selected.isEmpty()) {
+                        Toast.makeText(requireContext(),
+                                R.string.print_no_items, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    boolean showLabels = cbLabels.isChecked();
+                    QrCodePrintHelper.PaperSize paperSize =
+                            spinnerSize.getSelectedItemPosition() == 0
+                                    ? QrCodePrintHelper.PaperSize.A4
+                                    : QrCodePrintHelper.PaperSize.LETTER;
+                    new QrCodePrintHelper(requireContext()).print(
+                            selected, showLabels, paperSize,
+                            getString(R.string.print_job_name));
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
     }
 }

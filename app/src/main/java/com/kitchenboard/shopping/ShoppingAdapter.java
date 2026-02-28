@@ -67,6 +67,15 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         notifyDataSetChanged();
     }
 
+    /** Returns only the ShoppingItem entries (no header strings). */
+    public List<ShoppingItem> getItems() {
+        List<ShoppingItem> result = new ArrayList<>();
+        for (Object o : rows) {
+            if (o instanceof ShoppingItem) result.add((ShoppingItem) o);
+        }
+        return result;
+    }
+
     @Override
     public int getItemViewType(int position) {
         return rows.get(position) instanceof String ? TYPE_HEADER : TYPE_ITEM;

@@ -35,6 +35,16 @@
     <string name="category_default">Other</string>
     <string name="quantity_label">Quantity</string>
 
+    <!-- QR code print feature -->
+    <string name="print_qr_codes">QR-Codes drucken</string>
+    <string name="print_qr_title">QR-Codes drucken</string>
+    <string name="print_paper_format">Papierformat</string>
+    <string name="print_show_labels">Mit Bezeichnung</string>
+    <string name="print_select_all">Alle auswählen</string>
+    <string name="print_job_name">Einkaufsliste QR-Codes</string>
+    <string name="print_no_items">Keine Artikel ausgewählt</string>
+    <string name="print">Drucken</string>
+
     <!-- QR code feature -->
     <string name="scan_qr">QR scannen</string>
     <string name="qr_code_for">QR-Code: %s</string>
