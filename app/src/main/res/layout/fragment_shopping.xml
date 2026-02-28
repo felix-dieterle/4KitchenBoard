@@ -106,4 +106,16 @@
         android:src="@android:drawable/ic_menu_camera"
         app:fabSize="mini"/>
 
+    <!-- FAB: Print QR codes -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_print"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="130dp"
+        android:contentDescription="@string/print_qr_codes"
+        app:srcCompat="@android:drawable/ic_menu_share"
+        app:fabSize="mini"/>
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
