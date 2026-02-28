@@ -26,7 +26,7 @@ import java.io.File;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final int AUTO_ADVANCE_DELAY_MS = 20_000;
+    private static final int AUTO_ADVANCE_DELAY_MS = 5_000;
 
     private long downloadId = -1;
     private BroadcastReceiver downloadReceiver;

@@ -11,6 +11,10 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Locale;
 
 /**
  * Fetches weather data from the Open-Meteo free API (no API key required).
@@ -23,8 +27,10 @@ public class WeatherApiClient {
 
     private static final String WEATHER_URL =
             "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s" +
-            "&current_weather=true&daily=temperature_2m_max,precipitation_sum" +
-            "&timezone=auto&forecast_days=1";
+            "&current_weather=true" +
+            "&daily=temperature_2m_max,precipitation_sum,precipitation_hours,windspeed_10m_max" +
+            "&hourly=windspeed_10m" +
+            "&timezone=auto&forecast_days=14";
 
     public interface WeatherCallback {
         void onSuccess(WeatherData data);
@@ -56,8 +62,12 @@ public class WeatherApiClient {
                     double highTemp = maxTemps.getDouble(0);
                     double precipMm = precip.isNull(0) ? 0.0 : precip.getDouble(0);
 
+                    WeatherData.WeekendDay[] weekend = parseWeekendDays(daily,
+                            weatherJson.optJSONObject("hourly"));
+
                     final WeatherData data = new WeatherData(
-                            currentTemp, highTemp, precipMm, weatherCode, cityName);
+                            currentTemp, highTemp, precipMm, weatherCode, cityName,
+                            weekend[0], weekend[1]);
                     mainHandler.post(new Runnable() {
                         @Override public void run() { callback.onSuccess(data); }
                     });
@@ -110,8 +120,12 @@ public class WeatherApiClient {
                     double highTemp = maxTemps.getDouble(0);
                     double precipMm = precip.isNull(0) ? 0.0 : precip.getDouble(0);
 
+                    WeatherData.WeekendDay[] weekend = parseWeekendDays(daily,
+                            weatherJson.optJSONObject("hourly"));
+
                     final WeatherData data = new WeatherData(
-                            currentTemp, highTemp, precipMm, weatherCode, resolvedCity);
+                            currentTemp, highTemp, precipMm, weatherCode, resolvedCity,
+                            weekend[0], weekend[1]);
                     mainHandler.post(new Runnable() {
                         @Override public void run() { callback.onSuccess(data); }
                     });
@@ -125,6 +139,65 @@ public class WeatherApiClient {
                 }
             }
         }).start();
+    }
+
+    /**
+     * Parses forecast arrays to find the next Saturday and next Sunday.
+     * Returns an array of length 2: [nextSaturday, nextSunday], either may be null.
+     */
+    private static WeatherData.WeekendDay[] parseWeekendDays(JSONObject daily,
+                                                               JSONObject hourly) {
+        WeatherData.WeekendDay[] result = new WeatherData.WeekendDay[2];
+        try {
+            JSONArray timeArr = daily.getJSONArray("time");
+            JSONArray maxTempArr = daily.getJSONArray("temperature_2m_max");
+            JSONArray precipHoursArr = daily.optJSONArray("precipitation_hours");
+            JSONArray maxWindArr = daily.optJSONArray("windspeed_10m_max");
+            JSONArray hourlyWindArr = hourly != null ? hourly.optJSONArray("windspeed_10m") : null;
+
+            SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+
+            for (int i = 0; i < timeArr.length(); i++) {
+                Date d = fmt.parse(timeArr.getString(i));
+                if (d == null) continue;
+                Calendar cal = Calendar.getInstance();
+                cal.setTime(d);
+                int dow = cal.get(Calendar.DAY_OF_WEEK);
+                boolean isSat = dow == Calendar.SATURDAY;
+                boolean isSun = dow == Calendar.SUNDAY;
+
+                if ((isSat && result[0] == null) || (isSun && result[1] == null)) {
+                    double maxTemp = maxTempArr.isNull(i) ? 0.0 : maxTempArr.getDouble(i);
+                    double precipH = (precipHoursArr == null || precipHoursArr.isNull(i))
+                            ? 0.0 : precipHoursArr.getDouble(i);
+                    double dryHours = Math.max(0.0, 24.0 - precipH);
+                    double maxWind = (maxWindArr == null || maxWindArr.isNull(i))
+                            ? 0.0 : maxWindArr.getDouble(i);
+
+                    // Calculate mean wind from 24 hourly values for this day
+                    double meanWind = 0.0;
+                    if (hourlyWindArr != null) {
+                        int count = 0;
+                        int base = i * 24;
+                        for (int h = base; h < base + 24 && h < hourlyWindArr.length(); h++) {
+                            if (!hourlyWindArr.isNull(h)) {
+                                meanWind += hourlyWindArr.getDouble(h);
+                                count++;
+                            }
+                        }
+                        if (count > 0) meanWind /= count;
+                    }
+
+                    String dayName = isSat ? "Saturday" : "Sunday";
+                    WeatherData.WeekendDay wd = new WeatherData.WeekendDay(
+                            dayName, maxTemp, dryHours, maxWind, meanWind);
+                    if (isSat && result[0] == null) result[0] = wd;
+                    if (isSun && result[1] == null) result[1] = wd;
+                }
+                if (result[0] != null && result[1] != null) break;
+            }
+        } catch (Exception ignored) {}
+        return result;
     }
 
     private static String httpGet(String urlString) throws Exception {

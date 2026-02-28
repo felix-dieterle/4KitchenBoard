@@ -9,6 +9,8 @@ import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -17,6 +19,7 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -24,6 +27,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.viewpager2.widget.ViewPager2;
 
 import com.kitchenboard.R;
 
@@ -38,8 +43,12 @@ public class WeatherFragment extends Fragment {
     private static final String KEY_CITY = "city_name";
     private static final String DEFAULT_CITY = "Berlin";
     private static final int LOCATION_PERMISSION_REQUEST = 100;
+    private static final long SUB_PAGE_ADVANCE_MS = 5_000;
 
     private EditText etCity;
+    private ProgressBar progressBar;
+
+    // Views inside view_weather_current.xml (page 0)
     private TextView tvIcon;
     private TextView tvCurrentTemp;
     private TextView tvDescription;
@@ -47,7 +56,31 @@ public class WeatherFragment extends Fragment {
     private TextView tvRain;
     private TextView tvDate;
     private TextView tvStatus;
-    private ProgressBar progressBar;
+
+    // Views inside view_weather_weekend.xml (page 1)
+    private TextView tvSatMaxTemp;
+    private TextView tvSatDryHours;
+    private TextView tvSatWind;
+    private TextView tvSunMaxTemp;
+    private TextView tvSunDryHours;
+    private TextView tvSunWind;
+    private TextView tvWeekendStatus;
+
+    private ViewPager2 weatherViewPager;
+    private WeatherPagerAdapter weatherPagerAdapter;
+    private View[] weatherDots;
+
+    private final Handler subPageHandler = new Handler(Looper.getMainLooper());
+    private final Runnable subPageRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (weatherViewPager == null || weatherPagerAdapter == null) return;
+            int next = (weatherViewPager.getCurrentItem() + 1)
+                    % weatherPagerAdapter.getItemCount();
+            weatherViewPager.setCurrentItem(next, true);
+            subPageHandler.postDelayed(this, SUB_PAGE_ADVANCE_MS);
+        }
+    };
 
     @Nullable
     @Override
@@ -62,14 +95,45 @@ public class WeatherFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         etCity = view.findViewById(R.id.et_city);
-        tvIcon = view.findViewById(R.id.tv_weather_icon);
-        tvCurrentTemp = view.findViewById(R.id.tv_current_temp);
-        tvDescription = view.findViewById(R.id.tv_weather_desc);
-        tvHighTemp = view.findViewById(R.id.tv_high_temp);
-        tvRain = view.findViewById(R.id.tv_rain);
-        tvDate = view.findViewById(R.id.tv_date);
-        tvStatus = view.findViewById(R.id.tv_status);
         progressBar = view.findViewById(R.id.progress_weather);
+        weatherViewPager = view.findViewById(R.id.weather_view_pager);
+        LinearLayout dotContainer = view.findViewById(R.id.weather_dot_container);
+
+        // Set up the inner pager adapter (pre-inflates both pages)
+        LayoutInflater li = LayoutInflater.from(requireContext());
+        weatherPagerAdapter = new WeatherPagerAdapter(li, weatherViewPager);
+        weatherViewPager.setAdapter(weatherPagerAdapter);
+
+        // Bind view references from the pre-inflated pages
+        View currentPage = weatherPagerAdapter.getPage(0);
+        tvIcon = currentPage.findViewById(R.id.tv_weather_icon);
+        tvCurrentTemp = currentPage.findViewById(R.id.tv_current_temp);
+        tvDescription = currentPage.findViewById(R.id.tv_weather_desc);
+        tvHighTemp = currentPage.findViewById(R.id.tv_high_temp);
+        tvRain = currentPage.findViewById(R.id.tv_rain);
+        tvDate = currentPage.findViewById(R.id.tv_date);
+        tvStatus = currentPage.findViewById(R.id.tv_status);
+
+        View weekendPage = weatherPagerAdapter.getPage(1);
+        tvSatMaxTemp = weekendPage.findViewById(R.id.tv_sat_max_temp);
+        tvSatDryHours = weekendPage.findViewById(R.id.tv_sat_dry_hours);
+        tvSatWind = weekendPage.findViewById(R.id.tv_sat_wind);
+        tvSunMaxTemp = weekendPage.findViewById(R.id.tv_sun_max_temp);
+        tvSunDryHours = weekendPage.findViewById(R.id.tv_sun_dry_hours);
+        tvSunWind = weekendPage.findViewById(R.id.tv_sun_wind);
+        tvWeekendStatus = weekendPage.findViewById(R.id.tv_weekend_status);
+
+        // Dot indicators
+        setupWeatherDots(dotContainer, weatherPagerAdapter.getItemCount());
+        weatherViewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
+            @Override
+            public void onPageSelected(int position) {
+                updateWeatherDots(position);
+                subPageHandler.removeCallbacks(subPageRunnable);
+                subPageHandler.postDelayed(subPageRunnable, SUB_PAGE_ADVANCE_MS);
+            }
+        });
+
         Button btnRefresh = view.findViewById(R.id.btn_refresh);
         Button btnLocate = view.findViewById(R.id.btn_locate);
 
@@ -104,6 +168,52 @@ public class WeatherFragment extends Fragment {
 
         loadWeather();
     }
+
+    // ── Sub-page dot helpers ──────────────────────────────────────────────────
+
+    private void setupWeatherDots(LinearLayout container, int count) {
+        container.removeAllViews();
+        weatherDots = new View[count];
+        int sizePx = dpToPx(5);
+        int marginPx = dpToPx(3);
+        for (int i = 0; i < count; i++) {
+            View dot = new View(requireContext());
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(sizePx, sizePx);
+            lp.setMargins(marginPx, 0, marginPx, 0);
+            dot.setLayoutParams(lp);
+            dot.setBackground(ContextCompat.getDrawable(requireContext(), R.drawable.dot_indicator));
+            weatherDots[i] = dot;
+            container.addView(dot);
+        }
+        updateWeatherDots(0);
+    }
+
+    private void updateWeatherDots(int activeIndex) {
+        if (weatherDots == null) return;
+        for (int i = 0; i < weatherDots.length; i++) {
+            weatherDots[i].setAlpha(i == activeIndex ? 0.7f : 0.2f);
+        }
+    }
+
+    private int dpToPx(int dp) {
+        return Math.round(dp * getResources().getDisplayMetrics().density);
+    }
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        subPageHandler.postDelayed(subPageRunnable, SUB_PAGE_ADVANCE_MS);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        subPageHandler.removeCallbacks(subPageRunnable);
+    }
+
+    // ── Location ──────────────────────────────────────────────────────────────
 
     private void requestLocationWeather() {
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -259,20 +369,49 @@ public class WeatherFragment extends Fragment {
         tvDate.setVisibility(View.VISIBLE);
 
         tvStatus.setVisibility(View.GONE);
-
-        // Update city field with resolved name
         etCity.setText(data.getCityName());
+
+        displayWeekendWeather(data);
+    }
+
+    private void displayWeekendWeather(WeatherData data) {
+        WeatherData.WeekendDay sat = data.getNextSaturday();
+        WeatherData.WeekendDay sun = data.getNextSunday();
+
+        if (sat == null && sun == null) {
+            tvWeekendStatus.setText(R.string.weekend_no_data);
+            tvWeekendStatus.setVisibility(View.VISIBLE);
+            return;
+        }
+        tvWeekendStatus.setVisibility(View.GONE);
+
+        if (sat != null) {
+            tvSatMaxTemp.setText(String.format(getString(R.string.weekend_max_temp), sat.maxTemp));
+            tvSatDryHours.setText(String.format(getString(R.string.weekend_dry_hours), sat.dryHours));
+            tvSatWind.setText(String.format(getString(R.string.weekend_wind), sat.maxWind, sat.meanWind));
+        } else {
+            tvSatMaxTemp.setText("--");
+            tvSatDryHours.setText("--");
+            tvSatWind.setText("--");
+        }
+
+        if (sun != null) {
+            tvSunMaxTemp.setText(String.format(getString(R.string.weekend_max_temp), sun.maxTemp));
+            tvSunDryHours.setText(String.format(getString(R.string.weekend_dry_hours), sun.dryHours));
+            tvSunWind.setText(String.format(getString(R.string.weekend_wind), sun.maxWind, sun.meanWind));
+        } else {
+            tvSunMaxTemp.setText("--");
+            tvSunDryHours.setText("--");
+            tvSunWind.setText("--");
+        }
     }
 
     private void showLoading(boolean loading) {
         progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
-        tvIcon.setVisibility(loading ? View.GONE : View.VISIBLE);
-        tvCurrentTemp.setVisibility(loading ? View.GONE : View.VISIBLE);
-        tvDescription.setVisibility(loading ? View.GONE : View.VISIBLE);
-        tvHighTemp.setVisibility(loading ? View.GONE : View.VISIBLE);
-        tvRain.setVisibility(loading ? View.GONE : View.VISIBLE);
-        tvDate.setVisibility(loading ? View.GONE : View.VISIBLE);
+        weatherViewPager.setVisibility(loading ? View.GONE : View.VISIBLE);
     }
+
+    // ── Prefs / keyboard helpers ──────────────────────────────────────────────
 
     private String getSavedCity() {
         SharedPreferences prefs = requireActivity()
@@ -295,4 +434,49 @@ public class WeatherFragment extends Fragment {
             }
         }
     }
+
+    // ── Inner ViewPager2 adapter ──────────────────────────────────────────────
+
+    private static class WeatherPagerAdapter
+            extends RecyclerView.Adapter<WeatherPagerAdapter.PageHolder> {
+
+        private final View[] pages = new View[2];
+
+        WeatherPagerAdapter(LayoutInflater inflater, ViewGroup parent) {
+            // Pre-inflate both pages with the ViewPager2 as parent so layout params
+            // are correctly resolved, but do not attach them yet (attachToParent=false).
+            pages[0] = inflater.inflate(R.layout.view_weather_current, parent, false);
+            pages[1] = inflater.inflate(R.layout.view_weather_weekend, parent, false);
+        }
+
+        View getPage(int position) {
+            return pages[position];
+        }
+
+        @NonNull
+        @Override
+        public PageHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            return new PageHolder(pages[viewType]);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull PageHolder holder, int position) {}
+
+        @Override
+        public int getItemCount() {
+            return pages.length;
+        }
+
+        @Override
+        public int getItemViewType(int position) {
+            return position;
+        }
+
+        static class PageHolder extends RecyclerView.ViewHolder {
+            PageHolder(View v) {
+                super(v);
+            }
+        }
+    }
 }
+
