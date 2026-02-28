@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Landscape split: CalendarView on the left, appointments on the right -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@color/background">
+
+    <!-- ── Left panel: Calendar ──────────────────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="5"
+        android:orientation="vertical"
+        android:background="@color/panel_bg">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/calendar_title"
+            android:textSize="@dimen/title_text_size"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:background="@color/panel_bg"
+            android:paddingStart="@dimen/panel_padding"
+            android:paddingEnd="@dimen/panel_padding"
+            android:paddingTop="@dimen/spacing_normal"
+            android:paddingBottom="@dimen/spacing_normal"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider"/>
+
+        <CalendarView
+            android:id="@+id/calendar_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"/>
+
+    </LinearLayout>
+
+    <!-- Vertical divider -->
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="@color/divider"/>
+
+    <!-- ── Right panel: Appointments ─────────────────────────────────────── -->
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="4">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <!-- Header: selected date + manage templates button -->
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/panel_bg"
+                android:paddingStart="@dimen/panel_padding"
+                android:paddingEnd="@dimen/panel_padding"
+                android:paddingTop="@dimen/spacing_normal"
+                android:paddingBottom="@dimen/spacing_normal">
+
+                <TextView
+                    android:id="@+id/tv_selected_date"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_alignParentStart="true"
+                    android:textSize="@dimen/subtitle_text_size"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"/>
+
+                <ImageButton
+                    android:id="@+id/btn_manage_templates"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:src="@android:drawable/ic_menu_manage"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:padding="8dp"
+                    android:contentDescription="@string/calendar_manage_templates"/>
+
+            </RelativeLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider"/>
+
+            <!-- Empty state -->
+            <TextView
+                android:id="@+id/tv_appointments_empty"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="@string/calendar_no_appointments"
+                android:textSize="@dimen/body_text_size"
+                android:textColor="@color/text_secondary"
+                android:visibility="gone"/>
+
+            <!-- Appointment list -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_appointments"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:paddingBottom="72dp"/>
+
+        </LinearLayout>
+
+        <!-- FAB: Add new appointment -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_add_appointment"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="16dp"
+            android:contentDescription="@string/calendar_add_appointment"
+            app:srcCompat="@android:drawable/ic_input_add"
+            android:src="@android:drawable/ic_input_add"/>
+
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+</LinearLayout>

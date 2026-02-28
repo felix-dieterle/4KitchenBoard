@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="@dimen/panel_padding"
+    android:paddingEnd="@dimen/panel_padding"
+    android:paddingTop="@dimen/spacing_normal"
+    android:paddingBottom="@dimen/spacing_small">
+
+    <!-- Existing templates -->
+    <LinearLayout
+        android:id="@+id/ll_template_list"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="@dimen/spacing_normal"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider"
+        android:layout_marginBottom="@dimen/spacing_normal"/>
+
+    <!-- New template input -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/calendar_new_template_hint"
+        android:textSize="@dimen/small_text_size"
+        android:textColor="@color/text_secondary"
+        android:paddingBottom="@dimen/spacing_small"/>
+
+    <EditText
+        android:id="@+id/et_new_template"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/calendar_template_name_hint"
+        android:inputType="textCapSentences"
+        android:imeOptions="actionDone"
+        android:background="@drawable/bg_input"
+        android:padding="10dp"/>
+
+</LinearLayout>

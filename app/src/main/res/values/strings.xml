@@ -35,6 +35,20 @@
     <string name="category_default">Other</string>
     <string name="quantity_label">Quantity</string>
 
+    <!-- Calendar / appointments -->
+    <string name="calendar_title">Kalender</string>
+    <string name="calendar_no_appointments">Keine Termine.\nTippe + um einen Termin hinzuzufügen.</string>
+    <string name="calendar_add_appointment">Termin hinzufügen</string>
+    <string name="calendar_delete_appointment">Termin löschen</string>
+    <string name="calendar_delete_appointment_confirm">„%s" löschen?</string>
+    <string name="calendar_manage_templates">Standardtermine verwalten</string>
+    <string name="calendar_standard_appointments">Standardtermine:</string>
+    <string name="calendar_custom_appointment">Eigener Termin:</string>
+    <string name="calendar_custom_hint">z. B. Geburtstag…</string>
+    <string name="calendar_add_template">Hinzufügen</string>
+    <string name="calendar_new_template_hint">Neuen Standardtermin eingeben:</string>
+    <string name="calendar_template_name_hint">z. B. Finni Besuch</string>
+
     <!-- Weather weekend forecast -->
     <string name="weekend_forecast_title">Weekend Forecast</string>
     <string name="weekend_saturday">Saturday</string>
