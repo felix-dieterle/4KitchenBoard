@@ -56,24 +56,32 @@
             android:textSize="@dimen/small_text_size"/>
     </LinearLayout>
 
-    <!-- ViewPager2 for weather sub-pages, with progress bar overlay -->
-    <FrameLayout
+    <!-- ViewPager2 for weather sub-pages, with progress bar overlay.
+         Wrapped in NestedScrollableHost so the outer ViewPager2 does not
+         intercept horizontal swipes that belong to this inner pager. -->
+    <com.kitchenboard.NestedScrollableHost
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <androidx.viewpager2.widget.ViewPager2
-            android:id="@+id/weather_view_pager"
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
+            android:layout_height="match_parent">
 
-        <ProgressBar
-            android:id="@+id/progress_weather"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:visibility="gone"/>
-    </FrameLayout>
+            <androidx.viewpager2.widget.ViewPager2
+                android:id="@+id/weather_view_pager"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"/>
+
+            <ProgressBar
+                android:id="@+id/progress_weather"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:visibility="gone"/>
+        </FrameLayout>
+
+    </com.kitchenboard.NestedScrollableHost>
 
     <!-- Dot indicator for weather sub-pages -->
     <LinearLayout
