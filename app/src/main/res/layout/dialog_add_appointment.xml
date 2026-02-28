@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="@dimen/panel_padding"
+    android:paddingEnd="@dimen/panel_padding"
+    android:paddingTop="@dimen/spacing_normal"
+    android:paddingBottom="@dimen/spacing_small">
+
+    <!-- Selected date display -->
+    <TextView
+        android:id="@+id/tv_dialog_date"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="@dimen/subtitle_text_size"
+        android:textStyle="bold"
+        android:textColor="@color/text_primary"
+        android:paddingBottom="@dimen/spacing_normal"/>
+
+    <!-- Standard template quick-select buttons -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/calendar_standard_appointments"
+        android:textSize="@dimen/small_text_size"
+        android:textColor="@color/text_secondary"
+        android:paddingBottom="@dimen/spacing_small"/>
+
+    <LinearLayout
+        android:id="@+id/ll_templates"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider"
+        android:layout_marginTop="@dimen/spacing_normal"
+        android:layout_marginBottom="@dimen/spacing_normal"/>
+
+    <!-- Custom appointment input -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/calendar_custom_appointment"
+        android:textSize="@dimen/small_text_size"
+        android:textColor="@color/text_secondary"
+        android:paddingBottom="@dimen/spacing_small"/>
+
+    <EditText
+        android:id="@+id/et_custom_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/calendar_custom_hint"
+        android:inputType="textCapSentences"
+        android:imeOptions="actionDone"
+        android:background="@drawable/bg_input"
+        android:padding="10dp"/>
+
+</LinearLayout>
