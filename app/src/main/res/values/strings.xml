@@ -32,4 +32,6 @@
     <string name="sync_save">Save</string>
     <string name="sync_status_ok">✓ Synced</string>
     <string name="sync_status_error">Sync failed</string>
+    <string name="category_default">Other</string>
+    <string name="quantity_label">Quantity</string>
 </resources>

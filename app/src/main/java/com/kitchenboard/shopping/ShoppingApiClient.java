@@ -61,7 +61,8 @@ public class ShoppingApiClient {
                                 obj.getLong("id"),
                                 obj.getString("name"),
                                 obj.getString("category"),
-                                false));
+                                false,
+                                obj.optInt("quantity", 1)));
                     }
                     postSuccess(callback, items);
                 } catch (final Exception e) {
@@ -72,7 +73,7 @@ public class ShoppingApiClient {
     }
 
     /** Add a new item on the server. Returns the created item (with server-assigned id). */
-    public void addItem(final String name, final String category,
+    public void addItem(final String name, final String category, final int quantity,
                         final Callback<ShoppingItem> callback) {
         runAsync(new Runnable() {
             @Override
@@ -80,15 +81,32 @@ public class ShoppingApiClient {
                 try {
                     String body = "action=add"
                             + "&name=" + encode(name)
-                            + "&category=" + encode(category);
+                            + "&category=" + encode(category)
+                            + "&quantity=" + quantity;
                     String response = httpPost(baseUrl, body);
                     JSONObject json = new JSONObject(response);
                     final ShoppingItem item = new ShoppingItem(
                             json.getLong("id"),
                             json.getString("name"),
                             json.getString("category"),
-                            false);
+                            false,
+                            json.optInt("quantity", 1));
                     postSuccess(callback, item);
+                } catch (final Exception e) {
+                    postError(callback, e.getMessage());
+                }
+            }
+        });
+    }
+
+    /** Update the quantity of an item on the server. */
+    public void updateItemQuantity(final long id, final int quantity, final Callback<Void> callback) {
+        runAsync(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    httpPost(baseUrl, "action=update_quantity&id=" + id + "&quantity=" + quantity);
+                    postSuccess(callback, null);
                 } catch (final Exception e) {
                     postError(callback, e.getMessage());
                 }

@@ -23,4 +23,32 @@
         android:textColor="@color/text_primary"
         android:maxLines="2"/>
 
+    <Button
+        android:id="@+id/btn_qty_minus"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:text="−"
+        android:textSize="16sp"
+        android:textColor="@color/accent"
+        android:padding="0dp"/>
+
+    <TextView
+        android:id="@+id/tv_quantity"
+        android:layout_width="36dp"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textSize="@dimen/body_text_size"
+        android:textColor="@color/text_primary"/>
+
+    <Button
+        android:id="@+id/btn_qty_plus"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:text="+"
+        android:textSize="16sp"
+        android:textColor="@color/accent"
+        android:padding="0dp"/>
+
 </LinearLayout>

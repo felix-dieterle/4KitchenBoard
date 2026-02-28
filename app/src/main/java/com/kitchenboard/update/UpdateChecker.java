@@ -42,12 +42,28 @@ public class UpdateChecker {
                     JSONObject json = new JSONObject(response);
 
                     String tagName = json.getString("tag_name"); // e.g. "v1.0-5"
-                    String htmlUrl = json.getString("html_url");
 
                     final int latestBuildNumber = parseBuildNumber(tagName);
                     if (latestBuildNumber > currentVersionCode) {
+                        // Look for an APK asset to get a direct download URL
+                        String apkUrl = null;
+                        if (json.has("assets")) {
+                            org.json.JSONArray assets = json.getJSONArray("assets");
+                            for (int i = 0; i < assets.length(); i++) {
+                                org.json.JSONObject asset = assets.getJSONObject(i);
+                                String name = asset.optString("name", "");
+                                if (name.endsWith(".apk")) {
+                                    apkUrl = asset.getString("browser_download_url");
+                                    break;
+                                }
+                            }
+                        }
+                        // Fall back to the release HTML page if no APK asset found
+                        if (apkUrl == null) {
+                            apkUrl = json.getString("html_url");
+                        }
                         final String tag = tagName;
-                        final String url = htmlUrl;
+                        final String url = apkUrl;
                         mainHandler.post(new Runnable() {
                             @Override
                             public void run() {
