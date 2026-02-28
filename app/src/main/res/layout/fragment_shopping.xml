@@ -93,4 +93,17 @@
         app:srcCompat="@android:drawable/ic_input_add"
         android:src="@android:drawable/ic_input_add"/>
 
+    <!-- FAB: Scan QR code -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_scan"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="84dp"
+        android:contentDescription="@string/scan_qr"
+        app:srcCompat="@android:drawable/ic_menu_camera"
+        android:src="@android:drawable/ic_menu_camera"
+        app:fabSize="mini"/>
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

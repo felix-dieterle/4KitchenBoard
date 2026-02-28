@@ -35,6 +35,16 @@
     <string name="category_default">Other</string>
     <string name="quantity_label">Quantity</string>
 
+    <!-- QR code feature -->
+    <string name="scan_qr">QR scannen</string>
+    <string name="qr_code_for">QR-Code: %s</string>
+    <string name="qr_code_description">QR-Code</string>
+    <string name="qr_hint">QR-Code scannen, um diesen Artikel zur Einkaufsliste hinzuzufügen</string>
+    <string name="qr_add_item">Artikel hinzufügen</string>
+    <string name="qr_invalid">Ungültiger QR-Code</string>
+    <string name="qr_generation_error">QR-Code konnte nicht erstellt werden</string>
+    <string name="ok">OK</string>
+
     <!-- Calendar / appointments -->
     <string name="calendar_title">Kalender</string>
     <string name="calendar_no_appointments">Keine Termine.\nTippe + um einen Termin hinzuzufügen.</string>
