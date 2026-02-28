@@ -23,4 +23,13 @@
     <string name="update_available_title">Update Available</string>
     <string name="update_available_message">Version %s is available. Download and install to update.</string>
     <string name="update_download">Download</string>
+
+    <!-- Shopping list sync -->
+    <string name="sync_configure">Configure sync</string>
+    <string name="sync_url_title">Sync Server URL</string>
+    <string name="sync_url_message">Enter the full URL of api.php on your server (leave empty to disable sync):</string>
+    <string name="sync_url_hint">http://192.168.1.x/kitchenboard/api.php</string>
+    <string name="sync_save">Save</string>
+    <string name="sync_status_ok">✓ Synced</string>
+    <string name="sync_status_error">Sync failed</string>
 </resources>
