@@ -69,6 +69,14 @@
     <string name="calendar_new_template_hint">Neuen Standardtermin eingeben:</string>
     <string name="calendar_template_name_hint">z. B. Finni Besuch</string>
 
+    <!-- Calendar view-mode buttons -->
+    <string name="calendar_mode_3days">3 Tage</string>
+    <string name="calendar_mode_5days">5 Tage</string>
+    <string name="calendar_mode_7days">7 Tage</string>
+    <string name="calendar_mode_month">Monat</string>
+    <string name="calendar_prev_week">Vorherige Woche</string>
+    <string name="calendar_next_week">Nächste Woche</string>
+
     <!-- Recurrence dialog -->
     <string name="calendar_recurrence_title">Wie oft wiederholen?</string>
     <string name="calendar_recurrence_once">Einmalig</string>

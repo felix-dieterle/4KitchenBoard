@@ -134,6 +134,17 @@ public class MainActivity extends AppCompatActivity {
         return Math.round(dp * getResources().getDisplayMetrics().density);
     }
 
+    // ── Auto-advance control (used by fragments showing dialogs) ──────────────
+
+    public void pauseAutoAdvance() {
+        autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
+    }
+
+    public void resumeAutoAdvance() {
+        autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
+        autoAdvanceHandler.postDelayed(autoAdvanceRunnable, AUTO_ADVANCE_DELAY_MS);
+    }
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     @Override
