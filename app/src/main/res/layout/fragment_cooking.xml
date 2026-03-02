@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Landscape split: recently cooked on the left, suggestions on the right -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@color/background">
+
+    <!-- ── Left panel: Zuletzt gekocht ───────────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="4"
+        android:orientation="vertical"
+        android:background="@color/panel_bg">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/cooking_recently_cooked"
+            android:textSize="@dimen/title_text_size"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:background="@color/panel_bg"
+            android:paddingStart="@dimen/panel_padding"
+            android:paddingEnd="@dimen/panel_padding"
+            android:paddingTop="@dimen/spacing_normal"
+            android:paddingBottom="@dimen/spacing_normal"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider"/>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_recently_cooked"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:paddingBottom="72dp"/>
+
+    </LinearLayout>
+
+    <!-- Vertical divider -->
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="@color/divider"/>
+
+    <!-- ── Right panel: Schon länger nicht gekocht ───────────────────────── -->
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="6">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/cooking_suggestions"
+                android:textSize="@dimen/title_text_size"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary"
+                android:background="@color/panel_bg"
+                android:paddingStart="@dimen/panel_padding"
+                android:paddingEnd="@dimen/panel_padding"
+                android:paddingTop="@dimen/spacing_normal"
+                android:paddingBottom="@dimen/spacing_normal"/>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider"/>
+
+            <!-- Filter row: spinner + sort toggle -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@color/panel_bg"
+                android:paddingStart="@dimen/panel_padding"
+                android:paddingEnd="@dimen/panel_padding"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/cooking_filter_label"
+                    android:textSize="@dimen/small_text_size"
+                    android:textColor="@color/text_secondary"
+                    android:paddingEnd="8dp"/>
+
+                <Spinner
+                    android:id="@+id/spinner_filter_days"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"/>
+
+                <Button
+                    android:id="@+id/btn_sort_toggle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/cooking_sort_by_date"
+                    android:textAllCaps="false"
+                    android:textSize="@dimen/small_text_size"
+                    android:layout_marginStart="8dp"/>
+
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_suggestions"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:paddingBottom="72dp"/>
+
+        </LinearLayout>
+
+        <!-- FAB: manage dishes -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_manage_dishes"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="16dp"
+            android:contentDescription="@string/cooking_manage"
+            app:srcCompat="@android:drawable/ic_menu_edit"
+            android:src="@android:drawable/ic_menu_edit"/>
+
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+</LinearLayout>

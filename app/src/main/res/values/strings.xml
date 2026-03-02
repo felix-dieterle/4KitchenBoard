@@ -102,4 +102,36 @@
     <string name="weekend_dry_hours">Dry: %.0f h</string>
     <string name="weekend_wind">Wind: %.0f / %.0f km/h</string>
     <string name="weekend_no_data">No weekend data available.</string>
+    <!-- Cooking / Dishes page -->
+    <string name="cooking_title">Gerichte</string>
+    <string name="cooking_recently_cooked">Zuletzt gekocht</string>
+    <string name="cooking_suggestions">Schon länger nicht gekocht</string>
+    <string name="cooking_empty_recent">Noch keine Gerichte als gekocht markiert.</string>
+    <string name="cooking_empty_suggestions">Keine Vorschläge für diesen Filter.</string>
+    <string name="cooking_manage">Gerichte verwalten</string>
+    <string name="cooking_add_new">+ Neues Gericht</string>
+    <string name="cooking_edit_title">Gericht bearbeiten</string>
+    <string name="cooking_add_title">Neues Gericht</string>
+    <string name="cooking_name_label">Gericht</string>
+    <string name="cooking_name_hint">z. B. Spaghetti Bolognese</string>
+    <string name="cooking_duration_label">Dauer in Minuten</string>
+    <string name="cooking_duration_hint">Optional</string>
+    <string name="cooking_ingredients_label">Wichtige Zutaten</string>
+    <string name="cooking_ingredients_hint">Optional</string>
+    <string name="cooking_notes_label">Notizen</string>
+    <string name="cooking_notes_hint">Notizen...</string>
+    <string name="cooking_voice_input">Sprachnotiz</string>
+    <string name="cooking_marked_cooked">Als gekocht markiert: %s</string>
+    <string name="cooking_filter_label">Filter:</string>
+    <string name="cooking_sort_by_date">Nach Datum</string>
+    <string name="cooking_sort_by_duration">Schnellste zuerst</string>
+    <string name="cooking_delete_confirm">„%s" löschen?</string>
+    <string name="cooking_min">%d min</string>
+    <string name="cooking_all_filter">Alle</string>
+    <string name="cooking_filter_7days">7 Tage</string>
+    <string name="cooking_filter_14days">14 Tage</string>
+    <string name="cooking_filter_30days">30 Tage</string>
+    <string name="cooking_filter_60days">60 Tage</string>
+    <string name="cooking_save">Speichern</string>
+    <string name="cooking_speech_unavailable">Spracherkennung nicht verfügbar</string>
 </resources>

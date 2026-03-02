@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Gericht label + name field -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/cooking_name_label"
+            android:textSize="@dimen/small_text_size"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="4dp"/>
+
+        <EditText
+            android:id="@+id/et_dish_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/cooking_name_hint"
+            android:textSize="@dimen/body_text_size"
+            android:inputType="textCapSentences"
+            android:imeOptions="actionNext"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Dauer label + duration field -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/cooking_duration_label"
+            android:textSize="@dimen/small_text_size"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="4dp"/>
+
+        <EditText
+            android:id="@+id/et_duration_minutes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/cooking_duration_hint"
+            android:inputType="number"
+            android:imeOptions="actionNext"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Zutaten label + ingredients field -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/cooking_ingredients_label"
+            android:textSize="@dimen/small_text_size"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="4dp"/>
+
+        <EditText
+            android:id="@+id/et_ingredients"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/cooking_ingredients_hint"
+            android:inputType="textMultiLine"
+            android:lines="2"
+            android:maxLines="3"
+            android:gravity="top|start"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Notizen label -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/cooking_notes_label"
+            android:textSize="@dimen/small_text_size"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="4dp"/>
+
+        <!-- Notes field + voice button in a RelativeLayout -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <EditText
+                android:id="@+id/et_notes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/cooking_notes_hint"
+                android:inputType="textMultiLine"
+                android:lines="3"
+                android:maxLines="6"
+                android:gravity="top|start"
+                android:paddingEnd="48dp"/>
+
+            <ImageButton
+                android:id="@+id/btn_voice_input"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:src="@android:drawable/ic_btn_speak_now"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/cooking_voice_input"
+                android:padding="4dp"/>
+
+        </RelativeLayout>
+
+    </LinearLayout>
+
+</ScrollView>
