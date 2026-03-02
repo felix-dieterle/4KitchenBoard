@@ -94,6 +94,20 @@
     <string name="calendar_delete_this_only">Nur diesen</string>
     <string name="calendar_delete_series">Ganze Serie löschen</string>
 
+    <!-- Persons and groups -->
+    <string name="calendar_manage_persons">Personen verwalten</string>
+    <string name="calendar_persons_section">Personen:</string>
+    <string name="calendar_groups_section">Gruppen:</string>
+    <string name="calendar_person_name_hint">z. B. Anna</string>
+    <string name="calendar_group_name_hint">z. B. Familie</string>
+    <string name="calendar_add_person">Hinzufügen</string>
+    <string name="calendar_add_group">Hinzufügen</string>
+    <string name="calendar_filter_all">Alle</string>
+    <string name="calendar_person_label">Person (optional):</string>
+    <string name="calendar_person_none">Keine</string>
+    <string name="calendar_group_members">Mitglieder: %s</string>
+    <string name="calendar_group_add_member">+ Mitglied</string>
+
     <!-- Weather weekend forecast -->
     <string name="weekend_forecast_title">Weekend Forecast</string>
     <string name="weekend_saturday">Saturday</string>

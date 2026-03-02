@@ -1,5 +1,7 @@
 package com.kitchenboard.calendar;
 
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -12,7 +14,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.kitchenboard.R;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.ViewHolder> {
 
@@ -21,6 +25,7 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
     }
 
     private final List<Appointment> items = new ArrayList<>();
+    private final Map<Long, Person> personMap = new HashMap<>();
     private OnDeleteListener deleteListener;
 
     public void setOnDeleteListener(OnDeleteListener listener) {
@@ -30,6 +35,13 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
     public void setItems(List<Appointment> newItems) {
         items.clear();
         items.addAll(newItems);
+        notifyDataSetChanged();
+    }
+
+    /** Updates the person lookup map used to show color dots. */
+    public void setPersons(List<Person> persons) {
+        personMap.clear();
+        for (Person p : persons) personMap.put(p.getId(), p);
         notifyDataSetChanged();
     }
 
@@ -62,6 +74,22 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
                 if (deleteListener != null) deleteListener.onDelete(item);
             }
         });
+
+        // Person color dot
+        if (item.getPersonId() != null && personMap.containsKey(item.getPersonId())) {
+            Person p = personMap.get(item.getPersonId());
+            GradientDrawable dot = new GradientDrawable();
+            dot.setShape(GradientDrawable.OVAL);
+            try {
+                dot.setColor(Color.parseColor(p.getColor()));
+            } catch (IllegalArgumentException e) {
+                dot.setColor(Color.GRAY);
+            }
+            holder.viewPersonDot.setBackground(dot);
+            holder.viewPersonDot.setVisibility(View.VISIBLE);
+        } else {
+            holder.viewPersonDot.setVisibility(View.INVISIBLE);
+        }
     }
 
     @Override
@@ -71,12 +99,14 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
         final TextView tvTitle;
         final TextView tvTime;
         final ImageButton btnDelete;
+        final View viewPersonDot;
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);
-            tvTitle   = itemView.findViewById(R.id.tv_appointment_title);
-            tvTime    = itemView.findViewById(R.id.tv_appointment_time);
-            btnDelete = itemView.findViewById(R.id.btn_delete_appointment);
+            tvTitle       = itemView.findViewById(R.id.tv_appointment_title);
+            tvTime        = itemView.findViewById(R.id.tv_appointment_time);
+            btnDelete     = itemView.findViewById(R.id.btn_delete_appointment);
+            viewPersonDot = itemView.findViewById(R.id.view_person_dot);
         }
     }
 }

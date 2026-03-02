@@ -7,6 +7,7 @@ import android.content.ClipData;
 import android.content.DialogInterface;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -17,6 +18,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CalendarView;
+import android.widget.CheckBox;
 import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -39,6 +41,7 @@ import com.kitchenboard.R;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
@@ -60,6 +63,7 @@ public class CalendarFragment extends Fragment {
     private TextView tvSelectedDate;
     private TextView tvEmpty;
     private LinearLayout llTemplateButtons;
+    private LinearLayout llPersonFilter;
 
     // Multi-day strip views
     private LinearLayout llDayStrip;
@@ -87,6 +91,13 @@ public class CalendarFragment extends Fragment {
     /** Number of hours covered by the day-strip column height (06:00–22:00). */
     private static final int DRAG_HOUR_RANGE = 16;
 
+    /**
+     * Active person/group filter.
+     * null  = show all appointments (no filter).
+     * non-null list = show only appointments whose person_id is in this list.
+     */
+    private List<Long> activeFilterPersonIds = null;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
@@ -102,17 +113,18 @@ public class CalendarFragment extends Fragment {
         db = new CalendarDatabaseHelper(requireContext());
         adapter = new AppointmentAdapter();
 
-        tvSelectedDate   = view.findViewById(R.id.tv_selected_date);
-        tvEmpty          = view.findViewById(R.id.tv_appointments_empty);
+        tvSelectedDate    = view.findViewById(R.id.tv_selected_date);
+        tvEmpty           = view.findViewById(R.id.tv_appointments_empty);
         llTemplateButtons = view.findViewById(R.id.ll_template_buttons);
-        llDayStrip       = view.findViewById(R.id.ll_day_strip);
-        llWeekNav        = view.findViewById(R.id.ll_week_nav);
-        tvWeekRange      = view.findViewById(R.id.tv_week_range);
-        calendarView     = view.findViewById(R.id.calendar_view);
-        btnMode3         = view.findViewById(R.id.btn_mode_3);
-        btnMode5         = view.findViewById(R.id.btn_mode_5);
-        btnMode7         = view.findViewById(R.id.btn_mode_7);
-        btnModeMonth     = view.findViewById(R.id.btn_mode_month);
+        llPersonFilter    = view.findViewById(R.id.ll_person_filter);
+        llDayStrip        = view.findViewById(R.id.ll_day_strip);
+        llWeekNav         = view.findViewById(R.id.ll_week_nav);
+        tvWeekRange       = view.findViewById(R.id.tv_week_range);
+        calendarView      = view.findViewById(R.id.calendar_view);
+        btnMode3          = view.findViewById(R.id.btn_mode_3);
+        btnMode5          = view.findViewById(R.id.btn_mode_5);
+        btnMode7          = view.findViewById(R.id.btn_mode_7);
+        btnModeMonth      = view.findViewById(R.id.btn_mode_month);
 
         // Default to today
         selectedDate = DATE_FMT.format(new Date());
@@ -121,6 +133,7 @@ public class CalendarFragment extends Fragment {
 
         updateDateLabel();
         refreshTemplateButtons();
+        refreshPersonFilter();
 
         // ── RecyclerView ──────────────────────────────────────────────────────
         RecyclerView rv = view.findViewById(R.id.rv_appointments);
@@ -188,6 +201,10 @@ public class CalendarFragment extends Fragment {
         // ── Manage templates ──────────────────────────────────────────────────
         view.findViewById(R.id.btn_manage_templates).setOnClickListener(
                 v -> showManageTemplatesDialog());
+
+        // ── Manage persons ────────────────────────────────────────────────────
+        view.findViewById(R.id.btn_manage_persons).setOnClickListener(
+                v -> showManagePersonsDialog());
 
         // Activate default 3-day mode
         setViewMode(3);
@@ -288,7 +305,14 @@ public class CalendarFragment extends Fragment {
             content.addView(tvDayNum);
 
             // Appointment indicators
-            List<Appointment> dayApts = db.getAppointmentsForDate(dateStr);
+            List<Appointment> dayApts;
+            if (activeFilterPersonIds == null) {
+                dayApts = db.getAppointmentsForDate(dateStr);
+            } else if (activeFilterPersonIds.size() == 1) {
+                dayApts = db.getAppointmentsForDate(dateStr, activeFilterPersonIds.get(0));
+            } else {
+                dayApts = db.getAppointmentsForDateByGroup(dateStr, activeFilterPersonIds);
+            }
             int maxShow = 3;
             for (int j = 0; j < Math.min(dayApts.size(), maxShow); j++) {
                 final Appointment apt = dayApts.get(j);
@@ -469,7 +493,15 @@ public class CalendarFragment extends Fragment {
     }
 
     private void refreshAppointments() {
-        List<Appointment> list = db.getAppointmentsForDate(selectedDate);
+        List<Appointment> list;
+        if (activeFilterPersonIds == null) {
+            list = db.getAppointmentsForDate(selectedDate);
+        } else if (activeFilterPersonIds.size() == 1) {
+            list = db.getAppointmentsForDate(selectedDate, activeFilterPersonIds.get(0));
+        } else {
+            list = db.getAppointmentsForDateByGroup(selectedDate, activeFilterPersonIds);
+        }
+        adapter.setPersons(db.getPersons());
         adapter.setItems(list);
         tvEmpty.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
     }
@@ -502,6 +534,104 @@ public class CalendarFragment extends Fragment {
             });
             llTemplateButtons.addView(btn);
         }
+    }
+
+    // ── Person filter bar ─────────────────────────────────────────────────────
+
+    /**
+     * Rebuilds the person/group quick-filter strip.
+     * "Alle" is always first, then groups, then individual persons.
+     */
+    private void refreshPersonFilter() {
+        llPersonFilter.removeAllViews();
+        int marginPx  = dpToPx(6);
+        int accentColor   = ContextCompat.getColor(requireContext(), R.color.accent);
+        int textSecondary = ContextCompat.getColor(requireContext(), R.color.text_secondary);
+
+        // "Alle" button
+        Button btnAll = new Button(requireContext());
+        btnAll.setText(R.string.calendar_filter_all);
+        btnAll.setAllCaps(false);
+        btnAll.setTextSize(14f);
+        btnAll.setTextColor(activeFilterPersonIds == null ? accentColor : textSecondary);
+        LinearLayout.LayoutParams lpAll = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        lpAll.setMargins(0, 0, marginPx, 0);
+        btnAll.setLayoutParams(lpAll);
+        btnAll.setOnClickListener(v -> {
+            activeFilterPersonIds = null;
+            refreshPersonFilter();
+            refreshAppointments();
+            refreshDayStrip();
+        });
+        llPersonFilter.addView(btnAll);
+
+        // Group buttons
+        List<PersonGroup> groups = db.getPersonGroups();
+        for (final PersonGroup g : groups) {
+            boolean isActive = isGroupActive(g);
+            Button btn = new Button(requireContext());
+            btn.setText("👥 " + g.getName());
+            btn.setAllCaps(false);
+            btn.setTextSize(14f);
+            btn.setTextColor(isActive ? accentColor : textSecondary);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.setMargins(0, 0, marginPx, 0);
+            btn.setLayoutParams(lp);
+            btn.setOnClickListener(v -> {
+                List<Long> memberIds = db.getGroupMemberIds(g.getId());
+                activeFilterPersonIds = memberIds.isEmpty() ? null : new ArrayList<>(memberIds);
+                refreshPersonFilter();
+                refreshAppointments();
+                refreshDayStrip();
+            });
+            llPersonFilter.addView(btn);
+        }
+
+        // Individual person buttons
+        List<Person> persons = db.getPersons();
+        for (final Person p : persons) {
+            boolean isActive = isPersonActive(p);
+            Button btn = new Button(requireContext());
+            btn.setText(p.getName());
+            btn.setAllCaps(false);
+            btn.setTextSize(14f);
+            try {
+                int personColor = Color.parseColor(p.getColor());
+                btn.setTextColor(isActive ? personColor : textSecondary);
+            } catch (IllegalArgumentException e) {
+                btn.setTextColor(isActive ? accentColor : textSecondary);
+            }
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.setMargins(0, 0, marginPx, 0);
+            btn.setLayoutParams(lp);
+            btn.setOnClickListener(v -> {
+                activeFilterPersonIds = new ArrayList<>();
+                activeFilterPersonIds.add(p.getId());
+                refreshPersonFilter();
+                refreshAppointments();
+                refreshDayStrip();
+            });
+            llPersonFilter.addView(btn);
+        }
+    }
+
+    private boolean isPersonActive(Person p) {
+        return activeFilterPersonIds != null
+                && activeFilterPersonIds.size() == 1
+                && activeFilterPersonIds.get(0).equals(p.getId());
+    }
+
+    private boolean isGroupActive(PersonGroup g) {
+        if (activeFilterPersonIds == null) return false;
+        List<Long> memberIds = g.getMemberIds();
+        if (memberIds.size() != activeFilterPersonIds.size()) return false;
+        return activeFilterPersonIds.containsAll(memberIds);
     }
 
     // ── Auto-advance helpers ──────────────────────────────────────────────────
@@ -612,6 +742,23 @@ public class CalendarFragment extends Fragment {
         btnSetTime.setVisibility(View.VISIBLE);
         layout.addView(btnSetTime);
 
+        // Person picker
+        final Long[] selectedPersonId = {null};
+        List<Person> persons = db.getPersons();
+        if (!persons.isEmpty()) {
+            TextView tvPersonLabel = new TextView(requireContext());
+            tvPersonLabel.setText(R.string.calendar_person_label);
+            tvPersonLabel.setTextSize(14f);
+            tvPersonLabel.setPadding(0, dpToPx(8), 0, dpToPx(4));
+            layout.addView(tvPersonLabel);
+
+            LinearLayout llPersonPicker = new LinearLayout(requireContext());
+            llPersonPicker.setOrientation(LinearLayout.HORIZONTAL);
+            layout.addView(llPersonPicker);
+
+            buildPersonPickerButtons(llPersonPicker, persons, selectedPersonId);
+        }
+
         rg.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(RadioGroup group, int checkedId) {
@@ -695,11 +842,12 @@ public class CalendarFragment extends Fragment {
                         }
                         String recKey = recurrenceKeys[idx];
                         if ("once".equals(recKey)) {
-                            db.addAppointment(startDate[0], appointmentTime[0], t.getTitle());
+                            db.addAppointment(startDate[0], appointmentTime[0], t.getTitle(),
+                                    selectedPersonId[0]);
                         } else {
                             db.addRecurringAppointments(
                                     selectedDate, endDate[0], t.getTitle(), recKey,
-                                    appointmentTime[0]);
+                                    appointmentTime[0], selectedPersonId[0]);
                         }
                         refreshAppointments();
                         refreshDayStrip();
@@ -728,9 +876,15 @@ public class CalendarFragment extends Fragment {
         final EditText etCustom = dialogView.findViewById(R.id.et_custom_title);
         final Button btnCustomDate = dialogView.findViewById(R.id.btn_custom_date);
         final Button btnCustomTime = dialogView.findViewById(R.id.btn_custom_time);
+        final LinearLayout llPersonPicker = dialogView.findViewById(R.id.ll_person_picker);
 
         final String[] customDate = {selectedDate};
         final String[] customTime = {null};
+        final Long[] customPersonId = {null};
+
+        // Populate person picker
+        List<Person> persons = db.getPersons();
+        buildPersonPickerButtons(llPersonPicker, persons, customPersonId);
 
         // Initialise date button text
         try {
@@ -781,7 +935,8 @@ public class CalendarFragment extends Fragment {
                     public void onClick(DialogInterface d, int which) {
                         String custom = etCustom.getText().toString().trim();
                         if (!custom.isEmpty()) {
-                            db.addAppointment(customDate[0], customTime[0], custom);
+                            db.addAppointment(customDate[0], customTime[0], custom,
+                                    customPersonId[0]);
                             refreshAppointments();
                             refreshDayStrip();
                         }
@@ -926,5 +1081,244 @@ public class CalendarFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         if (db != null) db.close();
+    }
+
+    // ── Person picker helper ──────────────────────────────────────────────────
+
+    /**
+     * Fills a horizontal LinearLayout with "Keine" + one button per person.
+     * Tapping a button toggles selection in selectedPersonId[0].
+     */
+    private void buildPersonPickerButtons(final LinearLayout container,
+                                          final List<Person> persons,
+                                          final Long[] selectedPersonId) {
+        container.removeAllViews();
+        int marginPx = dpToPx(6);
+        int accentColor   = ContextCompat.getColor(requireContext(), R.color.accent);
+        int textSecondary = ContextCompat.getColor(requireContext(), R.color.text_secondary);
+
+        // "Keine" button
+        Button btnNone = new Button(requireContext());
+        btnNone.setText(R.string.calendar_person_none);
+        btnNone.setAllCaps(false);
+        btnNone.setTextSize(13f);
+        btnNone.setTextColor(selectedPersonId[0] == null ? accentColor : textSecondary);
+        LinearLayout.LayoutParams lpNone = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        lpNone.setMargins(0, 0, marginPx, 0);
+        btnNone.setLayoutParams(lpNone);
+        btnNone.setOnClickListener(v -> {
+            selectedPersonId[0] = null;
+            buildPersonPickerButtons(container, persons, selectedPersonId);
+        });
+        container.addView(btnNone);
+
+        for (final Person p : persons) {
+            Button btn = new Button(requireContext());
+            btn.setText(p.getName());
+            btn.setAllCaps(false);
+            btn.setTextSize(13f);
+            int personColor;
+            try {
+                personColor = Color.parseColor(p.getColor());
+            } catch (IllegalArgumentException e) {
+                personColor = accentColor;
+            }
+            boolean isSelected = selectedPersonId[0] != null
+                    && selectedPersonId[0].equals(p.getId());
+            btn.setTextColor(isSelected ? personColor : textSecondary);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.setMargins(0, 0, marginPx, 0);
+            btn.setLayoutParams(lp);
+            btn.setOnClickListener(v -> {
+                selectedPersonId[0] = p.getId();
+                buildPersonPickerButtons(container, persons, selectedPersonId);
+            });
+            container.addView(btn);
+        }
+    }
+
+    // ── Manage persons dialog ─────────────────────────────────────────────────
+
+    private void showManagePersonsDialog() {
+        if (!isAdded() || getContext() == null) return;
+
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_manage_persons, null);
+
+        final LinearLayout llPersonList = dialogView.findViewById(R.id.ll_person_list);
+        final LinearLayout llGroupList  = dialogView.findViewById(R.id.ll_group_list);
+        final EditText etNewPerson = dialogView.findViewById(R.id.et_new_person);
+        final EditText etNewGroup  = dialogView.findViewById(R.id.et_new_group);
+
+        dialogView.findViewById(R.id.btn_add_person).setOnClickListener(v -> {
+            String name = etNewPerson.getText().toString().trim();
+            if (!name.isEmpty()) {
+                // Auto-assign next color from palette
+                int colorIdx = db.getPersons().size() % CalendarDatabaseHelper.PERSON_COLORS.length;
+                db.addPerson(name, CalendarDatabaseHelper.PERSON_COLORS[colorIdx]);
+                etNewPerson.setText("");
+                rebuildPersonList(llPersonList);
+            }
+        });
+
+        dialogView.findViewById(R.id.btn_add_group).setOnClickListener(v -> {
+            String name = etNewGroup.getText().toString().trim();
+            if (!name.isEmpty()) {
+                db.addPersonGroup(name);
+                etNewGroup.setText("");
+                rebuildGroupList(llGroupList);
+            }
+        });
+
+        final AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.calendar_manage_persons)
+                .setView(dialogView)
+                .setNegativeButton(R.string.cancel, null)
+                .create();
+
+        dialog.setOnDismissListener(d -> {
+            activeFilterPersonIds = null;
+            refreshPersonFilter();
+            refreshAppointments();
+            refreshDayStrip();
+            resumeAutoAdvance();
+        });
+
+        rebuildPersonList(llPersonList);
+        rebuildGroupList(llGroupList);
+        pauseAutoAdvance();
+        dialog.show();
+    }
+
+    private void rebuildPersonList(final LinearLayout container) {
+        container.removeAllViews();
+        List<Person> persons = db.getPersons();
+        if (persons.isEmpty()) {
+            TextView tvEmpty = new TextView(requireContext());
+            tvEmpty.setText("–");
+            tvEmpty.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
+            container.addView(tvEmpty);
+            return;
+        }
+        for (final Person p : persons) {
+            LinearLayout row = new LinearLayout(requireContext());
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            rowLp.setMargins(0, dpToPx(4), 0, dpToPx(4));
+            row.setLayoutParams(rowLp);
+
+            // Color dot
+            View dot = new View(requireContext());
+            LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dpToPx(12), dpToPx(12));
+            dotLp.setMargins(0, 0, dpToPx(8), 0);
+            dot.setLayoutParams(dotLp);
+            GradientDrawable gd = new GradientDrawable();
+            gd.setShape(GradientDrawable.OVAL);
+            try {
+                gd.setColor(Color.parseColor(p.getColor()));
+            } catch (IllegalArgumentException e) {
+                gd.setColor(Color.GRAY);
+            }
+            dot.setBackground(gd);
+            row.addView(dot);
+
+            // Name
+            TextView tv = new TextView(requireContext());
+            tv.setText(p.getName());
+            tv.setTextSize(16f);
+            tv.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_primary));
+            LinearLayout.LayoutParams tvLp = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            tv.setLayoutParams(tvLp);
+            row.addView(tv);
+
+            // Delete button
+            Button btnDel = new Button(requireContext());
+            btnDel.setText(R.string.delete);
+            btnDel.setAllCaps(false);
+            btnDel.setTextSize(13f);
+            btnDel.setOnClickListener(v -> {
+                db.deletePerson(p.getId());
+                rebuildPersonList(container);
+            });
+            row.addView(btnDel);
+
+            container.addView(row);
+        }
+    }
+
+    private void rebuildGroupList(final LinearLayout container) {
+        container.removeAllViews();
+        List<PersonGroup> groups = db.getPersonGroups();
+        List<Person> allPersons = db.getPersons();
+        if (groups.isEmpty()) {
+            TextView tvEmpty = new TextView(requireContext());
+            tvEmpty.setText("–");
+            tvEmpty.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
+            container.addView(tvEmpty);
+            return;
+        }
+        for (final PersonGroup g : groups) {
+            LinearLayout groupSection = new LinearLayout(requireContext());
+            groupSection.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout.LayoutParams secLp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            secLp.setMargins(0, dpToPx(4), 0, dpToPx(4));
+            groupSection.setLayoutParams(secLp);
+
+            // Group name row
+            LinearLayout nameRow = new LinearLayout(requireContext());
+            nameRow.setOrientation(LinearLayout.HORIZONTAL);
+            nameRow.setGravity(Gravity.CENTER_VERTICAL);
+
+            TextView tvName = new TextView(requireContext());
+            tvName.setText("👥 " + g.getName());
+            tvName.setTextSize(16f);
+            tvName.setTypeface(null, Typeface.BOLD);
+            tvName.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_primary));
+            LinearLayout.LayoutParams tvLp = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            tvName.setLayoutParams(tvLp);
+            nameRow.addView(tvName);
+
+            Button btnDel = new Button(requireContext());
+            btnDel.setText(R.string.delete);
+            btnDel.setAllCaps(false);
+            btnDel.setTextSize(13f);
+            btnDel.setOnClickListener(v -> {
+                db.deletePersonGroup(g.getId());
+                rebuildGroupList(container);
+            });
+            nameRow.addView(btnDel);
+            groupSection.addView(nameRow);
+
+            // Member checkboxes
+            List<Long> memberIds = g.getMemberIds();
+            for (final Person p : allPersons) {
+                CheckBox cb = new CheckBox(requireContext());
+                cb.setText(p.getName());
+                cb.setChecked(memberIds.contains(p.getId()));
+                cb.setTextSize(14f);
+                cb.setPadding(dpToPx(16), dpToPx(2), 0, dpToPx(2));
+                cb.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                    if (isChecked) {
+                        db.addGroupMember(g.getId(), p.getId());
+                    } else {
+                        db.removeGroupMember(g.getId(), p.getId());
+                    }
+                });
+                groupSection.addView(cb);
+            }
+
+            container.addView(groupSection);
+        }
     }
 }

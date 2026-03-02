@@ -76,4 +76,27 @@
         android:textSize="@dimen/body_text_size"
         android:layout_marginTop="@dimen/spacing_small"/>
 
+    <!-- Person assignment (optional) -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/calendar_person_label"
+        android:textSize="@dimen/small_text_size"
+        android:textColor="@color/text_secondary"
+        android:paddingTop="@dimen/spacing_normal"
+        android:paddingBottom="@dimen/spacing_small"/>
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/ll_person_picker"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"/>
+
+    </HorizontalScrollView>
+
 </LinearLayout>
