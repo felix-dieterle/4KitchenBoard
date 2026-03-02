@@ -5,13 +5,14 @@ import android.app.DatePickerDialog;
 import android.content.DialogInterface;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.CalendarView;
 import android.widget.DatePicker;
 import android.widget.EditText;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -19,11 +20,14 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.kitchenboard.MainActivity;
 import com.kitchenboard.R;
 
 import java.text.ParseException;
@@ -39,12 +43,34 @@ public class CalendarFragment extends Fragment {
             new SimpleDateFormat("yyyy-MM-dd", Locale.US);
     private static final SimpleDateFormat LABEL_FMT =
             new SimpleDateFormat("EEEE, dd. MMMM yyyy", Locale.GERMANY);
+    private static final SimpleDateFormat SHORT_FMT =
+            new SimpleDateFormat("dd.MM.", Locale.GERMANY);
+    private static final SimpleDateFormat DAY_NAME_FMT =
+            new SimpleDateFormat("EEE", Locale.GERMANY);
 
     private CalendarDatabaseHelper db;
     private AppointmentAdapter adapter;
     private TextView tvSelectedDate;
     private TextView tvEmpty;
     private LinearLayout llTemplateButtons;
+
+    // Multi-day strip views
+    private LinearLayout llDayStrip;
+    private LinearLayout llWeekNav;
+    private TextView tvWeekRange;
+    private CalendarView calendarView;
+
+    // Mode buttons
+    private Button btnMode3;
+    private Button btnMode5;
+    private Button btnMode7;
+    private Button btnModeMonth;
+
+    /** Current view mode: 3, 5, 7 (day strip) or -1 (full month). Default 3. */
+    private int viewMode = 3;
+
+    /** First day shown in the day strip. */
+    private final Calendar stripStart = Calendar.getInstance();
 
     /** Currently selected date in YYYY-MM-DD format. */
     private String selectedDate;
@@ -64,23 +90,60 @@ public class CalendarFragment extends Fragment {
         db = new CalendarDatabaseHelper(requireContext());
         adapter = new AppointmentAdapter();
 
-        tvSelectedDate = view.findViewById(R.id.tv_selected_date);
-        tvEmpty = view.findViewById(R.id.tv_appointments_empty);
+        tvSelectedDate   = view.findViewById(R.id.tv_selected_date);
+        tvEmpty          = view.findViewById(R.id.tv_appointments_empty);
         llTemplateButtons = view.findViewById(R.id.ll_template_buttons);
+        llDayStrip       = view.findViewById(R.id.ll_day_strip);
+        llWeekNav        = view.findViewById(R.id.ll_week_nav);
+        tvWeekRange      = view.findViewById(R.id.tv_week_range);
+        calendarView     = view.findViewById(R.id.calendar_view);
+        btnMode3         = view.findViewById(R.id.btn_mode_3);
+        btnMode5         = view.findViewById(R.id.btn_mode_5);
+        btnMode7         = view.findViewById(R.id.btn_mode_7);
+        btnModeMonth     = view.findViewById(R.id.btn_mode_month);
 
+        // Default to today
+        selectedDate = DATE_FMT.format(new Date());
+        stripStart.setTime(new Date());
+        normalizeCalendar(stripStart);
+
+        updateDateLabel();
+        refreshTemplateButtons();
+
+        // ── RecyclerView ──────────────────────────────────────────────────────
         RecyclerView rv = view.findViewById(R.id.rv_appointments);
         rv.setLayoutManager(new LinearLayoutManager(requireContext()));
         rv.setAdapter(adapter);
 
-        // Default to today
-        selectedDate = DATE_FMT.format(new Date());
-        updateDateLabel();
-        refreshTemplateButtons();
+        // Swipe-left to delete
+        new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
+            @Override
+            public boolean onMove(@NonNull RecyclerView r,
+                                  @NonNull RecyclerView.ViewHolder vh,
+                                  @NonNull RecyclerView.ViewHolder target) {
+                return false;
+            }
+            @Override
+            public void onSwiped(@NonNull RecyclerView.ViewHolder vh, int direction) {
+                int pos = vh.getAdapterPosition();
+                Appointment apt = adapter.getItem(pos);
+                // Reset the swipe animation before showing the confirmation dialog
+                adapter.notifyItemChanged(pos);
+                confirmDeleteAppointment(apt);
+            }
+        }).attachToRecyclerView(rv);
 
-        CalendarView calendarView = view.findViewById(R.id.calendar_view);
+        adapter.setOnDeleteListener(new AppointmentAdapter.OnDeleteListener() {
+            @Override
+            public void onDelete(Appointment appointment) {
+                confirmDeleteAppointment(appointment);
+            }
+        });
+
+        // ── Full-month CalendarView (month mode only) ─────────────────────────
         calendarView.setOnDateChangeListener(new CalendarView.OnDateChangeListener() {
             @Override
-            public void onSelectedDayChange(@NonNull CalendarView view,
+            public void onSelectedDayChange(@NonNull CalendarView v,
                                             int year, int month, int dayOfMonth) {
                 Calendar cal = Calendar.getInstance();
                 cal.set(year, month, dayOfMonth);
@@ -90,33 +153,165 @@ public class CalendarFragment extends Fragment {
             }
         });
 
+        // ── Mode buttons ──────────────────────────────────────────────────────
+        btnMode3.setOnClickListener(v -> setViewMode(3));
+        btnMode5.setOnClickListener(v -> setViewMode(5));
+        btnMode7.setOnClickListener(v -> setViewMode(7));
+        btnModeMonth.setOnClickListener(v -> setViewMode(-1));
+
+        // ── Week navigation ───────────────────────────────────────────────────
+        view.findViewById(R.id.btn_prev_week).setOnClickListener(v -> {
+            stripStart.add(Calendar.DAY_OF_MONTH, -7);
+            refreshDayStrip();
+        });
+        view.findViewById(R.id.btn_next_week).setOnClickListener(v -> {
+            stripStart.add(Calendar.DAY_OF_MONTH, 7);
+            refreshDayStrip();
+        });
+
+        // ── FAB ───────────────────────────────────────────────────────────────
         FloatingActionButton fab = view.findViewById(R.id.fab_add_appointment);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showAddAppointmentDialog();
-            }
-        });
+        fab.setOnClickListener(v -> showAddAppointmentDialog());
 
-        ImageButton btnManage = view.findViewById(R.id.btn_manage_templates);
-        btnManage.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showManageTemplatesDialog();
-            }
-        });
+        // ── Manage templates ──────────────────────────────────────────────────
+        view.findViewById(R.id.btn_manage_templates).setOnClickListener(
+                v -> showManageTemplatesDialog());
 
-        adapter.setOnDeleteListener(new AppointmentAdapter.OnDeleteListener() {
-            @Override
-            public void onDelete(Appointment appointment) {
-                confirmDeleteAppointment(appointment);
-            }
-        });
-
+        // Activate default 3-day mode
+        setViewMode(3);
         refreshAppointments();
     }
 
+    // ── View-mode switching ───────────────────────────────────────────────────
+
+    private void setViewMode(int mode) {
+        viewMode = mode;
+
+        // Keep stripStart in sync with the selected date when entering day-strip mode
+        if (mode > 0) {
+            try {
+                stripStart.setTime(DATE_FMT.parse(selectedDate));
+            } catch (ParseException e) {
+                stripStart.setTime(new Date());
+            }
+            normalizeCalendar(stripStart);
+        }
+
+        boolean isDayMode = (mode > 0);
+        llDayStrip.setVisibility(isDayMode ? View.VISIBLE : View.GONE);
+        llWeekNav.setVisibility(isDayMode ? View.VISIBLE : View.GONE);
+        calendarView.setVisibility(isDayMode ? View.GONE : View.VISIBLE);
+
+        if (isDayMode) {
+            refreshDayStrip();
+        } else {
+            // Sync the native CalendarView to the currently selected date
+            try {
+                Date d = DATE_FMT.parse(selectedDate);
+                if (d != null) calendarView.setDate(d.getTime(), false, true);
+            } catch (ParseException ignored) {}
+        }
+
+        updateModeButtonAppearance();
+    }
+
+    private void updateModeButtonAppearance() {
+        int activeColor   = ContextCompat.getColor(requireContext(), R.color.accent);
+        int inactiveColor = ContextCompat.getColor(requireContext(), R.color.text_secondary);
+        btnMode3.setTextColor(viewMode == 3  ? activeColor : inactiveColor);
+        btnMode5.setTextColor(viewMode == 5  ? activeColor : inactiveColor);
+        btnMode7.setTextColor(viewMode == 7  ? activeColor : inactiveColor);
+        btnModeMonth.setTextColor(viewMode == -1 ? activeColor : inactiveColor);
+    }
+
+    // ── Day strip ─────────────────────────────────────────────────────────────
+
+    private void refreshDayStrip() {
+        llDayStrip.removeAllViews();
+        String todayStr = DATE_FMT.format(new Date());
+        int accentColor   = ContextCompat.getColor(requireContext(), R.color.accent);
+        int accentLightColor = ContextCompat.getColor(requireContext(), R.color.accent_light);
+        int textPrimary   = ContextCompat.getColor(requireContext(), R.color.text_primary);
+        int textSecondary = ContextCompat.getColor(requireContext(), R.color.text_secondary);
+        int padPx = dpToPx(4);
+
+        Calendar cal = (Calendar) stripStart.clone();
+        for (int i = 0; i < viewMode; i++) {
+            final String dateStr = DATE_FMT.format(cal.getTime());
+            boolean isSelected = dateStr.equals(selectedDate);
+            boolean isToday    = dateStr.equals(todayStr);
+
+            LinearLayout cell = new LinearLayout(requireContext());
+            cell.setOrientation(LinearLayout.VERTICAL);
+            cell.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+            cell.setLayoutParams(lp);
+            cell.setPadding(padPx, padPx, padPx, padPx);
+            if (isSelected) {
+                cell.setBackgroundColor(accentLightColor);
+            }
+
+            TextView tvDayName = new TextView(requireContext());
+            tvDayName.setText(DAY_NAME_FMT.format(cal.getTime()));
+            tvDayName.setGravity(Gravity.CENTER);
+            tvDayName.setTextSize(11f);
+            tvDayName.setTextColor(textSecondary);
+            cell.addView(tvDayName);
+
+            TextView tvDayNum = new TextView(requireContext());
+            tvDayNum.setText(String.valueOf(cal.get(Calendar.DAY_OF_MONTH)));
+            tvDayNum.setGravity(Gravity.CENTER);
+            tvDayNum.setTextSize(20f);
+            tvDayNum.setTextColor(isToday ? accentColor : textPrimary);
+            if (isToday) tvDayNum.setTypeface(null, Typeface.BOLD);
+            cell.addView(tvDayNum);
+
+            cell.setOnClickListener(v -> {
+                selectedDate = dateStr;
+                updateDateLabel();
+                refreshAppointments();
+                refreshDayStrip();
+            });
+
+            llDayStrip.addView(cell);
+
+            // Vertical divider between cells (except last)
+            if (i < viewMode - 1) {
+                View div = new View(requireContext());
+                LinearLayout.LayoutParams dp = new LinearLayout.LayoutParams(
+                        1, LinearLayout.LayoutParams.MATCH_PARENT);
+                div.setLayoutParams(dp);
+                div.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.divider));
+                llDayStrip.addView(div);
+            }
+
+            cal.add(Calendar.DAY_OF_MONTH, 1);
+        }
+
+        updateWeekRangeLabel();
+    }
+
+    private void updateWeekRangeLabel() {
+        if (viewMode <= 0) return;
+        Calendar endCal = (Calendar) stripStart.clone();
+        endCal.add(Calendar.DAY_OF_MONTH, viewMode - 1);
+        tvWeekRange.setText(SHORT_FMT.format(stripStart.getTime())
+                + " – " + SHORT_FMT.format(endCal.getTime()));
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static void normalizeCalendar(Calendar c) {
+        c.set(Calendar.HOUR_OF_DAY, 0);
+        c.set(Calendar.MINUTE, 0);
+        c.set(Calendar.SECOND, 0);
+        c.set(Calendar.MILLISECOND, 0);
+    }
+
+    private int dpToPx(int dp) {
+        return Math.round(dp * getResources().getDisplayMetrics().density);
+    }
 
     private void updateDateLabel() {
         try {
@@ -137,9 +332,9 @@ public class CalendarFragment extends Fragment {
     private void refreshTemplateButtons() {
         llTemplateButtons.removeAllViews();
         List<Template> templates = db.getTemplates();
-        int marginPx = (int) (8 * getResources().getDisplayMetrics().density);
+        int marginPx = dpToPx(8);
         for (final Template t : templates) {
-            android.widget.Button btn = new android.widget.Button(requireContext());
+            Button btn = new Button(requireContext());
             btn.setText(t.getTitle());
             btn.setAllCaps(false);
             btn.setTextSize(16f);
@@ -148,19 +343,30 @@ public class CalendarFragment extends Fragment {
                     LinearLayout.LayoutParams.WRAP_CONTENT);
             lp.setMargins(0, 0, marginPx, 0);
             btn.setLayoutParams(lp);
-            btn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showRecurrenceDialog(t);
-                }
-            });
+            btn.setOnClickListener(v -> showRecurrenceDialog(t));
             llTemplateButtons.addView(btn);
+        }
+    }
+
+    // ── Auto-advance helpers ──────────────────────────────────────────────────
+
+    private void pauseAutoAdvance() {
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).pauseAutoAdvance();
+        }
+    }
+
+    private void resumeAutoAdvance() {
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).resumeAutoAdvance();
         }
     }
 
     // ── Recurrence dialog ─────────────────────────────────────────────────────
 
     private void showRecurrenceDialog(final Template t) {
+        if (!isAdded() || getContext() == null) return;
+
         final String[] recurrenceKeys = {
                 "once", "daily", "weekdays", "mon_sat", "weekly", "monthly"
         };
@@ -180,36 +386,39 @@ public class CalendarFragment extends Fragment {
         } catch (ParseException e) { /* keep today */ }
         endCal.add(Calendar.MONTH, 1);
         final String[] endDate = {DATE_FMT.format(endCal.getTime())};
-        final int[] selectedIndex = {0};
 
-        // Build dialog view programmatically (large tap targets for tablet)
+        // Build dialog view
         LinearLayout layout = new LinearLayout(requireContext());
         layout.setOrientation(LinearLayout.VERTICAL);
-        int padPx = (int) (16 * getResources().getDisplayMetrics().density);
+        int padPx = dpToPx(16);
         layout.setPadding(padPx, padPx, padPx, padPx);
 
         TextView tvTitle = new TextView(requireContext());
         tvTitle.setText(t.getTitle());
         tvTitle.setTextSize(18f);
         tvTitle.setTypeface(null, Typeface.BOLD);
-        tvTitle.setPadding(0, 0, 0, (int) (8 * getResources().getDisplayMetrics().density));
+        tvTitle.setPadding(0, 0, 0, dpToPx(8));
         layout.addView(tvTitle);
 
         final RadioGroup rg = new RadioGroup(requireContext());
         rg.setOrientation(LinearLayout.VERTICAL);
-        int rbPad = (int) (6 * getResources().getDisplayMetrics().density);
+        int rbPad = dpToPx(6);
+
+        // Use generated IDs to avoid clashes with View.NO_ID
+        final int[] rbIds = new int[recurrenceKeys.length];
         for (int i = 0; i < recurrenceLabelIds.length; i++) {
             RadioButton rb = new RadioButton(requireContext());
             rb.setText(recurrenceLabelIds[i]);
-            rb.setId(i);
+            rbIds[i] = View.generateViewId();
+            rb.setId(rbIds[i]);
             rb.setTextSize(16f);
             rb.setPadding(rbPad, rbPad, rbPad, rbPad);
             rg.addView(rb);
         }
-        rg.check(0);
+        rg.check(rbIds[0]);
         layout.addView(rg);
 
-        final android.widget.Button btnEndDate = new android.widget.Button(requireContext());
+        final Button btnEndDate = new Button(requireContext());
         try {
             btnEndDate.setText(getString(R.string.calendar_recurrence_until,
                     LABEL_FMT.format(endCal.getTime())));
@@ -224,8 +433,7 @@ public class CalendarFragment extends Fragment {
         rg.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(RadioGroup group, int checkedId) {
-                selectedIndex[0] = checkedId;
-                btnEndDate.setVisibility(checkedId == 0 ? View.GONE : View.VISIBLE);
+                btnEndDate.setVisibility(checkedId == rbIds[0] ? View.GONE : View.VISIBLE);
             }
         });
 
@@ -254,25 +462,35 @@ public class CalendarFragment extends Fragment {
             }
         });
 
-        new AlertDialog.Builder(requireContext())
+        pauseAutoAdvance();
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.calendar_recurrence_title)
                 .setView(layout)
                 .setPositiveButton(R.string.add, new DialogInterface.OnClickListener() {
                     @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        String recKey = recurrenceKeys[selectedIndex[0]];
+                    public void onClick(DialogInterface d, int which) {
+                        int checkedId = rg.getCheckedRadioButtonId();
+                        int idx = 0;
+                        for (int i = 0; i < rbIds.length; i++) {
+                            if (rbIds[i] == checkedId) { idx = i; break; }
+                        }
+                        String recKey = recurrenceKeys[idx];
                         String end = "once".equals(recKey) ? selectedDate : endDate[0];
                         db.addRecurringAppointments(selectedDate, end, t.getTitle(), recKey);
                         refreshAppointments();
                     }
                 })
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                .create();
+        dialog.setOnDismissListener(d -> resumeAutoAdvance());
+        dialog.show();
     }
 
     // ── Add appointment dialog ────────────────────────────────────────────────
 
     private void showAddAppointmentDialog() {
+        if (!isAdded() || getContext() == null) return;
+
         final List<Template> templates = db.getTemplates();
 
         View dialogView = LayoutInflater.from(requireContext())
@@ -300,9 +518,9 @@ public class CalendarFragment extends Fragment {
                 .setNegativeButton(R.string.cancel, null)
                 .create();
 
-        // Build one button per standard template; each dismisses the dialog on tap
+        // Template buttons open the recurrence selector (consistent with header row)
         for (final Template t : templates) {
-            android.widget.Button btn = new android.widget.Button(requireContext());
+            Button btn = new Button(requireContext());
             btn.setText(t.getTitle());
             btn.setAllCaps(false);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
@@ -313,38 +531,45 @@ public class CalendarFragment extends Fragment {
             btn.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    db.addAppointment(selectedDate, t.getTitle());
-                    refreshAppointments();
                     dialog.dismiss();
+                    showRecurrenceDialog(t);
                 }
             });
             llTemplates.addView(btn);
         }
 
+        pauseAutoAdvance();
+        dialog.setOnDismissListener(d -> resumeAutoAdvance());
         dialog.show();
     }
 
     // ── Delete appointment ────────────────────────────────────────────────────
 
     private void confirmDeleteAppointment(final Appointment appointment) {
-        new AlertDialog.Builder(requireContext())
+        if (!isAdded() || getContext() == null) return;
+        pauseAutoAdvance();
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.calendar_delete_appointment)
                 .setMessage(getString(R.string.calendar_delete_appointment_confirm,
                         appointment.getTitle()))
                 .setPositiveButton(R.string.delete, new DialogInterface.OnClickListener() {
                     @Override
-                    public void onClick(DialogInterface dialog, int which) {
+                    public void onClick(DialogInterface d, int which) {
                         db.deleteAppointment(appointment.getId());
                         refreshAppointments();
                     }
                 })
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                .create();
+        dialog.setOnDismissListener(d -> resumeAutoAdvance());
+        dialog.show();
     }
 
     // ── Manage templates dialog ───────────────────────────────────────────────
 
     private void showManageTemplatesDialog() {
+        if (!isAdded() || getContext() == null) return;
+
         View dialogView = LayoutInflater.from(requireContext())
                 .inflate(R.layout.dialog_manage_templates, null);
 
@@ -362,13 +587,13 @@ public class CalendarFragment extends Fragment {
             @Override
             public void onDismiss(DialogInterface d) {
                 refreshTemplateButtons();
+                resumeAutoAdvance();
             }
         });
 
         dialog.setOnShowListener(new DialogInterface.OnShowListener() {
             @Override
             public void onShow(DialogInterface d) {
-                // Override positive button to avoid auto-dismiss
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                         .setOnClickListener(new View.OnClickListener() {
                             @Override
@@ -385,6 +610,7 @@ public class CalendarFragment extends Fragment {
         });
 
         rebuildTemplateList(llList);
+        pauseAutoAdvance();
         dialog.show();
     }
 

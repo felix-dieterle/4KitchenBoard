@@ -33,11 +33,120 @@
             android:layout_height="1dp"
             android:background="@color/divider"/>
 
+        <!-- View-mode selector: 3 / 5 / 7 days or full month -->
+        <LinearLayout
+            android:id="@+id/ll_mode_buttons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@color/panel_bg"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
+
+            <Button
+                android:id="@+id/btn_mode_3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/calendar_mode_3days"
+                android:textSize="12sp"
+                android:allCaps="false"
+                android:padding="6dp"/>
+
+            <Button
+                android:id="@+id/btn_mode_5"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/calendar_mode_5days"
+                android:textSize="12sp"
+                android:allCaps="false"
+                android:padding="6dp"/>
+
+            <Button
+                android:id="@+id/btn_mode_7"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/calendar_mode_7days"
+                android:textSize="12sp"
+                android:allCaps="false"
+                android:padding="6dp"/>
+
+            <Button
+                android:id="@+id/btn_mode_month"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/calendar_mode_month"
+                android:textSize="12sp"
+                android:allCaps="false"
+                android:padding="6dp"/>
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider"/>
+
+        <!-- Week navigation row (visible only in 3/5/7-day mode) -->
+        <LinearLayout
+            android:id="@+id/ll_week_nav"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@color/panel_bg"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp">
+
+            <ImageButton
+                android:id="@+id/btn_prev_week"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_media_previous"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/calendar_prev_week"
+                android:padding="8dp"/>
+
+            <TextView
+                android:id="@+id/tv_week_range"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:textSize="13sp"
+                android:textColor="@color/text_secondary"/>
+
+            <ImageButton
+                android:id="@+id/btn_next_week"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_media_next"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/calendar_next_week"
+                android:padding="8dp"/>
+
+        </LinearLayout>
+
+        <!-- Day strip (visible in 3/5/7-day mode) -->
+        <LinearLayout
+            android:id="@+id/ll_day_strip"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"/>
+
+        <!-- Full-month CalendarView (hidden by default, shown in month mode) -->
         <CalendarView
             android:id="@+id/calendar_view"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"/>
+            android:layout_weight="1"
+            android:visibility="gone"/>
 
     </LinearLayout>
 
