@@ -93,6 +93,7 @@
     <!-- Series (recurring) delete -->
     <string name="calendar_delete_this_only">Nur diesen</string>
     <string name="calendar_delete_series">Ganze Serie löschen</string>
+    <string name="calendar_series_indicator">Serientermin</string>
 
     <!-- Persons and groups -->
     <string name="calendar_manage_persons">Personen verwalten</string>
