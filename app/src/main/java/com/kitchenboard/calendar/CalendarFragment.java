@@ -58,6 +58,9 @@ public class CalendarFragment extends Fragment {
     private static final SimpleDateFormat DAY_NAME_FMT =
             new SimpleDateFormat("EEE", Locale.GERMANY);
 
+    /** Symbol appended to recurring appointment text in the day strip to indicate a series. */
+    private static final String SERIES_INDICATOR_SYMBOL = " \u21BB";
+
     private CalendarDatabaseHelper db;
     private AppointmentAdapter adapter;
     private TextView tvSelectedDate;
@@ -326,6 +329,7 @@ public class CalendarFragment extends Fragment {
                 String aptText = apt.getTime() != null
                         ? apt.getTime() + " " + apt.getTitle()
                         : apt.getTitle();
+                if (apt.getSeriesId() != null) aptText += SERIES_INDICATOR_SYMBOL;
                 tvApt.setText(aptText);
                 tvApt.setGravity(Gravity.CENTER);
                 tvApt.setTextSize(9f);
