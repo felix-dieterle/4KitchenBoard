@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="?attr/selectableItemBackground">
+
+    <!-- Dish name -->
+    <TextView
+        android:id="@+id/tv_dish_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="@dimen/body_text_size"
+        android:textStyle="bold"
+        android:textColor="@color/text_primary"/>
+
+    <!-- Secondary row: duration + ingredients (hidden when both empty) -->
+    <LinearLayout
+        android:id="@+id/ll_dish_secondary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="2dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tv_dish_duration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="@dimen/small_text_size"
+            android:textColor="@color/text_secondary"
+            android:layout_marginEnd="8dp"/>
+
+        <TextView
+            android:id="@+id/tv_dish_ingredients"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="@dimen/small_text_size"
+            android:textColor="@color/text_secondary"
+            android:textStyle="italic"
+            android:singleLine="true"
+            android:ellipsize="end"/>
+
+    </LinearLayout>
+
+</LinearLayout>
