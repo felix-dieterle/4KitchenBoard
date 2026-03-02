@@ -134,7 +134,11 @@ public class CookingFragment extends Fragment {
 
         // ── Filter spinner ────────────────────────────────────────────────────
         spinnerFilterDays = view.findViewById(R.id.spinner_filter_days);
-        String[] filterLabels = {"7 Tage", "14 Tage", "30 Tage", "60 Tage",
+        String[] filterLabels = {
+                getString(R.string.cooking_filter_7days),
+                getString(R.string.cooking_filter_14days),
+                getString(R.string.cooking_filter_30days),
+                getString(R.string.cooking_filter_60days),
                 getString(R.string.cooking_all_filter)};
         ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(
                 requireContext(), android.R.layout.simple_spinner_item, filterLabels);

@@ -54,7 +54,8 @@ public class DishAdapter extends RecyclerView.Adapter<DishAdapter.ViewHolder> {
 
         if (hasDuration) {
             holder.tvDuration.setVisibility(View.VISIBLE);
-            holder.tvDuration.setText("\u23F1 " + dish.durationMinutes + " min");
+            holder.tvDuration.setText("\u23F1 " + holder.itemView.getContext()
+                    .getString(R.string.cooking_min, dish.durationMinutes));
         } else {
             holder.tvDuration.setVisibility(View.GONE);
         }
