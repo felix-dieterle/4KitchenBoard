@@ -6,6 +6,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -81,6 +82,14 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
             }
         });
 
+        // Series indicator
+        if (item.getSeriesId() != null) {
+            holder.ivSeriesIndicator.setVisibility(View.VISIBLE);
+        } else {
+            holder.ivSeriesIndicator.setVisibility(View.GONE);
+        }
+
+        // Person color dot
         // Person color dot or group indicator dot
         if (item.getPersonId() != null && personMap.containsKey(item.getPersonId())) {
             Person p = personMap.get(item.getPersonId());
@@ -112,13 +121,15 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
         final TextView tvTime;
         final ImageButton btnDelete;
         final View viewPersonDot;
+        final ImageView ivSeriesIndicator;
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);
-            tvTitle       = itemView.findViewById(R.id.tv_appointment_title);
-            tvTime        = itemView.findViewById(R.id.tv_appointment_time);
-            btnDelete     = itemView.findViewById(R.id.btn_delete_appointment);
-            viewPersonDot = itemView.findViewById(R.id.view_person_dot);
+            tvTitle           = itemView.findViewById(R.id.tv_appointment_title);
+            tvTime            = itemView.findViewById(R.id.tv_appointment_time);
+            btnDelete         = itemView.findViewById(R.id.btn_delete_appointment);
+            viewPersonDot     = itemView.findViewById(R.id.view_person_dot);
+            ivSeriesIndicator = itemView.findViewById(R.id.iv_series_indicator);
         }
     }
 }

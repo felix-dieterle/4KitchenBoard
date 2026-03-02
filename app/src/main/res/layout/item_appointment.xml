@@ -38,6 +38,15 @@
 
     </LinearLayout>
 
+    <ImageView
+        android:id="@+id/iv_series_indicator"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_marginEnd="4dp"
+        android:src="@android:drawable/ic_popup_sync"
+        android:contentDescription="@string/calendar_series_indicator"
+        android:visibility="gone"/>
+
     <ImageButton
         android:id="@+id/btn_delete_appointment"
         android:layout_width="48dp"
