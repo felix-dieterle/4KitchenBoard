@@ -69,6 +69,16 @@
     <string name="calendar_new_template_hint">Neuen Standardtermin eingeben:</string>
     <string name="calendar_template_name_hint">z. B. Finni Besuch</string>
 
+    <!-- Recurrence dialog -->
+    <string name="calendar_recurrence_title">Wie oft wiederholen?</string>
+    <string name="calendar_recurrence_once">Einmalig</string>
+    <string name="calendar_recurrence_daily">Täglich</string>
+    <string name="calendar_recurrence_weekdays">Mo–Fr (ohne Wochenende)</string>
+    <string name="calendar_recurrence_mon_sat">Mo–Sa (ohne Sonntag)</string>
+    <string name="calendar_recurrence_weekly">Wöchentlich</string>
+    <string name="calendar_recurrence_monthly">Monatlich</string>
+    <string name="calendar_recurrence_until">Bis: %s</string>
+
     <!-- Weather weekend forecast -->
     <string name="weekend_forecast_title">Weekend Forecast</string>
     <string name="weekend_saturday">Saturday</string>

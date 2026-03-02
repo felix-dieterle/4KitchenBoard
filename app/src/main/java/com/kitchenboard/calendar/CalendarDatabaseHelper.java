@@ -6,8 +6,12 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
@@ -93,6 +97,71 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
     public void deleteTemplate(long id) {
         getWritableDatabase().delete(TABLE_TEMPLATES,
                 COL_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    /**
+     * Adds appointments for a recurring pattern from startDate to endDate (both inclusive).
+     * recurrence values: "once", "daily", "weekdays" (Mon–Fri), "mon_sat" (Mon–Sat),
+     *                    "weekly" (same weekday), "monthly" (same day of month).
+     */
+    public void addRecurringAppointments(String startDate, String endDate,
+                                         String title, String recurrence) {
+        try {
+            SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            Date startD = fmt.parse(startDate);
+            Date endD   = fmt.parse(endDate);
+            if (startD == null || endD == null) return;
+
+            Calendar startCal = Calendar.getInstance();
+            startCal.setTime(startD);
+            int startDow = startCal.get(Calendar.DAY_OF_WEEK);
+            int startDom = startCal.get(Calendar.DAY_OF_MONTH);
+
+            Calendar cal = Calendar.getInstance();
+            cal.setTime(startD);
+
+            SQLiteDatabase db = getWritableDatabase();
+            db.beginTransaction();
+            try {
+                while (!cal.getTime().after(endD)) {
+                    int dow = cal.get(Calendar.DAY_OF_WEEK);
+                    int dom = cal.get(Calendar.DAY_OF_MONTH);
+                    boolean add = false;
+                    switch (recurrence) {
+                        case "once":
+                        case "daily":
+                            add = true;
+                            break;
+                        case "weekdays":
+                            add = (dow != Calendar.SATURDAY && dow != Calendar.SUNDAY);
+                            break;
+                        case "mon_sat":
+                            add = (dow != Calendar.SUNDAY);
+                            break;
+                        case "weekly":
+                            add = (dow == startDow);
+                            break;
+                        case "monthly":
+                            add = (dom == startDom);
+                            break;
+                    }
+                    if (add) {
+                        ContentValues cv = new ContentValues();
+                        cv.put(COL_DATE, fmt.format(cal.getTime()));
+                        cv.put(COL_TITLE, title);
+                        db.insert(TABLE_APPOINTMENTS, null, cv);
+                    }
+                    if ("once".equals(recurrence)) break;
+                    cal.add(Calendar.DAY_OF_MONTH, 1);
+                }
+                db.setTransactionSuccessful();
+            } finally {
+                db.endTransaction();
+            }
+        } catch (Exception e) {
+            // silently ignore parse errors — dates come from our own DATE_FMT so this should
+            // never fire, but guard defensively to avoid crashing the calendar UI
+        }
     }
 
     /** Returns all standard templates ordered alphabetically. */
