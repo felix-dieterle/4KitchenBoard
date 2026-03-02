@@ -745,7 +745,7 @@ public class CalendarFragment extends Fragment {
         btnStartDate.setVisibility(View.VISIBLE);
         layout.addView(btnStartDate);
 
-        // Time button (for "once" mode)
+        // Time button – shown for all recurrence modes; applies to every occurrence in the series
         final Button btnSetTime = new Button(requireContext());
         btnSetTime.setText(R.string.calendar_recurrence_time_optional);
         btnSetTime.setAllCaps(false);
