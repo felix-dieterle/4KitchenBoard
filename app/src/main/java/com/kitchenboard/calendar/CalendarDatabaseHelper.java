@@ -16,13 +16,19 @@ import java.util.Locale;
 public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "calendar.db";
-    private static final int    DB_VERSION = 1;
+    private static final int    DB_VERSION = 2;
 
     static final String TABLE_APPOINTMENTS = "appointments";
     static final String TABLE_TEMPLATES    = "standard_templates";
     static final String COL_ID    = "_id";
     static final String COL_DATE  = "date";   // YYYY-MM-DD
+    static final String COL_TIME  = "time";   // HH:mm, nullable
     static final String COL_TITLE = "title";
+
+    /** Orders timed appointments first (by time ASC), then untimed ones (by title ASC). */
+    private static final String ORDER_BY_TIME_THEN_TITLE =
+            "CASE WHEN " + COL_TIME + " IS NULL THEN 1 ELSE 0 END ASC, "
+                    + COL_TIME + " ASC, " + COL_TITLE + " ASC";
 
     public CalendarDatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -33,6 +39,7 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE " + TABLE_APPOINTMENTS + " (" +
                 COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COL_DATE  + " TEXT NOT NULL, " +
+                COL_TIME  + " TEXT, " +
                 COL_TITLE + " TEXT NOT NULL)");
 
         db.execSQL("CREATE TABLE " + TABLE_TEMPLATES + " (" +
@@ -50,15 +57,23 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // reserved for future upgrades
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN " + COL_TIME + " TEXT");
+        }
     }
 
     // ── Appointments ──────────────────────────────────────────────────────────
 
-    /** Inserts a new appointment. Returns the new row id. */
+    /** Inserts a new appointment without a time. Returns the new row id. */
     public long addAppointment(String date, String title) {
+        return addAppointment(date, null, title);
+    }
+
+    /** Inserts a new appointment with an optional time (HH:mm, may be null). Returns new row id. */
+    public long addAppointment(String date, String time, String title) {
         ContentValues cv = new ContentValues();
         cv.put(COL_DATE, date);
+        if (time != null && !time.isEmpty()) cv.put(COL_TIME, time);
         cv.put(COL_TITLE, title);
         return getWritableDatabase().insert(TABLE_APPOINTMENTS, null, cv);
     }
@@ -69,15 +84,15 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 COL_ID + "=?", new String[]{String.valueOf(id)});
     }
 
-    /** Returns all appointments for a given date (YYYY-MM-DD), ordered by title. */
+    /** Returns all appointments for a given date (YYYY-MM-DD), timed ones first then by title. */
     public List<Appointment> getAppointmentsForDate(String date) {
         List<Appointment> list = new ArrayList<>();
         Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
-                new String[]{COL_ID, COL_TITLE},
+                new String[]{COL_ID, COL_TIME, COL_TITLE},
                 COL_DATE + "=?", new String[]{date},
-                null, null, COL_TITLE + " ASC");
+                null, null, ORDER_BY_TIME_THEN_TITLE);
         while (c.moveToNext()) {
-            list.add(new Appointment(c.getLong(0), date, c.getString(1)));
+            list.add(new Appointment(c.getLong(0), date, c.getString(1), c.getString(2)));
         }
         c.close();
         return list;

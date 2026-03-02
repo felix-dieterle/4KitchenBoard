@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.LinearLayout;
 
@@ -31,6 +32,7 @@ public class MainActivity extends AppCompatActivity {
 
     private long downloadId = -1;
     private BroadcastReceiver downloadReceiver;
+    private boolean isAutoAdvancePaused = false;
 
     private ViewPager2 viewPager;
     private ScreenPagerAdapter pagerAdapter;
@@ -137,12 +139,23 @@ public class MainActivity extends AppCompatActivity {
     // ── Auto-advance control (used by fragments showing dialogs) ──────────────
 
     public void pauseAutoAdvance() {
+        isAutoAdvancePaused = true;
         autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
     }
 
     public void resumeAutoAdvance() {
+        isAutoAdvancePaused = false;
         autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
         autoAdvanceHandler.postDelayed(autoAdvanceRunnable, AUTO_ADVANCE_DELAY_MS);
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (ev.getAction() == MotionEvent.ACTION_DOWN && !isAutoAdvancePaused) {
+            autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
+            autoAdvanceHandler.postDelayed(autoAdvanceRunnable, AUTO_ADVANCE_DELAY_MS);
+        }
+        return super.dispatchTouchEvent(ev);
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────

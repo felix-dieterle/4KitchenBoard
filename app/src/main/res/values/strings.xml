@@ -86,6 +86,9 @@
     <string name="calendar_recurrence_weekly">Wöchentlich</string>
     <string name="calendar_recurrence_monthly">Monatlich</string>
     <string name="calendar_recurrence_until">Bis: %s</string>
+    <string name="calendar_recurrence_date">Datum: %s</string>
+    <string name="calendar_recurrence_time">Uhrzeit: %s</string>
+    <string name="calendar_recurrence_time_optional">Uhrzeit festlegen (optional)</string>
 
     <!-- Weather weekend forecast -->
     <string name="weekend_forecast_title">Weekend Forecast</string>

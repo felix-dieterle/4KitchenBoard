@@ -49,6 +49,13 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Appointment item = items.get(position);
         holder.tvTitle.setText(item.getTitle());
+        String time = item.getTime();
+        if (time != null && !time.isEmpty()) {
+            holder.tvTime.setText(time);
+            holder.tvTime.setVisibility(View.VISIBLE);
+        } else {
+            holder.tvTime.setVisibility(View.GONE);
+        }
         holder.btnDelete.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -62,11 +69,13 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
 
     static class ViewHolder extends RecyclerView.ViewHolder {
         final TextView tvTitle;
+        final TextView tvTime;
         final ImageButton btnDelete;
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);
             tvTitle   = itemView.findViewById(R.id.tv_appointment_title);
+            tvTime    = itemView.findViewById(R.id.tv_appointment_time);
             btnDelete = itemView.findViewById(R.id.btn_delete_appointment);
         }
     }
