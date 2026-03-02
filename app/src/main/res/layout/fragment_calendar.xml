@@ -96,6 +96,31 @@
                 android:layout_height="1dp"
                 android:background="@color/divider"/>
 
+            <!-- Standard-template quick-add row (always visible) -->
+            <HorizontalScrollView
+                android:id="@+id/hsv_templates"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/background"
+                android:paddingStart="@dimen/panel_padding"
+                android:paddingEnd="@dimen/panel_padding"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/ll_template_buttons"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"/>
+
+            </HorizontalScrollView>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider"/>
+
             <!-- Empty state -->
             <TextView
                 android:id="@+id/tv_appointments_empty"
