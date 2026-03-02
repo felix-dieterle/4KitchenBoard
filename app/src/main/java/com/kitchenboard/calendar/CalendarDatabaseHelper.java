@@ -16,7 +16,7 @@ import java.util.Locale;
 public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "calendar.db";
-    private static final int    DB_VERSION = 4;
+    private static final int    DB_VERSION = 5;
 
     static final String TABLE_APPOINTMENTS  = "appointments";
     static final String TABLE_TEMPLATES     = "standard_templates";
@@ -56,7 +56,8 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 COL_TIME      + " TEXT, " +
                 COL_TITLE     + " TEXT NOT NULL, " +
                 COL_SERIES_ID + " INTEGER, " +
-                COL_PERSON_ID + " INTEGER)");
+                COL_PERSON_ID + " INTEGER, " +
+                COL_GROUP_ID  + " INTEGER)");
 
         db.execSQL("CREATE TABLE " + TABLE_TEMPLATES + " (" +
                 COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -107,6 +108,9 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                     COL_PERSON_ID + " INTEGER NOT NULL, " +
                     "PRIMARY KEY(" + COL_GROUP_ID + ", " + COL_PERSON_ID + "))");
         }
+        if (oldVersion < 5) {
+            db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN " + COL_GROUP_ID + " INTEGER");
+        }
     }
 
     // ── Appointments ──────────────────────────────────────────────────────────
@@ -123,11 +127,17 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
     /** Inserts a new appointment with an optional time and optional personId. Returns new row id. */
     public long addAppointment(String date, String time, String title, Long personId) {
+        return addAppointment(date, time, title, personId, null);
+    }
+
+    /** Inserts a new appointment with an optional time, optional personId and optional groupId. Returns new row id. */
+    public long addAppointment(String date, String time, String title, Long personId, Long groupId) {
         ContentValues cv = new ContentValues();
         cv.put(COL_DATE, date);
         if (time != null && !time.isEmpty()) cv.put(COL_TIME, time);
         cv.put(COL_TITLE, title);
         if (personId != null) cv.put(COL_PERSON_ID, personId);
+        if (groupId  != null) cv.put(COL_GROUP_ID,  groupId);
         return getWritableDatabase().insert(TABLE_APPOINTMENTS, null, cv);
     }
 
@@ -181,41 +191,58 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
             selectionArgs = new String[]{date, String.valueOf(personId)};
         }
         Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
-                new String[]{COL_ID, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID},
+                new String[]{COL_ID, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID},
                 selection, selectionArgs,
                 null, null, ORDER_BY_TIME_THEN_TITLE);
         while (c.moveToNext()) {
             Long sid = c.isNull(3) ? null : c.getLong(3);
             Long pid = c.isNull(4) ? null : c.getLong(4);
-            list.add(new Appointment(c.getLong(0), date, c.getString(1), c.getString(2), sid, pid));
+            Long gid = c.isNull(5) ? null : c.getLong(5);
+            list.add(new Appointment(c.getLong(0), date, c.getString(1), c.getString(2), sid, pid, gid));
         }
         c.close();
         return list;
     }
 
     /**
-     * Returns appointments for a given date belonging to any of the given person IDs.
+     * Returns appointments for a given date belonging to any of the given person IDs,
+     * or directly assigned to the given group.
+     * The early-return guard ensures the parenthesised WHERE clause is never empty:
+     * at least one of personIds/groupId must be non-null when building the query.
      * Used for group filtering.
      */
-    public List<Appointment> getAppointmentsForDateByGroup(String date, List<Long> personIds) {
-        if (personIds == null || personIds.isEmpty()) return getAppointmentsForDate(date);
+    public List<Appointment> getAppointmentsForDateByGroup(String date, List<Long> personIds, Long groupId) {
+        // Early return: if no filter criteria, fall back to "return all"
+        if ((personIds == null || personIds.isEmpty()) && groupId == null) return getAppointmentsForDate(date);
         List<Appointment> list = new ArrayList<>();
-        StringBuilder placeholders = new StringBuilder();
-        String[] args = new String[personIds.size() + 1];
-        args[0] = date;
-        for (int i = 0; i < personIds.size(); i++) {
-            if (i > 0) placeholders.append(",");
-            placeholders.append("?");
-            args[i + 1] = String.valueOf(personIds.get(i));
+        StringBuilder selection = new StringBuilder(COL_DATE + "=? AND (");
+        List<String> argsList = new ArrayList<>();
+        argsList.add(date);
+        boolean hasPersonCondition = personIds != null && !personIds.isEmpty();
+        if (hasPersonCondition) {
+            StringBuilder placeholders = new StringBuilder();
+            for (int i = 0; i < personIds.size(); i++) {
+                if (i > 0) placeholders.append(",");
+                placeholders.append("?");
+                argsList.add(String.valueOf(personIds.get(i)));
+            }
+            selection.append(COL_PERSON_ID).append(" IN (").append(placeholders).append(")");
         }
-        String selection = COL_DATE + "=? AND " + COL_PERSON_ID + " IN (" + placeholders + ")";
+        if (groupId != null) {
+            if (hasPersonCondition) selection.append(" OR ");
+            selection.append(COL_GROUP_ID).append("=?");
+            argsList.add(String.valueOf(groupId));
+        }
+        selection.append(")");
+        String[] args = argsList.toArray(new String[0]);
         Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
-                new String[]{COL_ID, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID},
-                selection, args, null, null, ORDER_BY_TIME_THEN_TITLE);
+                new String[]{COL_ID, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID},
+                selection.toString(), args, null, null, ORDER_BY_TIME_THEN_TITLE);
         while (c.moveToNext()) {
             Long sid = c.isNull(3) ? null : c.getLong(3);
             Long pid = c.isNull(4) ? null : c.getLong(4);
-            list.add(new Appointment(c.getLong(0), date, c.getString(1), c.getString(2), sid, pid));
+            Long gid = c.isNull(5) ? null : c.getLong(5);
+            list.add(new Appointment(c.getLong(0), date, c.getString(1), c.getString(2), sid, pid, gid));
         }
         c.close();
         return list;
@@ -247,6 +274,12 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
     public void addRecurringAppointments(String startDate, String endDate,
                                          String title, String recurrence, String time,
                                          Long personId) {
+        addRecurringAppointments(startDate, endDate, title, recurrence, time, personId, null);
+    }
+
+    public void addRecurringAppointments(String startDate, String endDate,
+                                         String title, String recurrence, String time,
+                                         Long personId, Long groupId) {
         try {
             SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
             Date startD = fmt.parse(startDate);
@@ -300,6 +333,7 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                         if (time != null && !time.isEmpty()) cv.put(COL_TIME, time);
                         cv.put(COL_SERIES_ID, seriesId);
                         if (personId != null) cv.put(COL_PERSON_ID, personId);
+                        if (groupId  != null) cv.put(COL_GROUP_ID,  groupId);
                         db.insert(TABLE_APPOINTMENTS, null, cv);
                     }
                     if ("once".equals(recurrence)) break;
