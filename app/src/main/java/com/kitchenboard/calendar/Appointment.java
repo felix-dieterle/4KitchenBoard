@@ -6,13 +6,15 @@ public class Appointment {
     private final String time;      // nullable, HH:mm
     private final String title;
     private final Long seriesId;    // nullable; shared by all entries of a recurring series
+    private final Long personId;    // nullable; person this appointment belongs to
 
-    public Appointment(long id, String date, String time, String title, Long seriesId) {
+    public Appointment(long id, String date, String time, String title, Long seriesId, Long personId) {
         this.id = id;
         this.date = date;
         this.time = time;
         this.title = title;
         this.seriesId = seriesId;
+        this.personId = personId;
     }
 
     public long getId()          { return id; }
@@ -20,4 +22,5 @@ public class Appointment {
     public String getTime()      { return time; }
     public String getTitle()     { return title; }
     public Long getSeriesId()    { return seriesId; }
+    public Long getPersonId()    { return personId; }
 }

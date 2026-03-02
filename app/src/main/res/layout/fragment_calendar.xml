@@ -167,7 +167,7 @@
             android:layout_height="match_parent"
             android:orientation="vertical">
 
-            <!-- Header: selected date + manage templates button -->
+            <!-- Header: selected date + manage templates + manage persons buttons -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -187,18 +187,59 @@
                     android:textStyle="bold"
                     android:textColor="@color/text_primary"/>
 
-                <ImageButton
-                    android:id="@+id/btn_manage_templates"
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_alignParentEnd="true"
                     android:layout_centerVertical="true"
-                    android:src="@android:drawable/ic_menu_manage"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:padding="8dp"
-                    android:contentDescription="@string/calendar_manage_templates"/>
+                    android:orientation="horizontal">
+
+                    <ImageButton
+                        android:id="@+id/btn_manage_persons"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:src="@android:drawable/ic_menu_my_calendar"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="8dp"
+                        android:contentDescription="@string/calendar_manage_persons"/>
+
+                    <ImageButton
+                        android:id="@+id/btn_manage_templates"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:src="@android:drawable/ic_menu_manage"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="8dp"
+                        android:contentDescription="@string/calendar_manage_templates"/>
+
+                </LinearLayout>
 
             </RelativeLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider"/>
+
+            <!-- Person / group quick-filter bar -->
+            <HorizontalScrollView
+                android:id="@+id/hsv_person_filter"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/panel_bg"
+                android:paddingStart="@dimen/panel_padding"
+                android:paddingEnd="@dimen/panel_padding"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/ll_person_filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"/>
+
+            </HorizontalScrollView>
 
             <View
                 android:layout_width="match_parent"

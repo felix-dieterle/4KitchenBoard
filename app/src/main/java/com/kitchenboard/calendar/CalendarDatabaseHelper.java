@@ -16,15 +16,28 @@ import java.util.Locale;
 public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "calendar.db";
-    private static final int    DB_VERSION = 3;
+    private static final int    DB_VERSION = 4;
 
-    static final String TABLE_APPOINTMENTS = "appointments";
-    static final String TABLE_TEMPLATES    = "standard_templates";
+    static final String TABLE_APPOINTMENTS  = "appointments";
+    static final String TABLE_TEMPLATES     = "standard_templates";
+    static final String TABLE_PERSONS       = "persons";
+    static final String TABLE_PERSON_GROUPS = "person_groups";
+    static final String TABLE_GROUP_MEMBERS = "group_members";
+
     static final String COL_ID        = "_id";
     static final String COL_DATE      = "date";       // YYYY-MM-DD
     static final String COL_TIME      = "time";       // HH:mm, nullable
     static final String COL_TITLE     = "title";
     static final String COL_SERIES_ID = "series_id";  // INTEGER, nullable – shared by all entries of a series
+    static final String COL_PERSON_ID = "person_id";  // INTEGER, nullable – assigned person
+    static final String COL_COLOR     = "color";      // hex color string for persons
+    static final String COL_GROUP_ID  = "group_id";
+
+    /** Predefined colors cycled through when auto-assigning to new persons. */
+    static final String[] PERSON_COLORS = {
+            "#E53935", "#D81B60", "#8E24AA", "#1E88E5",
+            "#00ACC1", "#43A047", "#FB8C00", "#6D4C41"
+    };
 
     /** Orders timed appointments first (by time ASC), then untimed ones (by title ASC). */
     private static final String ORDER_BY_TIME_THEN_TITLE =
@@ -42,11 +55,26 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 COL_DATE      + " TEXT NOT NULL, " +
                 COL_TIME      + " TEXT, " +
                 COL_TITLE     + " TEXT NOT NULL, " +
-                COL_SERIES_ID + " INTEGER)");
+                COL_SERIES_ID + " INTEGER, " +
+                COL_PERSON_ID + " INTEGER)");
 
         db.execSQL("CREATE TABLE " + TABLE_TEMPLATES + " (" +
                 COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COL_TITLE + " TEXT NOT NULL UNIQUE)");
+
+        db.execSQL("CREATE TABLE " + TABLE_PERSONS + " (" +
+                COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COL_TITLE + " TEXT NOT NULL UNIQUE, " +
+                COL_COLOR + " TEXT NOT NULL)");
+
+        db.execSQL("CREATE TABLE " + TABLE_PERSON_GROUPS + " (" +
+                COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COL_TITLE + " TEXT NOT NULL UNIQUE)");
+
+        db.execSQL("CREATE TABLE " + TABLE_GROUP_MEMBERS + " (" +
+                COL_GROUP_ID  + " INTEGER NOT NULL, " +
+                COL_PERSON_ID + " INTEGER NOT NULL, " +
+                "PRIMARY KEY(" + COL_GROUP_ID + ", " + COL_PERSON_ID + "))");
 
         // Pre-populate with example standard templates
         ContentValues cv = new ContentValues();
@@ -65,21 +93,41 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
         if (oldVersion < 3) {
             db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN " + COL_SERIES_ID + " INTEGER");
         }
+        if (oldVersion < 4) {
+            db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN " + COL_PERSON_ID + " INTEGER");
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_PERSONS + " (" +
+                    COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    COL_TITLE + " TEXT NOT NULL UNIQUE, " +
+                    COL_COLOR + " TEXT NOT NULL)");
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_PERSON_GROUPS + " (" +
+                    COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    COL_TITLE + " TEXT NOT NULL UNIQUE)");
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_GROUP_MEMBERS + " (" +
+                    COL_GROUP_ID  + " INTEGER NOT NULL, " +
+                    COL_PERSON_ID + " INTEGER NOT NULL, " +
+                    "PRIMARY KEY(" + COL_GROUP_ID + ", " + COL_PERSON_ID + "))");
+        }
     }
 
     // ── Appointments ──────────────────────────────────────────────────────────
 
     /** Inserts a new appointment without a time. Returns the new row id. */
     public long addAppointment(String date, String title) {
-        return addAppointment(date, null, title);
+        return addAppointment(date, null, title, null);
     }
 
     /** Inserts a new appointment with an optional time (HH:mm, may be null). Returns new row id. */
     public long addAppointment(String date, String time, String title) {
+        return addAppointment(date, time, title, null);
+    }
+
+    /** Inserts a new appointment with an optional time and optional personId. Returns new row id. */
+    public long addAppointment(String date, String time, String title, Long personId) {
         ContentValues cv = new ContentValues();
         cv.put(COL_DATE, date);
         if (time != null && !time.isEmpty()) cv.put(COL_TIME, time);
         cv.put(COL_TITLE, title);
+        if (personId != null) cv.put(COL_PERSON_ID, personId);
         return getWritableDatabase().insert(TABLE_APPOINTMENTS, null, cv);
     }
 
@@ -112,14 +160,62 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
     /** Returns all appointments for a given date (YYYY-MM-DD), timed ones first then by title. */
     public List<Appointment> getAppointmentsForDate(String date) {
+        return getAppointmentsForDate(date, null);
+    }
+
+    /**
+     * Returns appointments for a given date, optionally filtered by person.
+     * If personId is null, returns all appointments.
+     * If personId is a valid person ID, returns only appointments assigned to that person.
+     * If personId is a Long with value 0, returns appointments with no person assigned.
+     */
+    public List<Appointment> getAppointmentsForDate(String date, Long personId) {
         List<Appointment> list = new ArrayList<>();
+        String selection;
+        String[] selectionArgs;
+        if (personId == null) {
+            selection     = COL_DATE + "=?";
+            selectionArgs = new String[]{date};
+        } else {
+            selection     = COL_DATE + "=? AND " + COL_PERSON_ID + "=?";
+            selectionArgs = new String[]{date, String.valueOf(personId)};
+        }
         Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
-                new String[]{COL_ID, COL_TIME, COL_TITLE, COL_SERIES_ID},
-                COL_DATE + "=?", new String[]{date},
+                new String[]{COL_ID, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID},
+                selection, selectionArgs,
                 null, null, ORDER_BY_TIME_THEN_TITLE);
         while (c.moveToNext()) {
-            Long seriesId = c.isNull(3) ? null : c.getLong(3);
-            list.add(new Appointment(c.getLong(0), date, c.getString(1), c.getString(2), seriesId));
+            Long sid = c.isNull(3) ? null : c.getLong(3);
+            Long pid = c.isNull(4) ? null : c.getLong(4);
+            list.add(new Appointment(c.getLong(0), date, c.getString(1), c.getString(2), sid, pid));
+        }
+        c.close();
+        return list;
+    }
+
+    /**
+     * Returns appointments for a given date belonging to any of the given person IDs.
+     * Used for group filtering.
+     */
+    public List<Appointment> getAppointmentsForDateByGroup(String date, List<Long> personIds) {
+        if (personIds == null || personIds.isEmpty()) return getAppointmentsForDate(date);
+        List<Appointment> list = new ArrayList<>();
+        StringBuilder placeholders = new StringBuilder();
+        String[] args = new String[personIds.size() + 1];
+        args[0] = date;
+        for (int i = 0; i < personIds.size(); i++) {
+            if (i > 0) placeholders.append(",");
+            placeholders.append("?");
+            args[i + 1] = String.valueOf(personIds.get(i));
+        }
+        String selection = COL_DATE + "=? AND " + COL_PERSON_ID + " IN (" + placeholders + ")";
+        Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
+                new String[]{COL_ID, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID},
+                selection, args, null, null, ORDER_BY_TIME_THEN_TITLE);
+        while (c.moveToNext()) {
+            Long sid = c.isNull(3) ? null : c.getLong(3);
+            Long pid = c.isNull(4) ? null : c.getLong(4);
+            list.add(new Appointment(c.getLong(0), date, c.getString(1), c.getString(2), sid, pid));
         }
         c.close();
         return list;
@@ -149,7 +245,8 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
      * All appointments share the same series_id so the entire series can be deleted at once.
      */
     public void addRecurringAppointments(String startDate, String endDate,
-                                         String title, String recurrence, String time) {
+                                         String title, String recurrence, String time,
+                                         Long personId) {
         try {
             SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
             Date startD = fmt.parse(startDate);
@@ -202,6 +299,7 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                         cv.put(COL_TITLE, title);
                         if (time != null && !time.isEmpty()) cv.put(COL_TIME, time);
                         cv.put(COL_SERIES_ID, seriesId);
+                        if (personId != null) cv.put(COL_PERSON_ID, personId);
                         db.insert(TABLE_APPOINTMENTS, null, cv);
                     }
                     if ("once".equals(recurrence)) break;
@@ -229,4 +327,97 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
         c.close();
         return list;
     }
+
+    // ── Persons ───────────────────────────────────────────────────────────────
+
+    /** Returns all persons ordered by name. */
+    public List<Person> getPersons() {
+        List<Person> list = new ArrayList<>();
+        Cursor c = getReadableDatabase().query(TABLE_PERSONS,
+                new String[]{COL_ID, COL_TITLE, COL_COLOR},
+                null, null, null, null, COL_TITLE + " ASC");
+        while (c.moveToNext()) {
+            list.add(new Person(c.getLong(0), c.getString(1), c.getString(2)));
+        }
+        c.close();
+        return list;
+    }
+
+    /** Adds a person with the given name and color. Returns the new row id, or -1 if duplicate. */
+    public long addPerson(String name, String color) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_TITLE, name);
+        cv.put(COL_COLOR, color);
+        return getWritableDatabase().insertWithOnConflict(
+                TABLE_PERSONS, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
+    }
+
+    /** Permanently deletes a person and removes them from all groups. */
+    public void deletePerson(long id) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete(TABLE_GROUP_MEMBERS, COL_PERSON_ID + "=?", new String[]{String.valueOf(id)});
+        db.delete(TABLE_PERSONS, COL_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    // ── Person groups ─────────────────────────────────────────────────────────
+
+    /** Returns all person groups, each with the IDs of their members. */
+    public List<PersonGroup> getPersonGroups() {
+        List<PersonGroup> groups = new ArrayList<>();
+        Cursor cg = getReadableDatabase().query(TABLE_PERSON_GROUPS,
+                new String[]{COL_ID, COL_TITLE},
+                null, null, null, null, COL_TITLE + " ASC");
+        while (cg.moveToNext()) {
+            long gid = cg.getLong(0);
+            String gname = cg.getString(1);
+            List<Long> members = getGroupMemberIds(gid);
+            groups.add(new PersonGroup(gid, gname, members));
+        }
+        cg.close();
+        return groups;
+    }
+
+    /** Returns the person IDs that belong to the given group. */
+    public List<Long> getGroupMemberIds(long groupId) {
+        List<Long> ids = new ArrayList<>();
+        Cursor c = getReadableDatabase().query(TABLE_GROUP_MEMBERS,
+                new String[]{COL_PERSON_ID},
+                COL_GROUP_ID + "=?", new String[]{String.valueOf(groupId)},
+                null, null, null);
+        while (c.moveToNext()) ids.add(c.getLong(0));
+        c.close();
+        return ids;
+    }
+
+    /** Adds a person group. Returns the new row id, or -1 if duplicate. */
+    public long addPersonGroup(String name) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_TITLE, name);
+        return getWritableDatabase().insertWithOnConflict(
+                TABLE_PERSON_GROUPS, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
+    }
+
+    /** Permanently deletes a group and all its member mappings. */
+    public void deletePersonGroup(long id) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete(TABLE_GROUP_MEMBERS, COL_GROUP_ID + "=?", new String[]{String.valueOf(id)});
+        db.delete(TABLE_PERSON_GROUPS, COL_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    /** Adds a person to a group (ignored if already a member). */
+    public void addGroupMember(long groupId, long personId) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_GROUP_ID, groupId);
+        cv.put(COL_PERSON_ID, personId);
+        getWritableDatabase().insertWithOnConflict(
+                TABLE_GROUP_MEMBERS, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
+    }
+
+    /** Removes a person from a group. */
+    public void removeGroupMember(long groupId, long personId) {
+        getWritableDatabase().delete(TABLE_GROUP_MEMBERS,
+                COL_GROUP_ID + "=? AND " + COL_PERSON_ID + "=?",
+                new String[]{String.valueOf(groupId), String.valueOf(personId)});
+    }
 }
+
