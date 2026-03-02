@@ -90,6 +90,10 @@
     <string name="calendar_recurrence_time">Uhrzeit: %s</string>
     <string name="calendar_recurrence_time_optional">Uhrzeit festlegen (optional)</string>
 
+    <!-- Series (recurring) delete -->
+    <string name="calendar_delete_this_only">Nur diesen</string>
+    <string name="calendar_delete_series">Ganze Serie löschen</string>
+
     <!-- Weather weekend forecast -->
     <string name="weekend_forecast_title">Weekend Forecast</string>
     <string name="weekend_saturday">Saturday</string>
