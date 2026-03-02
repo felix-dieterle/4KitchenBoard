@@ -27,6 +27,7 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
 
     private final List<Appointment> items = new ArrayList<>();
     private final Map<Long, Person> personMap = new HashMap<>();
+    private final Map<Long, PersonGroup> groupMap = new HashMap<>();
     private OnDeleteListener deleteListener;
 
     public void setOnDeleteListener(OnDeleteListener listener) {
@@ -43,7 +44,12 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
     public void setPersons(List<Person> persons) {
         personMap.clear();
         for (Person p : persons) personMap.put(p.getId(), p);
-        notifyDataSetChanged();
+    }
+
+    /** Updates the group lookup map used to show group dot. */
+    public void setGroups(List<PersonGroup> groups) {
+        groupMap.clear();
+        for (PersonGroup g : groups) groupMap.put(g.getId(), g);
     }
 
     public Appointment getItem(int position) {
@@ -84,6 +90,7 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
         }
 
         // Person color dot
+        // Person color dot or group indicator dot
         if (item.getPersonId() != null && personMap.containsKey(item.getPersonId())) {
             Person p = personMap.get(item.getPersonId());
             GradientDrawable dot = new GradientDrawable();
@@ -93,6 +100,12 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
             } catch (IllegalArgumentException e) {
                 dot.setColor(Color.GRAY);
             }
+            holder.viewPersonDot.setBackground(dot);
+            holder.viewPersonDot.setVisibility(View.VISIBLE);
+        } else if (item.getGroupId() != null && groupMap.containsKey(item.getGroupId())) {
+            GradientDrawable dot = new GradientDrawable();
+            dot.setShape(GradientDrawable.OVAL);
+            dot.setColor(Color.GRAY);
             holder.viewPersonDot.setBackground(dot);
             holder.viewPersonDot.setVisibility(View.VISIBLE);
         } else {

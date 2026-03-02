@@ -98,6 +98,12 @@ public class CalendarFragment extends Fragment {
      */
     private List<Long> activeFilterPersonIds = null;
 
+    /**
+     * When filtering by a group, the group's own id so that appointments directly assigned to
+     * the group are also included in the result.  null when not filtering by a group.
+     */
+    private Long activeFilterGroupId = null;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
@@ -308,10 +314,10 @@ public class CalendarFragment extends Fragment {
             List<Appointment> dayApts;
             if (activeFilterPersonIds == null) {
                 dayApts = db.getAppointmentsForDate(dateStr);
-            } else if (activeFilterPersonIds.size() == 1) {
+            } else if (activeFilterPersonIds.size() == 1 && activeFilterGroupId == null) {
                 dayApts = db.getAppointmentsForDate(dateStr, activeFilterPersonIds.get(0));
             } else {
-                dayApts = db.getAppointmentsForDateByGroup(dateStr, activeFilterPersonIds);
+                dayApts = db.getAppointmentsForDateByGroup(dateStr, activeFilterPersonIds, activeFilterGroupId);
             }
             int maxShow = 3;
             for (int j = 0; j < Math.min(dayApts.size(), maxShow); j++) {
@@ -496,12 +502,13 @@ public class CalendarFragment extends Fragment {
         List<Appointment> list;
         if (activeFilterPersonIds == null) {
             list = db.getAppointmentsForDate(selectedDate);
-        } else if (activeFilterPersonIds.size() == 1) {
+        } else if (activeFilterPersonIds.size() == 1 && activeFilterGroupId == null) {
             list = db.getAppointmentsForDate(selectedDate, activeFilterPersonIds.get(0));
         } else {
-            list = db.getAppointmentsForDateByGroup(selectedDate, activeFilterPersonIds);
+            list = db.getAppointmentsForDateByGroup(selectedDate, activeFilterPersonIds, activeFilterGroupId);
         }
         adapter.setPersons(db.getPersons());
+        adapter.setGroups(db.getPersonGroups());
         adapter.setItems(list);
         tvEmpty.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
     }
@@ -561,6 +568,7 @@ public class CalendarFragment extends Fragment {
         btnAll.setLayoutParams(lpAll);
         btnAll.setOnClickListener(v -> {
             activeFilterPersonIds = null;
+            activeFilterGroupId   = null;
             refreshPersonFilter();
             refreshAppointments();
             refreshDayStrip();
@@ -584,6 +592,7 @@ public class CalendarFragment extends Fragment {
             btn.setOnClickListener(v -> {
                 List<Long> memberIds = db.getGroupMemberIds(g.getId());
                 activeFilterPersonIds = memberIds.isEmpty() ? null : new ArrayList<>(memberIds);
+                activeFilterGroupId   = g.getId();
                 refreshPersonFilter();
                 refreshAppointments();
                 refreshDayStrip();
@@ -613,6 +622,7 @@ public class CalendarFragment extends Fragment {
             btn.setOnClickListener(v -> {
                 activeFilterPersonIds = new ArrayList<>();
                 activeFilterPersonIds.add(p.getId());
+                activeFilterGroupId   = null;
                 refreshPersonFilter();
                 refreshAppointments();
                 refreshDayStrip();
@@ -628,10 +638,7 @@ public class CalendarFragment extends Fragment {
     }
 
     private boolean isGroupActive(PersonGroup g) {
-        if (activeFilterPersonIds == null) return false;
-        List<Long> memberIds = g.getMemberIds();
-        if (memberIds.size() != activeFilterPersonIds.size()) return false;
-        return activeFilterPersonIds.containsAll(memberIds);
+        return activeFilterGroupId != null && activeFilterGroupId.equals(g.getId());
     }
 
     // ── Auto-advance helpers ──────────────────────────────────────────────────
@@ -742,10 +749,12 @@ public class CalendarFragment extends Fragment {
         btnSetTime.setVisibility(View.VISIBLE);
         layout.addView(btnSetTime);
 
-        // Person picker
+        // Person / group picker
         final Long[] selectedPersonId = {null};
+        final Long[] selectedGroupId  = {null};
         List<Person> persons = db.getPersons();
-        if (!persons.isEmpty()) {
+        List<PersonGroup> groups = db.getPersonGroups();
+        if (!persons.isEmpty() || !groups.isEmpty()) {
             TextView tvPersonLabel = new TextView(requireContext());
             tvPersonLabel.setText(R.string.calendar_person_label);
             tvPersonLabel.setTextSize(14f);
@@ -756,7 +765,7 @@ public class CalendarFragment extends Fragment {
             llPersonPicker.setOrientation(LinearLayout.HORIZONTAL);
             layout.addView(llPersonPicker);
 
-            buildPersonPickerButtons(llPersonPicker, persons, selectedPersonId);
+            buildPersonPickerButtons(llPersonPicker, persons, selectedPersonId, selectedGroupId);
         }
 
         rg.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
@@ -843,11 +852,11 @@ public class CalendarFragment extends Fragment {
                         String recKey = recurrenceKeys[idx];
                         if ("once".equals(recKey)) {
                             db.addAppointment(startDate[0], appointmentTime[0], t.getTitle(),
-                                    selectedPersonId[0]);
+                                    selectedPersonId[0], selectedGroupId[0]);
                         } else {
                             db.addRecurringAppointments(
                                     selectedDate, endDate[0], t.getTitle(), recKey,
-                                    appointmentTime[0], selectedPersonId[0]);
+                                    appointmentTime[0], selectedPersonId[0], selectedGroupId[0]);
                         }
                         refreshAppointments();
                         refreshDayStrip();
@@ -881,10 +890,11 @@ public class CalendarFragment extends Fragment {
         final String[] customDate = {selectedDate};
         final String[] customTime = {null};
         final Long[] customPersonId = {null};
+        final Long[] customGroupId  = {null};
 
         // Populate person picker
         List<Person> persons = db.getPersons();
-        buildPersonPickerButtons(llPersonPicker, persons, customPersonId);
+        buildPersonPickerButtons(llPersonPicker, persons, customPersonId, customGroupId);
 
         // Initialise date button text
         try {
@@ -936,7 +946,7 @@ public class CalendarFragment extends Fragment {
                         String custom = etCustom.getText().toString().trim();
                         if (!custom.isEmpty()) {
                             db.addAppointment(customDate[0], customTime[0], custom,
-                                    customPersonId[0]);
+                                    customPersonId[0], customGroupId[0]);
                             refreshAppointments();
                             refreshDayStrip();
                         }
@@ -1086,23 +1096,27 @@ public class CalendarFragment extends Fragment {
     // ── Person picker helper ──────────────────────────────────────────────────
 
     /**
-     * Fills a horizontal LinearLayout with "Keine" + one button per person.
-     * Tapping a button toggles selection in selectedPersonId[0].
+     * Fills a horizontal LinearLayout with "Keine" + one button per person + one button per group.
+     * Tapping a person button selects that person (clears group); tapping a group button selects
+     * that group (clears person); tapping "Keine" clears both.
      */
     private void buildPersonPickerButtons(final LinearLayout container,
                                           final List<Person> persons,
-                                          final Long[] selectedPersonId) {
+                                          final Long[] selectedPersonId,
+                                          final Long[] selectedGroupId) {
         container.removeAllViews();
         int marginPx = dpToPx(6);
         int accentColor   = ContextCompat.getColor(requireContext(), R.color.accent);
         int textSecondary = ContextCompat.getColor(requireContext(), R.color.text_secondary);
+
+        boolean noneSelected = selectedPersonId[0] == null && selectedGroupId[0] == null;
 
         // "Keine" button
         Button btnNone = new Button(requireContext());
         btnNone.setText(R.string.calendar_person_none);
         btnNone.setAllCaps(false);
         btnNone.setTextSize(13f);
-        btnNone.setTextColor(selectedPersonId[0] == null ? accentColor : textSecondary);
+        btnNone.setTextColor(noneSelected ? accentColor : textSecondary);
         LinearLayout.LayoutParams lpNone = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -1110,7 +1124,8 @@ public class CalendarFragment extends Fragment {
         btnNone.setLayoutParams(lpNone);
         btnNone.setOnClickListener(v -> {
             selectedPersonId[0] = null;
-            buildPersonPickerButtons(container, persons, selectedPersonId);
+            selectedGroupId[0]  = null;
+            buildPersonPickerButtons(container, persons, selectedPersonId, selectedGroupId);
         });
         container.addView(btnNone);
 
@@ -1135,7 +1150,30 @@ public class CalendarFragment extends Fragment {
             btn.setLayoutParams(lp);
             btn.setOnClickListener(v -> {
                 selectedPersonId[0] = p.getId();
-                buildPersonPickerButtons(container, persons, selectedPersonId);
+                selectedGroupId[0]  = null;
+                buildPersonPickerButtons(container, persons, selectedPersonId, selectedGroupId);
+            });
+            container.addView(btn);
+        }
+
+        // Group buttons
+        List<PersonGroup> groups = db.getPersonGroups();
+        for (final PersonGroup g : groups) {
+            Button btn = new Button(requireContext());
+            btn.setText("👥 " + g.getName());
+            btn.setAllCaps(false);
+            btn.setTextSize(13f);
+            boolean isSelected = selectedGroupId[0] != null && selectedGroupId[0].equals(g.getId());
+            btn.setTextColor(isSelected ? accentColor : textSecondary);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.setMargins(0, 0, marginPx, 0);
+            btn.setLayoutParams(lp);
+            btn.setOnClickListener(v -> {
+                selectedGroupId[0]  = g.getId();
+                selectedPersonId[0] = null;
+                buildPersonPickerButtons(container, persons, selectedPersonId, selectedGroupId);
             });
             container.addView(btn);
         }
@@ -1182,6 +1220,7 @@ public class CalendarFragment extends Fragment {
 
         dialog.setOnDismissListener(d -> {
             activeFilterPersonIds = null;
+            activeFilterGroupId   = null;
             refreshPersonFilter();
             refreshAppointments();
             refreshDayStrip();
