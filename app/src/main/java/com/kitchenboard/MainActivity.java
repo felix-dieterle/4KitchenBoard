@@ -1,5 +1,6 @@
 package com.kitchenboard;
 
+import android.animation.ObjectAnimator;
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -14,6 +15,7 @@ import android.os.Looper;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -77,6 +79,7 @@ public class MainActivity extends AppCompatActivity {
 
         checkForUpdates();
         handleDeepLinkIntent(getIntent());
+        showVersionOverlay();
     }
 
     @Override
@@ -104,6 +107,33 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
+    }
+
+    // ── Version overlay ───────────────────────────────────────────────────────
+
+    private static final int VERSION_OVERLAY_DISPLAY_MS = 3_000;
+    private static final int VERSION_OVERLAY_FADE_MS    = 1_000;
+
+    private final Handler versionOverlayHandler = new Handler(Looper.getMainLooper());
+    private Runnable versionOverlayRunnable;
+
+    private void showVersionOverlay() {
+        TextView overlay = findViewById(R.id.version_overlay);
+        if (overlay == null) return;
+        overlay.setText(getString(R.string.version_display,
+                BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
+        versionOverlayRunnable = () -> {
+            ObjectAnimator fade = ObjectAnimator.ofFloat(overlay, "alpha", 1f, 0f);
+            fade.setDuration(VERSION_OVERLAY_FADE_MS);
+            fade.addListener(new android.animation.AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(android.animation.Animator animation) {
+                    overlay.setVisibility(View.GONE);
+                }
+            });
+            fade.start();
+        };
+        versionOverlayHandler.postDelayed(versionOverlayRunnable, VERSION_OVERLAY_DISPLAY_MS);
     }
 
     // ── Dot indicator helpers ─────────────────────────────────────────────────
@@ -266,6 +296,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
+        versionOverlayHandler.removeCallbacks(versionOverlayRunnable);
         if (viewPager != null && pageChangeCallback != null) {
             viewPager.unregisterOnPageChangeCallback(pageChangeCallback);
         }
