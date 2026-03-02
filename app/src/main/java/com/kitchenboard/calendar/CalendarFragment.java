@@ -2,9 +2,15 @@ package com.kitchenboard.calendar;
 
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
+import android.content.ClipData;
 import android.content.DialogInterface;
+import android.graphics.Color;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.os.Bundle;
+import android.text.TextUtils;
+import android.view.DragEvent;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -13,6 +19,7 @@ import android.widget.Button;
 import android.widget.CalendarView;
 import android.widget.DatePicker;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -74,6 +81,11 @@ public class CalendarFragment extends Fragment {
 
     /** Currently selected date in YYYY-MM-DD format. */
     private String selectedDate;
+
+    /** Earliest hour shown in the drag time-slot mapping (06:00). */
+    private static final int DRAG_START_HOUR = 6;
+    /** Number of hours covered by the day-strip column height (06:00–22:00). */
+    private static final int DRAG_HOUR_RANGE = 16;
 
     @Nullable
     @Override
@@ -229,35 +241,43 @@ public class CalendarFragment extends Fragment {
     private void refreshDayStrip() {
         llDayStrip.removeAllViews();
         String todayStr = DATE_FMT.format(new Date());
-        int accentColor   = ContextCompat.getColor(requireContext(), R.color.accent);
+        int accentColor      = ContextCompat.getColor(requireContext(), R.color.accent);
         int accentLightColor = ContextCompat.getColor(requireContext(), R.color.accent_light);
-        int textPrimary   = ContextCompat.getColor(requireContext(), R.color.text_primary);
-        int textSecondary = ContextCompat.getColor(requireContext(), R.color.text_secondary);
+        int textPrimary      = ContextCompat.getColor(requireContext(), R.color.text_primary);
+        int textSecondary    = ContextCompat.getColor(requireContext(), R.color.text_secondary);
         int padPx = dpToPx(4);
 
         Calendar cal = (Calendar) stripStart.clone();
         for (int i = 0; i < viewMode; i++) {
             final String dateStr = DATE_FMT.format(cal.getTime());
-            boolean isSelected = dateStr.equals(selectedDate);
-            boolean isToday    = dateStr.equals(todayStr);
+            final boolean isSelected = dateStr.equals(selectedDate);
+            boolean isToday = dateStr.equals(todayStr);
 
-            LinearLayout cell = new LinearLayout(requireContext());
-            cell.setOrientation(LinearLayout.VERTICAL);
-            cell.setGravity(Gravity.CENTER);
+            // Outer FrameLayout cell (the "column")
+            FrameLayout cell = new FrameLayout(requireContext());
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
             cell.setLayoutParams(lp);
-            cell.setPadding(padPx, padPx, padPx, padPx);
             if (isSelected) {
                 cell.setBackgroundColor(accentLightColor);
             }
+
+            // Inner content LinearLayout
+            LinearLayout content = new LinearLayout(requireContext());
+            content.setOrientation(LinearLayout.VERTICAL);
+            content.setGravity(Gravity.CENTER_HORIZONTAL | Gravity.TOP);
+            content.setPadding(padPx, padPx, padPx, padPx);
+            FrameLayout.LayoutParams contentLp = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT);
+            content.setLayoutParams(contentLp);
 
             TextView tvDayName = new TextView(requireContext());
             tvDayName.setText(DAY_NAME_FMT.format(cal.getTime()));
             tvDayName.setGravity(Gravity.CENTER);
             tvDayName.setTextSize(11f);
             tvDayName.setTextColor(textSecondary);
-            cell.addView(tvDayName);
+            content.addView(tvDayName);
 
             TextView tvDayNum = new TextView(requireContext());
             tvDayNum.setText(String.valueOf(cal.get(Calendar.DAY_OF_MONTH)));
@@ -265,13 +285,103 @@ public class CalendarFragment extends Fragment {
             tvDayNum.setTextSize(20f);
             tvDayNum.setTextColor(isToday ? accentColor : textPrimary);
             if (isToday) tvDayNum.setTypeface(null, Typeface.BOLD);
-            cell.addView(tvDayNum);
+            content.addView(tvDayNum);
+
+            // Appointment indicators
+            List<Appointment> dayApts = db.getAppointmentsForDate(dateStr);
+            int maxShow = 3;
+            for (int j = 0; j < Math.min(dayApts.size(), maxShow); j++) {
+                Appointment apt = dayApts.get(j);
+                TextView tvApt = new TextView(requireContext());
+                String aptText = apt.getTime() != null
+                        ? apt.getTime() + " " + apt.getTitle()
+                        : apt.getTitle();
+                tvApt.setText(aptText);
+                tvApt.setGravity(Gravity.CENTER);
+                tvApt.setTextSize(9f);
+                tvApt.setTextColor(accentColor);
+                tvApt.setMaxLines(1);
+                tvApt.setEllipsize(TextUtils.TruncateAt.END);
+                tvApt.setPadding(padPx, dpToPx(1), padPx, dpToPx(1));
+                content.addView(tvApt);
+            }
+            if (dayApts.size() > maxShow) {
+                TextView tvMore = new TextView(requireContext());
+                tvMore.setText("+" + (dayApts.size() - maxShow));
+                tvMore.setGravity(Gravity.CENTER);
+                tvMore.setTextSize(9f);
+                tvMore.setTextColor(textSecondary);
+                content.addView(tvMore);
+            }
+
+            cell.addView(content);
+
+            // Drag-and-drop time-slot overlay
+            TextView tvDragSlot = new TextView(requireContext());
+            tvDragSlot.setGravity(Gravity.CENTER);
+            tvDragSlot.setTextColor(Color.WHITE);
+            tvDragSlot.setTextSize(10f);
+            tvDragSlot.setBackgroundColor(
+                    ContextCompat.getColor(requireContext(), R.color.drag_slot_overlay));
+            tvDragSlot.setVisibility(View.GONE);
+            FrameLayout.LayoutParams slotLp = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, dpToPx(32));
+            tvDragSlot.setLayoutParams(slotLp);
+            cell.addView(tvDragSlot);
 
             cell.setOnClickListener(v -> {
                 selectedDate = dateStr;
                 updateDateLabel();
                 refreshAppointments();
                 refreshDayStrip();
+            });
+
+            cell.setOnDragListener((v, event) -> {
+                switch (event.getAction()) {
+                    case DragEvent.ACTION_DRAG_STARTED:
+                        return true;
+                    case DragEvent.ACTION_DRAG_ENTERED:
+                    case DragEvent.ACTION_DRAG_LOCATION: {
+                        float cellH = v.getHeight();
+                        float slotH = dpToPx(32);
+                        int hour = dragYToHour(event.getY(), cellH);
+                        tvDragSlot.setText(String.format(Locale.US,
+                                "%02d:00 – %02d:00", hour, hour + 1));
+                        float slotTop = Math.min(
+                                event.getY() - slotH / 2f, cellH - slotH);
+                        tvDragSlot.setTranslationY(Math.max(0, slotTop));
+                        tvDragSlot.setVisibility(View.VISIBLE);
+                        if (!isSelected) v.setBackgroundColor(accentLightColor);
+                        return true;
+                    }
+                    case DragEvent.ACTION_DRAG_EXITED: {
+                        tvDragSlot.setVisibility(View.GONE);
+                        if (!isSelected) v.setBackgroundColor(Color.TRANSPARENT);
+                        return true;
+                    }
+                    case DragEvent.ACTION_DROP: {
+                        tvDragSlot.setVisibility(View.GONE);
+                        if (!isSelected) v.setBackgroundColor(Color.TRANSPARENT);
+                        ClipData clipData = event.getClipData();
+                        if (clipData != null && clipData.getItemCount() > 0) {
+                            String title = clipData.getItemAt(0).getText().toString();
+                            int hour = dragYToHour(event.getY(), v.getHeight());
+                            String time = String.format(Locale.US, "%02d:00", hour);
+                            db.addAppointment(dateStr, time, title);
+                            v.post(() -> {
+                                refreshAppointments();
+                                refreshDayStrip();
+                            });
+                        }
+                        return true;
+                    }
+                    case DragEvent.ACTION_DRAG_ENDED: {
+                        tvDragSlot.setVisibility(View.GONE);
+                        if (!isSelected) v.setBackgroundColor(Color.TRANSPARENT);
+                        return false;
+                    }
+                }
+                return false;
             });
 
             llDayStrip.addView(cell);
@@ -313,6 +423,12 @@ public class CalendarFragment extends Fragment {
         return Math.round(dp * getResources().getDisplayMetrics().density);
     }
 
+    /** Maps a drag event Y-coordinate within a cell to the nearest start hour. */
+    private static int dragYToHour(float y, float cellHeight) {
+        int hour = Math.round(DRAG_START_HOUR + y / cellHeight * DRAG_HOUR_RANGE);
+        return Math.max(DRAG_START_HOUR, Math.min(DRAG_START_HOUR + DRAG_HOUR_RANGE - 1, hour));
+    }
+
     private void updateDateLabel() {
         try {
             Date d = DATE_FMT.parse(selectedDate);
@@ -344,6 +460,16 @@ public class CalendarFragment extends Fragment {
             lp.setMargins(0, 0, marginPx, 0);
             btn.setLayoutParams(lp);
             btn.setOnClickListener(v -> showRecurrenceDialog(t));
+            btn.setOnLongClickListener(v -> {
+                ClipData data = ClipData.newPlainText("template", t.getTitle());
+                View.DragShadowBuilder shadow = new View.DragShadowBuilder(v);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    v.startDragAndDrop(data, shadow, null, 0);
+                } else {
+                    v.startDrag(data, shadow, null, 0);
+                }
+                return true;
+            });
             llTemplateButtons.addView(btn);
         }
     }
@@ -387,6 +513,10 @@ public class CalendarFragment extends Fragment {
         endCal.add(Calendar.MONTH, 1);
         final String[] endDate = {DATE_FMT.format(endCal.getTime())};
 
+        // Mutable start date and optional time for "once" mode
+        final String[] startDate = {selectedDate};
+        final String[] appointmentTime = {null};
+
         // Build dialog view
         LinearLayout layout = new LinearLayout(requireContext());
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -418,6 +548,7 @@ public class CalendarFragment extends Fragment {
         rg.check(rbIds[0]);
         layout.addView(rg);
 
+        // End date button (for recurring modes)
         final Button btnEndDate = new Button(requireContext());
         try {
             btnEndDate.setText(getString(R.string.calendar_recurrence_until,
@@ -430,10 +561,34 @@ public class CalendarFragment extends Fragment {
         btnEndDate.setVisibility(View.GONE);
         layout.addView(btnEndDate);
 
+        // Start date button (for "once" mode)
+        final Button btnStartDate = new Button(requireContext());
+        try {
+            btnStartDate.setText(getString(R.string.calendar_recurrence_date,
+                    LABEL_FMT.format(DATE_FMT.parse(selectedDate))));
+        } catch (Exception e) {
+            btnStartDate.setText(getString(R.string.calendar_recurrence_date, selectedDate));
+        }
+        btnStartDate.setAllCaps(false);
+        btnStartDate.setTextSize(16f);
+        btnStartDate.setVisibility(View.VISIBLE);
+        layout.addView(btnStartDate);
+
+        // Time button (for "once" mode)
+        final Button btnSetTime = new Button(requireContext());
+        btnSetTime.setText(R.string.calendar_recurrence_time_optional);
+        btnSetTime.setAllCaps(false);
+        btnSetTime.setTextSize(16f);
+        btnSetTime.setVisibility(View.VISIBLE);
+        layout.addView(btnSetTime);
+
         rg.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(RadioGroup group, int checkedId) {
-                btnEndDate.setVisibility(checkedId == rbIds[0] ? View.GONE : View.VISIBLE);
+                boolean isOnce = (checkedId == rbIds[0]);
+                btnEndDate.setVisibility(isOnce ? View.GONE : View.VISIBLE);
+                btnStartDate.setVisibility(isOnce ? View.VISIBLE : View.GONE);
+                btnSetTime.setVisibility(isOnce ? View.VISIBLE : View.GONE);
             }
         });
 
@@ -462,6 +617,39 @@ public class CalendarFragment extends Fragment {
             }
         });
 
+        btnStartDate.setOnClickListener(v -> {
+            Calendar cur = Calendar.getInstance();
+            try { cur.setTime(DATE_FMT.parse(startDate[0])); } catch (ParseException ignored) {}
+            new DatePickerDialog(requireContext(), (picker, year, month, day) -> {
+                Calendar chosen = Calendar.getInstance();
+                chosen.set(year, month, day);
+                startDate[0] = DATE_FMT.format(chosen.getTime());
+                try {
+                    btnStartDate.setText(getString(R.string.calendar_recurrence_date,
+                            LABEL_FMT.format(chosen.getTime())));
+                } catch (Exception ignored) {}
+            }, cur.get(Calendar.YEAR), cur.get(Calendar.MONTH),
+                    cur.get(Calendar.DAY_OF_MONTH)).show();
+        });
+
+        btnSetTime.setOnClickListener(v -> {
+            Calendar cur = Calendar.getInstance();
+            int hour = cur.get(Calendar.HOUR_OF_DAY);
+            int minute = 0;
+            if (appointmentTime[0] != null) {
+                String[] parts = appointmentTime[0].split(":");
+                try {
+                    hour = Integer.parseInt(parts[0]);
+                    minute = Integer.parseInt(parts[1]);
+                } catch (NumberFormatException ignored) {}
+            }
+            new TimePickerDialog(requireContext(), (picker, h, m) -> {
+                appointmentTime[0] = String.format(Locale.US, "%02d:%02d", h, m);
+                btnSetTime.setText(getString(R.string.calendar_recurrence_time,
+                        appointmentTime[0]));
+            }, hour, minute, true).show();
+        });
+
         pauseAutoAdvance();
         AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.calendar_recurrence_title)
@@ -475,9 +663,14 @@ public class CalendarFragment extends Fragment {
                             if (rbIds[i] == checkedId) { idx = i; break; }
                         }
                         String recKey = recurrenceKeys[idx];
-                        String end = "once".equals(recKey) ? selectedDate : endDate[0];
-                        db.addRecurringAppointments(selectedDate, end, t.getTitle(), recKey);
+                        if ("once".equals(recKey)) {
+                            db.addAppointment(startDate[0], appointmentTime[0], t.getTitle());
+                        } else {
+                            db.addRecurringAppointments(
+                                    selectedDate, endDate[0], t.getTitle(), recKey);
+                        }
                         refreshAppointments();
+                        refreshDayStrip();
                     }
                 })
                 .setNegativeButton(R.string.cancel, null)
@@ -501,6 +694,52 @@ public class CalendarFragment extends Fragment {
 
         final LinearLayout llTemplates = dialogView.findViewById(R.id.ll_templates);
         final EditText etCustom = dialogView.findViewById(R.id.et_custom_title);
+        final Button btnCustomDate = dialogView.findViewById(R.id.btn_custom_date);
+        final Button btnCustomTime = dialogView.findViewById(R.id.btn_custom_time);
+
+        final String[] customDate = {selectedDate};
+        final String[] customTime = {null};
+
+        // Initialise date button text
+        try {
+            btnCustomDate.setText(getString(R.string.calendar_recurrence_date,
+                    LABEL_FMT.format(DATE_FMT.parse(selectedDate))));
+        } catch (Exception ignored) {
+            btnCustomDate.setText(selectedDate);
+        }
+
+        btnCustomDate.setOnClickListener(v -> {
+            Calendar cur = Calendar.getInstance();
+            try { cur.setTime(DATE_FMT.parse(customDate[0])); } catch (ParseException ignored) {}
+            new DatePickerDialog(requireContext(), (picker, year, month, day) -> {
+                Calendar chosen = Calendar.getInstance();
+                chosen.set(year, month, day);
+                customDate[0] = DATE_FMT.format(chosen.getTime());
+                try {
+                    btnCustomDate.setText(getString(R.string.calendar_recurrence_date,
+                            LABEL_FMT.format(chosen.getTime())));
+                } catch (Exception ignored) {}
+            }, cur.get(Calendar.YEAR), cur.get(Calendar.MONTH),
+                    cur.get(Calendar.DAY_OF_MONTH)).show();
+        });
+
+        btnCustomTime.setOnClickListener(v -> {
+            Calendar cur = Calendar.getInstance();
+            int hour = cur.get(Calendar.HOUR_OF_DAY);
+            int minute = 0;
+            if (customTime[0] != null) {
+                String[] parts = customTime[0].split(":");
+                try {
+                    hour = Integer.parseInt(parts[0]);
+                    minute = Integer.parseInt(parts[1]);
+                } catch (NumberFormatException ignored) {}
+            }
+            new TimePickerDialog(requireContext(), (picker, h, m) -> {
+                customTime[0] = String.format(Locale.US, "%02d:%02d", h, m);
+                btnCustomTime.setText(getString(R.string.calendar_recurrence_time,
+                        customTime[0]));
+            }, hour, minute, true).show();
+        });
 
         final AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.calendar_add_appointment)
@@ -510,8 +749,9 @@ public class CalendarFragment extends Fragment {
                     public void onClick(DialogInterface d, int which) {
                         String custom = etCustom.getText().toString().trim();
                         if (!custom.isEmpty()) {
-                            db.addAppointment(selectedDate, custom);
+                            db.addAppointment(customDate[0], customTime[0], custom);
                             refreshAppointments();
+                            refreshDayStrip();
                         }
                     }
                 })

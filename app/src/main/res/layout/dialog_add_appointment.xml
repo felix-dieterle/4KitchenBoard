@@ -59,4 +59,21 @@
         android:background="@drawable/bg_input"
         android:padding="10dp"/>
 
+    <Button
+        android:id="@+id/btn_custom_date"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAllCaps="false"
+        android:textSize="@dimen/body_text_size"
+        android:layout_marginTop="@dimen/spacing_small"/>
+
+    <Button
+        android:id="@+id/btn_custom_time"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/calendar_recurrence_time_optional"
+        android:textAllCaps="false"
+        android:textSize="@dimen/body_text_size"
+        android:layout_marginTop="@dimen/spacing_small"/>
+
 </LinearLayout>
