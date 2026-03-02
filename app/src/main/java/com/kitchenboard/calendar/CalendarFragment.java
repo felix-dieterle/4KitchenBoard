@@ -291,7 +291,7 @@ public class CalendarFragment extends Fragment {
             List<Appointment> dayApts = db.getAppointmentsForDate(dateStr);
             int maxShow = 3;
             for (int j = 0; j < Math.min(dayApts.size(), maxShow); j++) {
-                Appointment apt = dayApts.get(j);
+                final Appointment apt = dayApts.get(j);
                 TextView tvApt = new TextView(requireContext());
                 String aptText = apt.getTime() != null
                         ? apt.getTime() + " " + apt.getTitle()
@@ -303,6 +303,26 @@ public class CalendarFragment extends Fragment {
                 tvApt.setMaxLines(1);
                 tvApt.setEllipsize(TextUtils.TruncateAt.END);
                 tvApt.setPadding(padPx, dpToPx(1), padPx, dpToPx(1));
+                // Tap on appointment in day strip → select that day and offer delete
+                tvApt.setOnClickListener(v2 -> {
+                    selectedDate = dateStr;
+                    updateDateLabel();
+                    refreshAppointments();
+                    refreshDayStrip();
+                    confirmDeleteAppointment(apt);
+                });
+                // Long-press on appointment → start drag to move it to another day
+                tvApt.setOnLongClickListener(v2 -> {
+                    ClipData data = ClipData.newPlainText(
+                            "appointment", String.valueOf(apt.getId()));
+                    View.DragShadowBuilder shadow = new View.DragShadowBuilder(v2);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        v2.startDragAndDrop(data, shadow, null, 0);
+                    } else {
+                        v2.startDrag(data, shadow, null, 0);
+                    }
+                    return true;
+                });
                 content.addView(tvApt);
             }
             if (dayApts.size() > maxShow) {
@@ -364,10 +384,20 @@ public class CalendarFragment extends Fragment {
                         if (!isSelected) v.setBackgroundColor(Color.TRANSPARENT);
                         ClipData clipData = event.getClipData();
                         if (clipData != null && clipData.getItemCount() > 0) {
-                            String title = clipData.getItemAt(0).getText().toString();
+                            String clipLabel = clipData.getDescription().getLabel().toString();
+                            String clipText  = clipData.getItemAt(0).getText().toString();
                             int hour = dragYToHour(event.getY(), v.getHeight());
                             String time = String.format(Locale.US, "%02d:00", hour);
-                            db.addAppointment(dateStr, time, title);
+                            if ("appointment".equals(clipLabel)) {
+                                // Move existing appointment to this day/time
+                                try {
+                                    long aptId = Long.parseLong(clipText);
+                                    db.updateAppointmentDateTime(aptId, dateStr, time);
+                                } catch (NumberFormatException ignored) {}
+                            } else {
+                                // Drop from template button – create new appointment
+                                db.addAppointment(dateStr, time, clipText);
+                            }
                             v.post(() -> {
                                 refreshAppointments();
                                 refreshDayStrip();
@@ -588,7 +618,8 @@ public class CalendarFragment extends Fragment {
                 boolean isOnce = (checkedId == rbIds[0]);
                 btnEndDate.setVisibility(isOnce ? View.GONE : View.VISIBLE);
                 btnStartDate.setVisibility(isOnce ? View.VISIBLE : View.GONE);
-                btnSetTime.setVisibility(isOnce ? View.VISIBLE : View.GONE);
+                // Time is always available – applies to all occurrences in the series
+                btnSetTime.setVisibility(View.VISIBLE);
             }
         });
 
@@ -667,7 +698,8 @@ public class CalendarFragment extends Fragment {
                             db.addAppointment(startDate[0], appointmentTime[0], t.getTitle());
                         } else {
                             db.addRecurringAppointments(
-                                    selectedDate, endDate[0], t.getTitle(), recKey);
+                                    selectedDate, endDate[0], t.getTitle(), recKey,
+                                    appointmentTime[0]);
                         }
                         refreshAppointments();
                         refreshDayStrip();
@@ -788,19 +820,35 @@ public class CalendarFragment extends Fragment {
     private void confirmDeleteAppointment(final Appointment appointment) {
         if (!isAdded() || getContext() == null) return;
         pauseAutoAdvance();
-        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.calendar_delete_appointment)
                 .setMessage(getString(R.string.calendar_delete_appointment_confirm,
                         appointment.getTitle()))
-                .setPositiveButton(R.string.delete, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface d, int which) {
+                .setNegativeButton(R.string.cancel, null);
+
+        if (appointment.getSeriesId() != null) {
+            // Part of a series: offer per-entry or full-series delete
+            builder.setPositiveButton(R.string.calendar_delete_this_only,
+                    (d, which) -> {
                         db.deleteAppointment(appointment.getId());
                         refreshAppointments();
-                    }
-                })
-                .setNegativeButton(R.string.cancel, null)
-                .create();
+                        refreshDayStrip();
+                    });
+            builder.setNeutralButton(R.string.calendar_delete_series,
+                    (d, which) -> {
+                        db.deleteSeriesById(appointment.getSeriesId());
+                        refreshAppointments();
+                        refreshDayStrip();
+                    });
+        } else {
+            builder.setPositiveButton(R.string.delete, (d, which) -> {
+                db.deleteAppointment(appointment.getId());
+                refreshAppointments();
+                refreshDayStrip();
+            });
+        }
+
+        AlertDialog dialog = builder.create();
         dialog.setOnDismissListener(d -> resumeAutoAdvance());
         dialog.show();
     }
