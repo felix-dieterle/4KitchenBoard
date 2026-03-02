@@ -65,10 +65,13 @@ public class CookingDatabaseHelper extends SQLiteOpenHelper {
         Cursor c = getReadableDatabase().query(TABLE,
                 new String[]{COL_ID, COL_NAME, COL_DURATION, COL_INGREDIENTS, COL_NOTES, COL_LAST_COOKED},
                 null, null, null, null, COL_NAME + " ASC");
-        while (c.moveToNext()) {
-            list.add(fromCursor(c));
+        try {
+            while (c.moveToNext()) {
+                list.add(fromCursor(c));
+            }
+        } finally {
+            c.close();
         }
-        c.close();
         return list;
     }
 
@@ -81,10 +84,13 @@ public class CookingDatabaseHelper extends SQLiteOpenHelper {
                 null, null, null,
                 COL_LAST_COOKED + " DESC",
                 String.valueOf(limit));
-        while (c.moveToNext()) {
-            list.add(fromCursor(c));
+        try {
+            while (c.moveToNext()) {
+                list.add(fromCursor(c));
+            }
+        } finally {
+            c.close();
         }
-        c.close();
         return list;
     }
 
@@ -103,10 +109,13 @@ public class CookingDatabaseHelper extends SQLiteOpenHelper {
         Cursor c = getReadableDatabase().query(TABLE,
                 new String[]{COL_ID, COL_NAME, COL_DURATION, COL_INGREDIENTS, COL_NOTES, COL_LAST_COOKED},
                 selection, null, null, null, orderBy);
-        while (c.moveToNext()) {
-            list.add(fromCursor(c));
+        try {
+            while (c.moveToNext()) {
+                list.add(fromCursor(c));
+            }
+        } finally {
+            c.close();
         }
-        c.close();
         return list;
     }
 
@@ -124,10 +133,13 @@ public class CookingDatabaseHelper extends SQLiteOpenHelper {
         Cursor c = getReadableDatabase().query(TABLE,
                 new String[]{COL_ID, COL_NAME, COL_DURATION, COL_INGREDIENTS, COL_NOTES, COL_LAST_COOKED},
                 selection, null, null, null, orderBy);
-        while (c.moveToNext()) {
-            list.add(fromCursor(c));
+        try {
+            while (c.moveToNext()) {
+                list.add(fromCursor(c));
+            }
+        } finally {
+            c.close();
         }
-        c.close();
         return list;
     }
 

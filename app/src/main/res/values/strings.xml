@@ -128,4 +128,6 @@
     <string name="cooking_delete_confirm">„%s" löschen?</string>
     <string name="cooking_min">%d min</string>
     <string name="cooking_all_filter">Alle</string>
+    <string name="cooking_save">Speichern</string>
+    <string name="cooking_speech_unavailable">Spracherkennung nicht verfügbar</string>
 </resources>

@@ -348,7 +348,8 @@ public class CookingFragment extends Fragment {
                     voiceLauncher.launch(intent);
                 } catch (ActivityNotFoundException e) {
                     Toast.makeText(requireContext(),
-                            "Spracherkennung nicht verfügbar", Toast.LENGTH_SHORT).show();
+                            getString(R.string.cooking_speech_unavailable),
+                            Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -360,7 +361,7 @@ public class CookingFragment extends Fragment {
         final AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(title)
                 .setView(dialogView)
-                .setPositiveButton("Speichern", null) // overridden below to prevent auto-dismiss
+                .setPositiveButton(R.string.cooking_save, null) // overridden below to prevent auto-dismiss
                 .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface di, int which) {
