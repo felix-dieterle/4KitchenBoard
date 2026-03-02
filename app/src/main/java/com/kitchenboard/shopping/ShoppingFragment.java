@@ -3,6 +3,7 @@ package com.kitchenboard.shopping;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -111,6 +112,14 @@ public class ShoppingFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 showPrintQrDialog();
+            }
+        });
+
+        FloatingActionButton fabShare = view.findViewById(R.id.fab_share);
+        fabShare.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                shareShoppingList();
             }
         });
 
@@ -633,5 +642,36 @@ public class ShoppingFragment extends Fragment {
                 })
                 .setNegativeButton(R.string.cancel, null)
                 .show();
+    }
+
+    // ── Share helper ──────────────────────────────────────────────────────────
+
+    /** Formats the current shopping list as plain text and opens the system share sheet. */
+    private void shareShoppingList() {
+        List<ShoppingItem> items = adapter.getItems();
+        if (items.isEmpty()) {
+            Toast.makeText(requireContext(), R.string.shopping_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(getString(R.string.shopping_title)).append(":\n\n");
+        String currentCategory = null;
+        for (ShoppingItem item : items) {
+            if (!item.getCategory().equals(currentCategory)) {
+                currentCategory = item.getCategory();
+                sb.append(currentCategory).append(":\n");
+            }
+            sb.append("- ").append(item.getName());
+            if (item.getQuantity() > 1) {
+                sb.append(" (").append(item.getQuantity()).append("x)");
+            }
+            sb.append("\n");
+        }
+
+        Intent intent = new Intent(Intent.ACTION_SEND);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TEXT, sb.toString().trim());
+        startActivity(Intent.createChooser(intent, getString(R.string.share_title)));
     }
 }

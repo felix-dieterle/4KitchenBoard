@@ -35,6 +35,10 @@
     <string name="category_default">Other</string>
     <string name="quantity_label">Quantity</string>
 
+    <!-- Share shopping list -->
+    <string name="share_list">Einkaufsliste teilen</string>
+    <string name="share_title">Einkaufsliste teilen via…</string>
+
     <!-- QR code print feature -->
     <string name="print_qr_codes">QR-Codes drucken</string>
     <string name="print_qr_title">QR-Codes drucken</string>
