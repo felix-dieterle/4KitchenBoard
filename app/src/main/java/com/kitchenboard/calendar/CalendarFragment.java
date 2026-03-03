@@ -4,12 +4,16 @@ import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.content.ClipData;
+import android.content.Context;
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.view.DragEvent;
 import android.view.Gravity;
@@ -44,8 +48,10 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class CalendarFragment extends Fragment {
 
@@ -61,12 +67,33 @@ public class CalendarFragment extends Fragment {
     /** Symbol appended to recurring appointment text in the day strip to indicate a series. */
     private static final String SERIES_INDICATOR_SYMBOL = " \u21BB";
 
+    /** SharedPreferences name shared with the shopping fragment (same server URL). */
+    private static final String PREFS_NAME = "shopping_prefs";
+    private static final String PREF_SERVER_URL = "server_url";
+
+    /** Periodic sync interval: 5 minutes. */
+    private static final long SYNC_INTERVAL_MS = 5 * 60 * 1000L;
+
     private CalendarDatabaseHelper db;
     private AppointmentAdapter adapter;
     private TextView tvSelectedDate;
     private TextView tvEmpty;
+    private TextView tvSyncStatus;
     private LinearLayout llTemplateButtons;
     private LinearLayout llPersonFilter;
+
+    /** Non-null when a valid server URL is configured. */
+    private CalendarApiClient apiClient;
+
+    /** Handler for periodic sync on the main thread. */
+    private final Handler syncHandler = new Handler(Looper.getMainLooper());
+    private final Runnable syncRunnable = new Runnable() {
+        @Override
+        public void run() {
+            periodicSync();
+            syncHandler.postDelayed(this, SYNC_INTERVAL_MS);
+        }
+    };
 
     // Multi-day strip views
     private LinearLayout llDayStrip;
@@ -124,6 +151,7 @@ public class CalendarFragment extends Fragment {
 
         tvSelectedDate    = view.findViewById(R.id.tv_selected_date);
         tvEmpty           = view.findViewById(R.id.tv_appointments_empty);
+        tvSyncStatus      = view.findViewById(R.id.tv_calendar_sync_status);
         llTemplateButtons = view.findViewById(R.id.ll_template_buttons);
         llPersonFilter    = view.findViewById(R.id.ll_person_filter);
         llDayStrip        = view.findViewById(R.id.ll_day_strip);
@@ -143,6 +171,12 @@ public class CalendarFragment extends Fragment {
         updateDateLabel();
         refreshTemplateButtons();
         refreshPersonFilter();
+
+        // Initialise API client from stored preferences and trigger an initial sync
+        initApiClient();
+        if (apiClient != null) {
+            periodicSync();
+        }
 
         // ── RecyclerView ──────────────────────────────────────────────────────
         RecyclerView rv = view.findViewById(R.id.rv_appointments);
@@ -427,10 +461,21 @@ public class CalendarFragment extends Fragment {
                                 try {
                                     long aptId = Long.parseLong(clipText);
                                     db.updateAppointmentDateTime(aptId, dateStr, time);
+                                    if (apiClient != null) {
+                                        apiClient.updateAppointmentDateTime(aptId, dateStr, time,
+                                                new CalendarApiClient.Callback<Void>() {
+                                            @Override public void onSuccess(Void r) { showSyncOk(); }
+                                            @Override public void onError(String m) { showSyncError(); }
+                                        });
+                                    }
                                 } catch (NumberFormatException ignored) {}
                             } else {
                                 // Drop from template button – create new appointment
-                                db.addAppointment(dateStr, time, clipText);
+                                long id = db.addAppointment(dateStr, time, clipText);
+                                if (id > 0) {
+                                    pushAppointment(new Appointment(
+                                            id, dateStr, time, clipText, null, null, null));
+                                }
                             }
                             v.post(() -> {
                                 refreshAppointments();
@@ -855,12 +900,18 @@ public class CalendarFragment extends Fragment {
                         }
                         String recKey = recurrenceKeys[idx];
                         if ("once".equals(recKey)) {
-                            db.addAppointment(startDate[0], appointmentTime[0], t.getTitle(),
-                                    selectedPersonId[0], selectedGroupId[0]);
+                            long id = db.addAppointment(startDate[0], appointmentTime[0],
+                                    t.getTitle(), selectedPersonId[0], selectedGroupId[0]);
+                            if (id > 0) {
+                                pushAppointment(new Appointment(id, startDate[0],
+                                        appointmentTime[0], t.getTitle(), null,
+                                        selectedPersonId[0], selectedGroupId[0]));
+                            }
                         } else {
-                            db.addRecurringAppointments(
+                            long seriesId = db.addRecurringAppointments(
                                     selectedDate, endDate[0], t.getTitle(), recKey,
                                     appointmentTime[0], selectedPersonId[0], selectedGroupId[0]);
+                            pushSeries(seriesId);
                         }
                         refreshAppointments();
                         refreshDayStrip();
@@ -949,8 +1000,12 @@ public class CalendarFragment extends Fragment {
                     public void onClick(DialogInterface d, int which) {
                         String custom = etCustom.getText().toString().trim();
                         if (!custom.isEmpty()) {
-                            db.addAppointment(customDate[0], customTime[0], custom,
+                            long id = db.addAppointment(customDate[0], customTime[0], custom,
                                     customPersonId[0], customGroupId[0]);
+                            if (id > 0) {
+                                pushAppointment(new Appointment(id, customDate[0], customTime[0],
+                                        custom, null, customPersonId[0], customGroupId[0]));
+                            }
                             refreshAppointments();
                             refreshDayStrip();
                         }
@@ -1000,18 +1055,40 @@ public class CalendarFragment extends Fragment {
             builder.setPositiveButton(R.string.calendar_delete_this_only,
                     (d, which) -> {
                         db.deleteAppointment(appointment.getId());
+                        if (apiClient != null) {
+                            apiClient.deleteAppointment(appointment.getId(),
+                                    new CalendarApiClient.Callback<Void>() {
+                                @Override public void onSuccess(Void r) { showSyncOk(); }
+                                @Override public void onError(String m) { showSyncError(); }
+                            });
+                        }
                         refreshAppointments();
                         refreshDayStrip();
                     });
             builder.setNeutralButton(R.string.calendar_delete_series,
                     (d, which) -> {
-                        db.deleteSeriesById(appointment.getSeriesId());
+                        long seriesId = appointment.getSeriesId();
+                        db.deleteSeriesById(seriesId);
+                        if (apiClient != null) {
+                            apiClient.deleteSeriesById(seriesId,
+                                    new CalendarApiClient.Callback<Void>() {
+                                @Override public void onSuccess(Void r) { showSyncOk(); }
+                                @Override public void onError(String m) { showSyncError(); }
+                            });
+                        }
                         refreshAppointments();
                         refreshDayStrip();
                     });
         } else {
             builder.setPositiveButton(R.string.delete, (d, which) -> {
                 db.deleteAppointment(appointment.getId());
+                if (apiClient != null) {
+                    apiClient.deleteAppointment(appointment.getId(),
+                            new CalendarApiClient.Callback<Void>() {
+                        @Override public void onSuccess(Void r) { showSyncOk(); }
+                        @Override public void onError(String m) { showSyncError(); }
+                    });
+                }
                 refreshAppointments();
                 refreshDayStrip();
             });
@@ -1092,12 +1169,113 @@ public class CalendarFragment extends Fragment {
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        initApiClient();
+        if (apiClient != null) {
+            // Remove any existing callback before scheduling to avoid duplicate runs
+            syncHandler.removeCallbacks(syncRunnable);
+            syncHandler.postDelayed(syncRunnable, SYNC_INTERVAL_MS);
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        syncHandler.removeCallbacks(syncRunnable);
+    }
+
+    @Override
     public void onDestroyView() {
         super.onDestroyView();
+        syncHandler.removeCallbacks(syncRunnable);
         if (db != null) db.close();
     }
 
-    // ── Person picker helper ──────────────────────────────────────────────────
+    // ── Sync helpers ──────────────────────────────────────────────────────────
+
+    private void initApiClient() {
+        SharedPreferences prefs = requireContext()
+                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String url = prefs.getString(PREF_SERVER_URL, "");
+        apiClient = (url != null && !url.isEmpty()) ? new CalendarApiClient(url) : null;
+        if (apiClient == null && tvSyncStatus != null) {
+            tvSyncStatus.setVisibility(View.GONE);
+        }
+    }
+
+    private void showSyncOk() {
+        if (tvSyncStatus == null || !isAdded()) return;
+        tvSyncStatus.setText(R.string.calendar_sync_status_ok);
+        tvSyncStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent));
+        tvSyncStatus.setVisibility(View.VISIBLE);
+    }
+
+    private void showSyncError() {
+        if (tvSyncStatus == null || !isAdded()) return;
+        tvSyncStatus.setText(R.string.calendar_sync_status_error);
+        tvSyncStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.error));
+        tvSyncStatus.setVisibility(View.VISIBLE);
+    }
+
+    /**
+     * Fetches all appointments from the server and merges any that are missing locally.
+     * Appointments that exist locally but not on the server are not deleted
+     * (they may be pending pushes). This keeps the app functional even during
+     * temporary connectivity issues.
+     */
+    private void periodicSync() {
+        if (apiClient == null || !isAdded()) return;
+        apiClient.fetchAppointments(new CalendarApiClient.Callback<List<Appointment>>() {
+            @Override
+            public void onSuccess(List<Appointment> remoteAppointments) {
+                if (!isAdded()) return;
+                // Fetch only the IDs of locally-stored appointments (efficient)
+                Set<Long> localIds = db.getAppointmentIds();
+                // Insert remote appointments that are not yet in the local DB
+                for (Appointment remote : remoteAppointments) {
+                    if (!localIds.contains(remote.getId())) {
+                        db.insertAppointmentWithId(
+                                remote.getId(), remote.getDate(), remote.getTime(),
+                                remote.getTitle(), remote.getSeriesId());
+                    }
+                }
+                showSyncOk();
+                refreshAppointments();
+                refreshDayStrip();
+            }
+
+            @Override
+            public void onError(String message) {
+                if (!isAdded()) return;
+                showSyncError();
+                // Continue using local data – no UI changes needed
+            }
+        });
+    }
+
+    /** Pushes a single appointment to the server; shows error indicator on failure. */
+    private void pushAppointment(final Appointment apt) {
+        if (apiClient == null) return;
+        apiClient.upsertAppointment(apt, new CalendarApiClient.Callback<Void>() {
+            @Override
+            public void onSuccess(Void result) {
+                showSyncOk();
+            }
+            @Override
+            public void onError(String message) {
+                showSyncError();
+            }
+        });
+    }
+
+    /** Pushes all appointments in a recurring series to the server. */
+    private void pushSeries(long seriesId) {
+        if (apiClient == null || seriesId <= 0) return;
+        for (Appointment apt : db.getAppointmentsBySeriesId(seriesId)) {
+            pushAppointment(apt);
+        }
+    }
 
     /**
      * Fills a horizontal LinearLayout with "Keine" + one button per person + one button per group.

@@ -194,6 +194,16 @@
                     android:layout_centerVertical="true"
                     android:orientation="horizontal">
 
+                    <!-- Sync status indicator -->
+                    <TextView
+                        android:id="@+id/tv_calendar_sync_status"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:paddingEnd="8dp"
+                        android:textSize="11sp"
+                        android:visibility="gone"/>
+
                     <ImageButton
                         android:id="@+id/btn_manage_persons"
                         android:layout_width="wrap_content"

@@ -9,6 +9,13 @@
  *   POST ?action=delete          → body: id              → {"success":true}
  *   POST ?action=update_quantity → body: id, quantity    → {"success":true}
  *
+ * Calendar endpoints (action= GET or POST parameter):
+ *   GET  ?action=calendar_list            → JSON list of all appointments
+ *   POST ?action=calendar_upsert          → body: id, date, title[, time, series_id] → {"success":true}
+ *   POST ?action=calendar_delete          → body: id                                 → {"success":true}
+ *   POST ?action=calendar_delete_series   → body: series_id                          → {"success":true}
+ *   POST ?action=calendar_update_datetime → body: id, date[, time]                   → {"success":true}
+ *
  * Storage: SQLite3 file (shopping.db) placed beside this script.
  * The database file is protected by .htaccess so it cannot be downloaded.
  */
@@ -62,6 +69,14 @@ $db->exec('CREATE TABLE IF NOT EXISTS categories (
     name TEXT    NOT NULL UNIQUE
 )');
 
+$db->exec('CREATE TABLE IF NOT EXISTS calendar_appointments (
+    id        INTEGER PRIMARY KEY,
+    date      TEXT    NOT NULL,
+    time      TEXT,
+    title     TEXT    NOT NULL,
+    series_id INTEGER
+)');
+
 // ── Dispatch ──────────────────────────────────────────────────────────────────
 
 $action = trim((string)($_GET['action'] ?? $_POST['action'] ?? ''));
@@ -81,6 +96,21 @@ switch ($action) {
         break;
     case 'update_quantity':
         actionUpdateQuantity($db);
+        break;
+    case 'calendar_list':
+        calendarList($db);
+        break;
+    case 'calendar_upsert':
+        calendarUpsert($db);
+        break;
+    case 'calendar_delete':
+        calendarDelete($db);
+        break;
+    case 'calendar_delete_series':
+        calendarDeleteSeries($db);
+        break;
+    case 'calendar_update_datetime':
+        calendarUpdateDatetime($db);
         break;
     default:
         http_response_code(400);
@@ -190,6 +220,111 @@ function actionUpdateQuantity(SQLite3 $db): void
     $stmt = $db->prepare('UPDATE items SET quantity = :quantity WHERE id = :id');
     $stmt->bindValue(':quantity', $quantity, SQLITE3_INTEGER);
     $stmt->bindValue(':id',       $id,       SQLITE3_INTEGER);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+// ── Calendar action handlers ──────────────────────────────────────────────────
+
+function calendarList(SQLite3 $db): void
+{
+    $result = $db->query(
+        'SELECT id, date, time, title, series_id FROM calendar_appointments
+         ORDER BY date ASC, time ASC, title ASC'
+    );
+    $appointments = [];
+    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+        $appointments[] = [
+            'id'        => (int)$row['id'],
+            'date'      => $row['date'],
+            'time'      => $row['time'],
+            'title'     => $row['title'],
+            'series_id' => $row['series_id'] !== null ? (int)$row['series_id'] : null,
+        ];
+    }
+    echo json_encode(['appointments' => $appointments]);
+}
+
+function calendarUpsert(SQLite3 $db): void
+{
+    $id       = (int)($_POST['id']        ?? 0);
+    $date     = trim((string)($_POST['date']    ?? ''));
+    $title    = trim((string)($_POST['title']   ?? ''));
+    $time     = trim((string)($_POST['time']    ?? ''));
+    $seriesId = isset($_POST['series_id']) && $_POST['series_id'] !== ''
+                ? (int)$_POST['series_id'] : null;
+
+    if ($id <= 0 || $date === '' || $title === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameters "id", "date" and "title" are required']);
+        return;
+    }
+
+    $stmt = $db->prepare(
+        'INSERT OR REPLACE INTO calendar_appointments (id, date, time, title, series_id)
+         VALUES (:id, :date, :time, :title, :series_id)'
+    );
+    $stmt->bindValue(':id',        $id,    SQLITE3_INTEGER);
+    $stmt->bindValue(':date',      $date,  SQLITE3_TEXT);
+    $stmt->bindValue(':time',      $time !== '' ? $time : null, $time !== '' ? SQLITE3_TEXT : SQLITE3_NULL);
+    $stmt->bindValue(':title',     $title, SQLITE3_TEXT);
+    $stmt->bindValue(':series_id', $seriesId, $seriesId !== null ? SQLITE3_INTEGER : SQLITE3_NULL);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+function calendarDelete(SQLite3 $db): void
+{
+    $id = (int)($_POST['id'] ?? 0);
+    if ($id <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameter "id" is required']);
+        return;
+    }
+
+    $stmt = $db->prepare('DELETE FROM calendar_appointments WHERE id = :id');
+    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+function calendarDeleteSeries(SQLite3 $db): void
+{
+    $seriesId = (int)($_POST['series_id'] ?? 0);
+    if ($seriesId <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameter "series_id" is required']);
+        return;
+    }
+
+    $stmt = $db->prepare('DELETE FROM calendar_appointments WHERE series_id = :series_id');
+    $stmt->bindValue(':series_id', $seriesId, SQLITE3_INTEGER);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+function calendarUpdateDatetime(SQLite3 $db): void
+{
+    $id   = (int)($_POST['id']   ?? 0);
+    $date = trim((string)($_POST['date'] ?? ''));
+    $time = trim((string)($_POST['time'] ?? ''));
+
+    if ($id <= 0 || $date === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameters "id" and "date" are required']);
+        return;
+    }
+
+    $stmt = $db->prepare(
+        'UPDATE calendar_appointments SET date = :date, time = :time, series_id = NULL WHERE id = :id'
+    );
+    $stmt->bindValue(':date', $date, SQLITE3_TEXT);
+    $stmt->bindValue(':time', $time !== '' ? $time : null, $time !== '' ? SQLITE3_TEXT : SQLITE3_NULL);
+    $stmt->bindValue(':id',   $id,   SQLITE3_INTEGER);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
