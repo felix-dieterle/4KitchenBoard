@@ -59,6 +59,40 @@
             android:layout_height="1dp"
             android:background="@color/divider"/>
 
+        <!-- Grouping toggle: Kategorie / Shop -->
+        <RadioGroup
+            android:id="@+id/rg_grouping"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/panel_padding"
+            android:paddingEnd="@dimen/panel_padding"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
+
+            <RadioButton
+                android:id="@+id/rb_group_category"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/group_by_category"
+                android:checked="true"
+                android:textSize="@dimen/small_text_size"
+                android:layout_marginEnd="16dp"/>
+
+            <RadioButton
+                android:id="@+id/rb_group_shop"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/group_by_shop"
+                android:textSize="@dimen/small_text_size"/>
+
+        </RadioGroup>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider"/>
+
         <!-- Empty state -->
         <TextView
             android:id="@+id/tv_empty"

@@ -162,6 +162,21 @@
     <string name="cooking_sync_status_ok">✓ Synced</string>
     <string name="cooking_sync_status_error">Sync failed</string>
 
+    <!-- Shop / map search feature -->
+    <string name="shop_label">Shop (optional)</string>
+    <string name="no_shop_selected">Kein Shop ausgewählt</string>
+    <string name="shop_search_button">🗺 Suchen</string>
+    <string name="shop_search_title">Shop auf Karte suchen</string>
+    <string name="shop_search_hint">z. B. REWE, Aldi…</string>
+    <string name="shop_search_action">Suchen</string>
+    <string name="shop_select">Auswählen</string>
+    <string name="shop_selected_prefix">✓ </string>
+    <string name="shop_search_error">Suche fehlgeschlagen. Bitte Internetverbindung prüfen.</string>
+    <string name="shop_tap_hint">Marker antippen zum Auswählen</string>
+    <string name="group_by_category">Kategorie</string>
+    <string name="group_by_shop">Shop</string>
+    <string name="no_shop_label">Kein Shop</string>
+
     <!-- Startup version overlay -->
     <string name="version_display">v%1$s (%2$d)</string>
 </resources>
