@@ -22,6 +22,7 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.RadioGroup;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -99,6 +100,7 @@ public class ShoppingFragment extends Fragment {
 
         db = new ShoppingDatabaseHelper(requireContext());
         adapter = new ShoppingAdapter();
+        adapter.setNoShopLabel(getString(R.string.no_shop_label));
         tvEmpty = view.findViewById(R.id.tv_empty);
         tvSyncStatus = view.findViewById(R.id.tv_sync_status);
 
@@ -195,6 +197,16 @@ public class ShoppingFragment extends Fragment {
                 } else {
                     db.updateItemQuantity(item.getId(), newQuantity);
                 }
+            }
+        });
+
+        // Grouping toggle: category vs shop
+        RadioGroup rgGrouping = view.findViewById(R.id.rg_grouping);
+        rgGrouping.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(RadioGroup group, int checkedId) {
+                adapter.setGroupByShop(checkedId == R.id.rb_group_shop);
+                refreshList();
             }
         });
 
@@ -342,10 +354,15 @@ public class ShoppingFragment extends Fragment {
         final TextView tvQuantity = dialogView.findViewById(R.id.tv_quantity);
         final Button btnMinus = dialogView.findViewById(R.id.btn_qty_minus);
         final Button btnPlus = dialogView.findViewById(R.id.btn_qty_plus);
+        final TextView tvShopName = dialogView.findViewById(R.id.tv_shop_name);
+        final Button btnSearchShop = dialogView.findViewById(R.id.btn_search_shop);
 
         // Mutable quantity holder
         final int[] quantity = {1};
         tvQuantity.setText("1");
+
+        // Mutable shop holder
+        final String[] selectedShop = {""};
 
         btnMinus.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -361,6 +378,22 @@ public class ShoppingFragment extends Fragment {
             public void onClick(View v) {
                 quantity[0]++;
                 tvQuantity.setText(String.valueOf(quantity[0]));
+            }
+        });
+
+        // Shop search button opens the map picker dialog
+        btnSearchShop.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new ShopPickerDialog(requireContext(), new ShopPickerDialog.OnShopSelectedListener() {
+                    @Override
+                    public void onShopSelected(String shopName) {
+                        selectedShop[0] = shopName;
+                        tvShopName.setText(shopName);
+                        tvShopName.setTextColor(
+                                ContextCompat.getColor(requireContext(), R.color.text_primary));
+                    }
+                }).show();
             }
         });
 
@@ -391,9 +424,10 @@ public class ShoppingFragment extends Fragment {
                                 ? getString(R.string.category_default) : rawCategory;
                         if (name.isEmpty()) return;
                         final int qty = quantity[0];
+                        final String shop = selectedShop[0];
 
                         if (apiClient != null) {
-                            apiClient.addItem(name, category, qty,
+                            apiClient.addItem(name, category, qty, shop,
                                     new ShoppingApiClient.Callback<ShoppingItem>() {
                                 @Override
                                 public void onSuccess(ShoppingItem item) {
@@ -408,7 +442,7 @@ public class ShoppingFragment extends Fragment {
                             });
                         } else {
                             db.addCategory(category);
-                            db.addItem(name, category, qty);
+                            db.addItem(name, category, qty, shop);
                             refreshList();
                         }
                     }
@@ -546,12 +580,15 @@ public class ShoppingFragment extends Fragment {
         final TextView tvQuantity = dialogView.findViewById(R.id.tv_quantity);
         final Button btnMinus = dialogView.findViewById(R.id.btn_qty_minus);
         final Button btnPlus = dialogView.findViewById(R.id.btn_qty_plus);
+        final TextView tvShopName = dialogView.findViewById(R.id.tv_shop_name);
+        final Button btnSearchShop = dialogView.findViewById(R.id.btn_search_shop);
 
         etName.setText(name);
         etCategory.setText(category);
 
         final int[] quantity = {1};
         tvQuantity.setText("1");
+        final String[] selectedShop = {""};
 
         btnMinus.setOnClickListener(v -> {
             if (quantity[0] > 1) {
@@ -563,6 +600,14 @@ public class ShoppingFragment extends Fragment {
             quantity[0]++;
             tvQuantity.setText(String.valueOf(quantity[0]));
         });
+
+        btnSearchShop.setOnClickListener(v -> new ShopPickerDialog(requireContext(),
+                shopName -> {
+                    selectedShop[0] = shopName;
+                    tvShopName.setText(shopName);
+                    tvShopName.setTextColor(
+                            ContextCompat.getColor(requireContext(), R.color.text_primary));
+                }).show());
 
         List<String> categories = db.getCategories();
         ArrayAdapter<String> catAdapter = new ArrayAdapter<>(requireContext(),
@@ -580,9 +625,10 @@ public class ShoppingFragment extends Fragment {
                             ? getString(R.string.category_default) : rawCat;
                     if (itemName.isEmpty()) return;
                     final int qty = quantity[0];
+                    final String shop = selectedShop[0];
 
                     if (apiClient != null) {
-                        apiClient.addItem(itemName, itemCategory, qty,
+                        apiClient.addItem(itemName, itemCategory, qty, shop,
                                 new ShoppingApiClient.Callback<ShoppingItem>() {
                             @Override
                             public void onSuccess(ShoppingItem item) {
@@ -594,7 +640,7 @@ public class ShoppingFragment extends Fragment {
                         });
                     } else {
                         db.addCategory(itemCategory);
-                        db.addItem(itemName, itemCategory, qty);
+                        db.addItem(itemName, itemCategory, qty, shop);
                         refreshList();
                     }
                 })

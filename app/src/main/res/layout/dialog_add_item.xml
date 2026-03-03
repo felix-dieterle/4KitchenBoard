@@ -89,4 +89,42 @@
 
     </LinearLayout>
 
+    <!-- Shop selection -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/shop_label"
+        android:textSize="@dimen/small_text_size"
+        android:textColor="@color/text_secondary"
+        android:layout_marginTop="@dimen/spacing_normal"
+        android:layout_marginBottom="4dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_shop_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/no_shop_selected"
+            android:textSize="@dimen/body_text_size"
+            android:textColor="@color/text_secondary"
+            android:ellipsize="end"
+            android:maxLines="1"/>
+
+        <Button
+            android:id="@+id/btn_search_shop"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/shop_search_button"
+            android:textColor="@color/accent"
+            android:textSize="@dimen/small_text_size"/>
+
+    </LinearLayout>
+
 </LinearLayout>

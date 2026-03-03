@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body { margin: 0; padding: 0; background: #e8e8e8; }
+    #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
+    #hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.6); color: #fff; padding: 4px 10px;
+            border-radius: 12px; font-size: 12px; z-index: 1000;
+            pointer-events: none; display: none; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="hint"></div>
+  <script>
+    var map = L.map('map').setView([51.1657, 10.4515], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '\u00a9 <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19
+    }).addTo(map);
+
+    var markers = [];
+    var selectedMarker = null;
+
+    function showResults(results, hintText) {
+      markers.forEach(function(m) { map.removeLayer(m); });
+      markers = [];
+      selectedMarker = null;
+
+      var hint = document.getElementById('hint');
+      if (!results || results.length === 0) {
+        hint.style.display = 'none';
+        return;
+      }
+
+      hint.textContent = hintText || '';
+      hint.style.display = hintText ? 'block' : 'none';
+
+      var bounds = [];
+      results.forEach(function(r) {
+        var lat = parseFloat(r.lat);
+        var lon = parseFloat(r.lon);
+        var marker = L.marker([lat, lon]).addTo(map);
+        marker.bindPopup('<b>' + escHtml(r.name) + '</b><br/><small>' + escHtml(r.display_name) + '</small>');
+        (function(result, m) {
+          m.on('click', function() {
+            if (selectedMarker && selectedMarker !== m) {
+              selectedMarker.setOpacity(1.0);
+            }
+            m.setOpacity(0.6);
+            selectedMarker = m;
+            Android.onShopSelected(result.name, result.display_name);
+          });
+        })(r, marker);
+        markers.push(marker);
+        bounds.push([lat, lon]);
+      });
+
+      if (bounds.length === 1) {
+        map.setView(bounds[0], 15);
+      } else if (bounds.length > 1) {
+        map.fitBounds(bounds, {padding: [30, 30]});
+      }
+    }
+
+    function escHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

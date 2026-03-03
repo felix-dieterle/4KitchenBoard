@@ -13,7 +13,7 @@ import java.util.List;
 public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "shopping.db";
-    private static final int DB_VERSION = 3;
+    private static final int DB_VERSION = 4;
 
     static final String TABLE = "shopping_items";
     static final String COL_ID = "_id";
@@ -22,6 +22,7 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     static final String COL_CHECKED = "checked";
     static final String COL_CREATED = "created_at";
     static final String COL_QUANTITY = "quantity";
+    static final String COL_SHOP = "shop";
 
     static final String TABLE_CATEGORIES = "categories";
     static final String COL_CAT_ID = "_id";
@@ -39,7 +40,8 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
                 COL_CATEGORY + " TEXT NOT NULL, " +
                 COL_CHECKED + " INTEGER DEFAULT 0, " +
                 COL_CREATED + " INTEGER DEFAULT 0, " +
-                COL_QUANTITY + " INTEGER DEFAULT 1)");
+                COL_QUANTITY + " INTEGER DEFAULT 1, " +
+                COL_SHOP + " TEXT DEFAULT '')");
         db.execSQL("CREATE TABLE " + TABLE_CATEGORIES + " (" +
                 COL_CAT_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COL_CAT_NAME + " TEXT NOT NULL UNIQUE)");
@@ -48,9 +50,15 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if (oldVersion < 3) {
-            // Add quantity column to existing table
             try {
                 db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " + COL_QUANTITY + " INTEGER DEFAULT 1");
+            } catch (SQLiteException ignored) {
+                // Column may already exist if upgrade runs twice; ignore.
+            }
+        }
+        if (oldVersion < 4) {
+            try {
+                db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " + COL_SHOP + " TEXT DEFAULT ''");
             } catch (SQLiteException ignored) {
                 // Column may already exist if upgrade runs twice; ignore.
             }
@@ -58,19 +66,25 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     }
 
     /** Insert a new unchecked item. Returns the new row id. */
-    public long addItem(String name, String category, int quantity) {
+    public long addItem(String name, String category, int quantity, String shop) {
         ContentValues cv = new ContentValues();
         cv.put(COL_NAME, name);
         cv.put(COL_CATEGORY, category);
         cv.put(COL_CHECKED, 0);
         cv.put(COL_CREATED, System.currentTimeMillis());
         cv.put(COL_QUANTITY, quantity < 1 ? 1 : quantity);
+        cv.put(COL_SHOP, shop != null ? shop : "");
         return getWritableDatabase().insert(TABLE, null, cv);
+    }
+
+    /** Insert a new unchecked item with quantity 1 and no shop. */
+    public long addItem(String name, String category, int quantity) {
+        return addItem(name, category, quantity, "");
     }
 
     /** Insert a new unchecked item with quantity 1. */
     public long addItem(String name, String category) {
-        return addItem(name, category, 1);
+        return addItem(name, category, 1, "");
     }
 
     /** Mark an item as checked (bought) — it will be hidden from the active list. */
@@ -95,16 +109,25 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
                 new String[]{String.valueOf(id)});
     }
 
+    /** Update the assigned shop of an item. */
+    public void updateItemShop(long id, String shop) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_SHOP, shop != null ? shop : "");
+        getWritableDatabase().update(TABLE, cv, COL_ID + "=?",
+                new String[]{String.valueOf(id)});
+    }
+
     /** Returns all unchecked items, ordered by category then name. */
     public List<ShoppingItem> getActiveItems() {
         List<ShoppingItem> items = new ArrayList<>();
         Cursor c = getReadableDatabase().query(TABLE,
-                new String[]{COL_ID, COL_NAME, COL_CATEGORY, COL_CHECKED, COL_QUANTITY},
+                new String[]{COL_ID, COL_NAME, COL_CATEGORY, COL_CHECKED, COL_QUANTITY, COL_SHOP},
                 COL_CHECKED + "=?", new String[]{"0"}, null, null,
                 COL_CATEGORY + " ASC, " + COL_NAME + " ASC");
         while (c.moveToNext()) {
             items.add(new ShoppingItem(
-                    c.getLong(0), c.getString(1), c.getString(2), false, c.getInt(4)));
+                    c.getLong(0), c.getString(1), c.getString(2), false,
+                    c.getInt(4), c.getString(5)));
         }
         c.close();
         return items;

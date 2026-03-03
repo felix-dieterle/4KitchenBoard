@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <!-- Search row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="@dimen/spacing_normal"
+        android:gravity="center_vertical">
+
+        <EditText
+            android:id="@+id/et_shop_search"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="@string/shop_search_hint"
+            android:inputType="text"
+            android:imeOptions="actionSearch"
+            android:singleLine="true"
+            android:textSize="@dimen/body_text_size"/>
+
+        <Button
+            android:id="@+id/btn_shop_search"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/shop_search_action"
+            android:textColor="@color/accent"
+            android:layout_marginStart="@dimen/spacing_small"/>
+
+    </LinearLayout>
+
+    <!-- Selected shop indicator -->
+    <TextView
+        android:id="@+id/tv_selected_shop"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="@dimen/panel_padding"
+        android:paddingEnd="@dimen/panel_padding"
+        android:paddingBottom="@dimen/spacing_small"
+        android:textSize="@dimen/small_text_size"
+        android:textColor="@color/accent"
+        android:visibility="gone"/>
+
+    <!-- Map -->
+    <WebView
+        android:id="@+id/wv_map"
+        android:layout_width="match_parent"
+        android:layout_height="350dp"/>
+
+</LinearLayout>

@@ -51,14 +51,15 @@ try {
 
 $db->busyTimeout(5000);
 
-$db->exec('CREATE TABLE IF NOT EXISTS items (
+$db->exec("CREATE TABLE IF NOT EXISTS items (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT    NOT NULL,
     category   TEXT    NOT NULL,
     checked    INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL DEFAULT 0,
-    quantity   INTEGER NOT NULL DEFAULT 1
-)');
+    quantity   INTEGER NOT NULL DEFAULT 1,
+    shop       TEXT    NOT NULL DEFAULT ''
+)");
 
 // Add quantity column to existing tables that were created without it
 $columnExists = false;
@@ -68,6 +69,16 @@ while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
 }
 if (!$columnExists) {
     $db->exec('ALTER TABLE items ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1');
+}
+
+// Add shop column to existing tables that were created without it
+$shopColumnExists = false;
+$result2 = $db->query('PRAGMA table_info(items)');
+while ($row = $result2->fetchArray(SQLITE3_ASSOC)) {
+    if ($row['name'] === 'shop') { $shopColumnExists = true; break; }
+}
+if (!$shopColumnExists) {
+    $db->exec("ALTER TABLE items ADD COLUMN shop TEXT NOT NULL DEFAULT ''");
 }
 
 $db->exec('CREATE TABLE IF NOT EXISTS categories (
@@ -152,7 +163,7 @@ exit;
 function actionList(SQLite3 $db): void
 {
     $result = $db->query(
-        'SELECT id, name, category, quantity FROM items
+        'SELECT id, name, category, quantity, shop FROM items
          WHERE checked = 0
          ORDER BY category ASC, name ASC'
     );
@@ -163,6 +174,7 @@ function actionList(SQLite3 $db): void
             'name'     => $row['name'],
             'category' => $row['category'],
             'quantity' => (int)$row['quantity'],
+            'shop'     => (string)$row['shop'],
         ];
     }
     echo json_encode(['items' => $items]);
@@ -173,6 +185,7 @@ function actionAdd(SQLite3 $db): void
     $name     = trim((string)($_POST['name']     ?? ''));
     $category = trim((string)($_POST['category'] ?? ''));
     $quantity = max(1, (int)($_POST['quantity'] ?? 1));
+    $shop     = trim((string)($_POST['shop']     ?? ''));
 
     if ($name === '' || $category === '') {
         http_response_code(400);
@@ -181,13 +194,14 @@ function actionAdd(SQLite3 $db): void
     }
 
     $stmt = $db->prepare(
-        'INSERT INTO items (name, category, checked, created_at, quantity)
-         VALUES (:name, :category, 0, :ts, :quantity)'
+        'INSERT INTO items (name, category, checked, created_at, quantity, shop)
+         VALUES (:name, :category, 0, :ts, :quantity, :shop)'
     );
     $stmt->bindValue(':name',     $name,     SQLITE3_TEXT);
     $stmt->bindValue(':category', $category, SQLITE3_TEXT);
     $stmt->bindValue(':ts',       (int)(microtime(true) * 1000), SQLITE3_INTEGER);
     $stmt->bindValue(':quantity', $quantity, SQLITE3_INTEGER);
+    $stmt->bindValue(':shop',     $shop,     SQLITE3_TEXT);
     $stmt->execute();
 
     $id = $db->lastInsertRowID();
@@ -199,7 +213,7 @@ function actionAdd(SQLite3 $db): void
     $stmtCat->bindValue(':name', $category, SQLITE3_TEXT);
     $stmtCat->execute();
 
-    echo json_encode(['id' => $id, 'name' => $name, 'category' => $category, 'quantity' => $quantity]);
+    echo json_encode(['id' => $id, 'name' => $name, 'category' => $category, 'quantity' => $quantity, 'shop' => $shop]);
 }
 
 function actionCheck(SQLite3 $db): void

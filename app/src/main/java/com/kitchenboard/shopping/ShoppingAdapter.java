@@ -41,28 +41,60 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         void onShowQr(ShoppingItem item);
     }
 
-    // Each list entry is either a String (category header) or ShoppingItem
+    // Each list entry is either a String (category/shop header) or ShoppingItem
     private final List<Object> rows = new ArrayList<>();
     private OnItemCheckedListener checkedListener;
     private OnItemLongClickListener longClickListener;
     private OnQuantityChangedListener quantityChangedListener;
     private OnShowQrListener showQrListener;
+    private boolean groupByShop = false;
+    private String noShopLabel = "Kein Shop";
 
     public void setOnItemCheckedListener(OnItemCheckedListener l) { checkedListener = l; }
     public void setOnItemLongClickListener(OnItemLongClickListener l) { longClickListener = l; }
     public void setOnQuantityChangedListener(OnQuantityChangedListener l) { quantityChangedListener = l; }
     public void setOnShowQrListener(OnShowQrListener l) { showQrListener = l; }
 
+    /** Switch between category and shop grouping. */
+    public void setGroupByShop(boolean groupByShop) { this.groupByShop = groupByShop; }
+
+    /** Label for items that have no shop assigned (used in shop-grouping mode). */
+    public void setNoShopLabel(String label) { this.noShopLabel = label != null ? label : "Kein Shop"; }
+
     /** Replaces the current data with a fresh grouped list. */
     public void setItems(List<ShoppingItem> items) {
         rows.clear();
-        String lastCategory = null;
-        for (ShoppingItem item : items) {
-            if (!item.getCategory().equals(lastCategory)) {
-                rows.add(item.getCategory()); // header
-                lastCategory = item.getCategory();
+        if (groupByShop) {
+            // Sort by shop (empty shop goes last), then by name
+            List<ShoppingItem> sorted = new ArrayList<>(items);
+            java.util.Collections.sort(sorted, new java.util.Comparator<ShoppingItem>() {
+                @Override
+                public int compare(ShoppingItem a, ShoppingItem b) {
+                    String shopA = a.getShop().isEmpty() ? "\uffff" : a.getShop();
+                    String shopB = b.getShop().isEmpty() ? "\uffff" : b.getShop();
+                    int c = shopA.compareToIgnoreCase(shopB);
+                    if (c != 0) return c;
+                    return a.getName().compareToIgnoreCase(b.getName());
+                }
+            });
+            String lastShop = null;
+            for (ShoppingItem item : sorted) {
+                String shopKey = item.getShop().isEmpty() ? noShopLabel : item.getShop();
+                if (!shopKey.equals(lastShop)) {
+                    rows.add(shopKey);
+                    lastShop = shopKey;
+                }
+                rows.add(item);
             }
-            rows.add(item);
+        } else {
+            String lastCategory = null;
+            for (ShoppingItem item : items) {
+                if (!item.getCategory().equals(lastCategory)) {
+                    rows.add(item.getCategory()); // header
+                    lastCategory = item.getCategory();
+                }
+                rows.add(item);
+            }
         }
         notifyDataSetChanged();
     }
