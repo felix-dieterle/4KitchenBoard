@@ -9,8 +9,10 @@ import android.database.sqlite.SQLiteOpenHelper;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class CookingDatabaseHelper extends SQLiteOpenHelper {
 
@@ -173,5 +175,41 @@ public class CookingDatabaseHelper extends SQLiteOpenHelper {
         ContentValues cv = new ContentValues();
         cv.put(COL_LAST_COOKED, DATE_FMT.format(new Date()));
         getWritableDatabase().update(TABLE, cv, COL_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    /** Returns today's date as a YYYY-MM-DD string. */
+    public String todayString() {
+        return DATE_FMT.format(new Date());
+    }
+
+    /** Returns the set of all dish IDs stored locally (used for periodic sync merge). */
+    public Set<Long> getDishIds() {
+        Set<Long> ids = new HashSet<>();
+        Cursor c = getReadableDatabase().query(TABLE, new String[]{COL_ID},
+                null, null, null, null, null);
+        try {
+            while (c.moveToNext()) {
+                ids.add(c.getLong(0));
+            }
+        } finally {
+            c.close();
+        }
+        return ids;
+    }
+
+    /**
+     * Inserts a dish using a given id (for restoring from a remote backend).
+     * Uses CONFLICT_IGNORE so existing rows are not overwritten.
+     */
+    public void insertDishWithId(long id, String name, int durationMinutes,
+                                 String ingredients, String notes, String lastCooked) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_ID, id);
+        cv.put(COL_NAME, name);
+        cv.put(COL_DURATION, durationMinutes);
+        if (ingredients != null && !ingredients.isEmpty()) cv.put(COL_INGREDIENTS, ingredients);
+        if (notes != null && !notes.isEmpty())             cv.put(COL_NOTES, notes);
+        if (lastCooked != null && !lastCooked.isEmpty())   cv.put(COL_LAST_COOKED, lastCooked);
+        getWritableDatabase().insertWithOnConflict(TABLE, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
     }
 }

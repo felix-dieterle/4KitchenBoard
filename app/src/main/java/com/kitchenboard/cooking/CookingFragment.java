@@ -3,9 +3,13 @@ package com.kitchenboard.cooking;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.speech.RecognizerIntent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -37,8 +41,15 @@ import com.kitchenboard.R;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class CookingFragment extends Fragment {
+
+    private static final String PREFS_NAME   = "shopping_prefs";
+    private static final String PREF_SERVER_URL = "server_url";
+
+    /** Periodic sync interval: 5 minutes. */
+    private static final long SYNC_INTERVAL_MS = 5 * 60 * 1000L;
 
     private static final int[] FILTER_DAYS          = {7, 14, 30, 60, 9999};
     private static final int   DEFAULT_FILTER_INDEX = 2; // 30 Tage
@@ -50,6 +61,20 @@ public class CookingFragment extends Fragment {
     private RecyclerView          rvSuggestions;
     private Spinner               spinnerFilterDays;
     private Button                btnSortToggle;
+    private TextView              tvSyncStatus;
+
+    /** Non-null when a valid server URL is configured. */
+    private CookingApiClient apiClient;
+
+    /** Handler for periodic sync on the main thread. */
+    private final Handler syncHandler = new Handler(Looper.getMainLooper());
+    private final Runnable syncRunnable = new Runnable() {
+        @Override
+        public void run() {
+            periodicSync();
+            syncHandler.postDelayed(this, SYNC_INTERVAL_MS);
+        }
+    };
 
     private int     currentFilterIndex = DEFAULT_FILTER_INDEX;
     private boolean sortByDuration     = false;
@@ -97,6 +122,18 @@ public class CookingFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         db = new CookingDatabaseHelper(requireContext());
+
+        tvSyncStatus = view.findViewById(R.id.tv_cooking_sync_status);
+
+        ImageButton btnSyncConfigure = view.findViewById(R.id.btn_cooking_sync_configure);
+        if (btnSyncConfigure != null) {
+            btnSyncConfigure.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showSyncConfigDialog();
+                }
+            });
+        }
 
         // ── Left panel: recently cooked ───────────────────────────────────────
         rvRecentlyCooked = view.findViewById(R.id.rv_recently_cooked);
@@ -178,7 +215,129 @@ public class CookingFragment extends Fragment {
             }
         });
 
+        // Initialise API client from stored preferences and trigger an initial sync
+        initApiClient();
+
         refreshLists();
+        if (apiClient != null) {
+            periodicSync();
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        initApiClient();
+        if (apiClient != null) {
+            syncHandler.removeCallbacks(syncRunnable);
+            syncHandler.postDelayed(syncRunnable, SYNC_INTERVAL_MS);
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        syncHandler.removeCallbacks(syncRunnable);
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        syncHandler.removeCallbacks(syncRunnable);
+        if (db != null) db.close();
+    }
+
+    // ── Sync helpers ──────────────────────────────────────────────────────────
+
+    private void initApiClient() {
+        SharedPreferences prefs = requireContext()
+                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String url = prefs.getString(PREF_SERVER_URL, "");
+        apiClient = (url != null && !url.isEmpty()) ? new CookingApiClient(url) : null;
+        if (apiClient == null && tvSyncStatus != null) {
+            tvSyncStatus.setVisibility(View.GONE);
+        }
+    }
+
+    private void showSyncOk() {
+        if (tvSyncStatus == null || !isAdded()) return;
+        tvSyncStatus.setText(R.string.cooking_sync_status_ok);
+        tvSyncStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent));
+        tvSyncStatus.setVisibility(View.VISIBLE);
+    }
+
+    private void showSyncError() {
+        if (tvSyncStatus == null || !isAdded()) return;
+        tvSyncStatus.setText(R.string.cooking_sync_status_error);
+        tvSyncStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.error));
+        tvSyncStatus.setVisibility(View.VISIBLE);
+    }
+
+    private void showSyncConfigDialog() {
+        final EditText etUrl = new EditText(requireContext());
+        etUrl.setHint(R.string.sync_url_hint);
+        etUrl.setSingleLine(true);
+        SharedPreferences prefs = requireContext()
+                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        etUrl.setText(prefs.getString(PREF_SERVER_URL, ""));
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.sync_url_title)
+                .setMessage(R.string.sync_url_message)
+                .setView(etUrl)
+                .setPositiveButton(R.string.sync_save, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        String url = etUrl.getText().toString().trim();
+                        requireContext()
+                                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                                .edit().putString(PREF_SERVER_URL, url).apply();
+                        initApiClient();
+                        if (apiClient != null) periodicSync();
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    /**
+     * Fetches all dishes from the server and merges any that are missing locally.
+     * Dishes that exist locally but not on the server are not deleted (they may be pending pushes).
+     */
+    private void periodicSync() {
+        if (apiClient == null || !isAdded()) return;
+        apiClient.fetchDishes(new CookingApiClient.Callback<List<Dish>>() {
+            @Override
+            public void onSuccess(List<Dish> remoteDishes) {
+                if (!isAdded()) return;
+                Set<Long> localIds = db.getDishIds();
+                for (Dish remote : remoteDishes) {
+                    if (!localIds.contains(remote.id)) {
+                        db.insertDishWithId(remote.id, remote.name, remote.durationMinutes,
+                                remote.ingredients, remote.notes, remote.lastCooked);
+                    }
+                }
+                showSyncOk();
+                refreshLists();
+            }
+            @Override
+            public void onError(String message) {
+                if (!isAdded()) return;
+                showSyncError();
+                // Continue using local data – no UI changes needed
+            }
+        });
+    }
+
+    /** Pushes a single dish to the server; shows error indicator on failure. */
+    private void pushDish(final Dish dish) {
+        if (apiClient == null) return;
+        apiClient.upsertDish(dish, new CookingApiClient.Callback<Void>() {
+            @Override
+            public void onSuccess(Void result) { showSyncOk(); }
+            @Override
+            public void onError(String message) { showSyncError(); }
+        });
     }
 
     // ── Data helpers ──────────────────────────────────────────────────────────
@@ -200,12 +359,22 @@ public class CookingFragment extends Fragment {
         suggestionsAdapter.setItems(suggestions);
     }
 
-    private void markAsCooked(Dish dish) {
+    private void markAsCooked(final Dish dish) {
         db.markAsCooked(dish.id);
         Toast.makeText(requireContext(),
                 getString(R.string.cooking_marked_cooked, dish.name),
                 Toast.LENGTH_SHORT).show();
         refreshLists();
+        // Push the updated last_cooked to the server
+        if (apiClient != null) {
+            apiClient.markAsCooked(dish.id, db.todayString(),
+                    new CookingApiClient.Callback<Void>() {
+                @Override
+                public void onSuccess(Void result) { showSyncOk(); }
+                @Override
+                public void onError(String message) { showSyncError(); }
+            });
+        }
     }
 
     // ── Manage dialog ─────────────────────────────────────────────────────────
@@ -301,6 +470,16 @@ public class CookingFragment extends Fragment {
                                         @Override
                                         public void onClick(DialogInterface di, int which) {
                                             db.deleteDish(dish.id);
+                                            // Push delete to server
+                                            if (apiClient != null) {
+                                                apiClient.deleteDish(dish.id,
+                                                        new CookingApiClient.Callback<Void>() {
+                                                    @Override
+                                                    public void onSuccess(Void result) { showSyncOk(); }
+                                                    @Override
+                                                    public void onError(String msg) { showSyncError(); }
+                                                });
+                                            }
                                             refreshLists();
                                             populateManageDialog(container, dialog);
                                         }
@@ -395,13 +574,27 @@ public class CookingFragment extends Fragment {
                 String notes       = etNotes.getText().toString().trim();
 
                 if (existingDish == null) {
-                    db.addDish(name, duration,
+                    long newId = db.addDish(name, duration,
                             ingredients.isEmpty() ? null : ingredients,
                             notes.isEmpty()       ? null : notes);
+                    // Push new dish to server
+                    if (apiClient != null && newId > 0) {
+                        pushDish(new Dish(newId, name, duration,
+                                ingredients.isEmpty() ? null : ingredients,
+                                notes.isEmpty()       ? null : notes,
+                                null));
+                    }
                 } else {
                     db.updateDish(existingDish.id, name, duration,
                             ingredients.isEmpty() ? null : ingredients,
                             notes.isEmpty()       ? null : notes);
+                    // Push updated dish to server
+                    if (apiClient != null) {
+                        pushDish(new Dish(existingDish.id, name, duration,
+                                ingredients.isEmpty() ? null : ingredients,
+                                notes.isEmpty()       ? null : notes,
+                                existingDish.lastCooked));
+                    }
                 }
                 refreshLists();
                 dialog.dismiss();

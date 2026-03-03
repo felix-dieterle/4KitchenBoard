@@ -8,6 +8,8 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -50,6 +52,9 @@ public class ShoppingFragment extends Fragment {
 
     private static final int QR_SIZE_PX = 512;
 
+    /** Periodic sync interval: 5 minutes. */
+    private static final long SYNC_INTERVAL_MS = 5 * 60 * 1000L;
+
     private ShoppingDatabaseHelper db;
     private ShoppingAdapter adapter;
     private TextView tvEmpty;
@@ -57,6 +62,16 @@ public class ShoppingFragment extends Fragment {
 
     /** Non-null when a valid server URL is configured. */
     private ShoppingApiClient apiClient;
+
+    /** Handler for periodic sync on the main thread. */
+    private final Handler syncHandler = new Handler(Looper.getMainLooper());
+    private final Runnable syncRunnable = new Runnable() {
+        @Override
+        public void run() {
+            periodicSync();
+            syncHandler.postDelayed(this, SYNC_INTERVAL_MS);
+        }
+    };
 
     private ActivityResultLauncher<ScanOptions> scanLauncher;
 
@@ -194,9 +209,17 @@ public class ShoppingFragment extends Fragment {
         // Re-read server URL in case it was updated
         initApiClient();
         if (apiClient != null) {
+            syncHandler.removeCallbacks(syncRunnable);
+            syncHandler.postDelayed(syncRunnable, SYNC_INTERVAL_MS);
             refreshList();
         }
         checkPendingQrItem();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        syncHandler.removeCallbacks(syncRunnable);
     }
 
     // ── Sync helpers ──────────────────────────────────────────────────────────
@@ -255,6 +278,29 @@ public class ShoppingFragment extends Fragment {
         tvSyncStatus.setText(R.string.sync_status_ok);
         tvSyncStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent));
         tvSyncStatus.setVisibility(View.VISIBLE);
+    }
+
+    /**
+     * Fetches the current item list from the server and updates the displayed list.
+     * Falls back to the currently displayed data on error so the UI remains functional.
+     */
+    private void periodicSync() {
+        if (apiClient == null || !isAdded()) return;
+        apiClient.fetchItems(new ShoppingApiClient.Callback<List<ShoppingItem>>() {
+            @Override
+            public void onSuccess(List<ShoppingItem> remoteItems) {
+                if (!isAdded()) return;
+                showSyncOk();
+                adapter.setItems(remoteItems);
+                tvEmpty.setVisibility(remoteItems.isEmpty() ? View.VISIBLE : View.GONE);
+            }
+            @Override
+            public void onError(String message) {
+                if (!isAdded()) return;
+                showSyncError();
+                // Continue using currently displayed data – no UI change needed
+            }
+        });
     }
 
     // ── List management ───────────────────────────────────────────────────────
@@ -431,6 +477,7 @@ public class ShoppingFragment extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        syncHandler.removeCallbacks(syncRunnable);
         if (db != null) db.close();
     }
 

@@ -158,6 +158,10 @@
     <string name="calendar_sync_status_ok">✓ Synced</string>
     <string name="calendar_sync_status_error">Sync failed</string>
 
+    <!-- Cooking sync -->
+    <string name="cooking_sync_status_ok">✓ Synced</string>
+    <string name="cooking_sync_status_error">Sync failed</string>
+
     <!-- Startup version overlay -->
     <string name="version_display">v%1$s (%2$d)</string>
 </resources>
