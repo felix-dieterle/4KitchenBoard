@@ -16,6 +16,12 @@
  *   POST ?action=calendar_delete_series   → body: series_id                          → {"success":true}
  *   POST ?action=calendar_update_datetime → body: id, date[, time]                   → {"success":true}
  *
+ * Cooking-list endpoints (action= GET or POST parameter):
+ *   GET  ?action=cooking_list         → JSON list of all dishes
+ *   POST ?action=cooking_upsert       → body: id, name[, duration_minutes, ingredients, notes, last_cooked] → {"success":true}
+ *   POST ?action=cooking_delete       → body: id                                  → {"success":true}
+ *   POST ?action=cooking_mark_cooked  → body: id, last_cooked                     → {"success":true}
+ *
  * Storage: SQLite3 file (shopping.db) placed beside this script.
  * The database file is protected by .htaccess so it cannot be downloaded.
  */
@@ -77,6 +83,15 @@ $db->exec('CREATE TABLE IF NOT EXISTS calendar_appointments (
     series_id INTEGER
 )');
 
+$db->exec('CREATE TABLE IF NOT EXISTS cooking_dishes (
+    id               INTEGER PRIMARY KEY,
+    name             TEXT    NOT NULL,
+    duration_minutes INTEGER NOT NULL DEFAULT 0,
+    ingredients      TEXT,
+    notes            TEXT,
+    last_cooked      TEXT
+)');
+
 // ── Dispatch ──────────────────────────────────────────────────────────────────
 
 $action = trim((string)($_GET['action'] ?? $_POST['action'] ?? ''));
@@ -111,6 +126,18 @@ switch ($action) {
         break;
     case 'calendar_update_datetime':
         calendarUpdateDatetime($db);
+        break;
+    case 'cooking_list':
+        cookingList($db);
+        break;
+    case 'cooking_upsert':
+        cookingUpsert($db);
+        break;
+    case 'cooking_delete':
+        cookingDelete($db);
+        break;
+    case 'cooking_mark_cooked':
+        cookingMarkCooked($db);
         break;
     default:
         http_response_code(400);
@@ -325,6 +352,96 @@ function calendarUpdateDatetime(SQLite3 $db): void
     $stmt->bindValue(':date', $date, SQLITE3_TEXT);
     $stmt->bindValue(':time', $time !== '' ? $time : null, $time !== '' ? SQLITE3_TEXT : SQLITE3_NULL);
     $stmt->bindValue(':id',   $id,   SQLITE3_INTEGER);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+// ── Cooking action handlers ───────────────────────────────────────────────────
+
+function cookingList(SQLite3 $db): void
+{
+    $result = $db->query(
+        'SELECT id, name, duration_minutes, ingredients, notes, last_cooked
+         FROM cooking_dishes ORDER BY name ASC'
+    );
+    $dishes = [];
+    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+        $dishes[] = [
+            'id'               => (int)$row['id'],
+            'name'             => $row['name'],
+            'duration_minutes' => (int)$row['duration_minutes'],
+            'ingredients'      => $row['ingredients'],
+            'notes'            => $row['notes'],
+            'last_cooked'      => $row['last_cooked'],
+        ];
+    }
+    echo json_encode(['dishes' => $dishes]);
+}
+
+function cookingUpsert(SQLite3 $db): void
+{
+    $id          = (int)($_POST['id']               ?? 0);
+    $name        = trim((string)($_POST['name']     ?? ''));
+    $duration    = max(0, (int)($_POST['duration_minutes'] ?? 0));
+    $ingredients = trim((string)($_POST['ingredients'] ?? ''));
+    $notes       = trim((string)($_POST['notes']    ?? ''));
+    $lastCooked  = trim((string)($_POST['last_cooked'] ?? ''));
+
+    if ($id <= 0 || $name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameters "id" and "name" are required']);
+        return;
+    }
+
+    $stmt = $db->prepare(
+        'INSERT OR REPLACE INTO cooking_dishes (id, name, duration_minutes, ingredients, notes, last_cooked)
+         VALUES (:id, :name, :duration, :ingredients, :notes, :last_cooked)'
+    );
+    $stmt->bindValue(':id',          $id,       SQLITE3_INTEGER);
+    $stmt->bindValue(':name',        $name,     SQLITE3_TEXT);
+    $stmt->bindValue(':duration',    $duration, SQLITE3_INTEGER);
+    $stmt->bindValue(':ingredients', $ingredients !== '' ? $ingredients : null,
+                     $ingredients !== '' ? SQLITE3_TEXT : SQLITE3_NULL);
+    $stmt->bindValue(':notes',       $notes !== '' ? $notes : null,
+                     $notes !== '' ? SQLITE3_TEXT : SQLITE3_NULL);
+    $stmt->bindValue(':last_cooked', $lastCooked !== '' ? $lastCooked : null,
+                     $lastCooked !== '' ? SQLITE3_TEXT : SQLITE3_NULL);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+function cookingDelete(SQLite3 $db): void
+{
+    $id = (int)($_POST['id'] ?? 0);
+    if ($id <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameter "id" is required']);
+        return;
+    }
+
+    $stmt = $db->prepare('DELETE FROM cooking_dishes WHERE id = :id');
+    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+function cookingMarkCooked(SQLite3 $db): void
+{
+    $id         = (int)($_POST['id']          ?? 0);
+    $lastCooked = trim((string)($_POST['last_cooked'] ?? ''));
+
+    if ($id <= 0 || $lastCooked === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameters "id" and "last_cooked" are required']);
+        return;
+    }
+
+    $stmt = $db->prepare('UPDATE cooking_dishes SET last_cooked = :last_cooked WHERE id = :id');
+    $stmt->bindValue(':last_cooked', $lastCooked, SQLITE3_TEXT);
+    $stmt->bindValue(':id',          $id,         SQLITE3_INTEGER);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
