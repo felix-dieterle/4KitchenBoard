@@ -10,8 +10,10 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
@@ -264,27 +266,93 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 COL_ID + "=?", new String[]{String.valueOf(id)});
     }
 
+    /** Returns the set of all appointment IDs stored locally (efficient for sync checks). */
+    public Set<Long> getAppointmentIds() {
+        Set<Long> ids = new HashSet<>();
+        Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
+                new String[]{COL_ID},
+                null, null, null, null, null);
+        while (c.moveToNext()) {
+            ids.add(c.getLong(0));
+        }
+        c.close();
+        return ids;
+    }
+
+    /** Returns all appointments in the database, ordered by date, time, title. */
+    public List<Appointment> getAllAppointments() {
+        List<Appointment> list = new ArrayList<>();
+        Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
+                new String[]{COL_ID, COL_DATE, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID},
+                null, null, null, null,
+                COL_DATE + " ASC, " + ORDER_BY_TIME_THEN_TITLE);
+        while (c.moveToNext()) {
+            Long sid = c.isNull(4) ? null : c.getLong(4);
+            Long pid = c.isNull(5) ? null : c.getLong(5);
+            Long gid = c.isNull(6) ? null : c.getLong(6);
+            list.add(new Appointment(c.getLong(0), c.getString(1), c.getString(2),
+                    c.getString(3), sid, pid, gid));
+        }
+        c.close();
+        return list;
+    }
+
+    /** Returns all appointments that share the given series id. */
+    public List<Appointment> getAppointmentsBySeriesId(long seriesId) {
+        List<Appointment> list = new ArrayList<>();
+        Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
+                new String[]{COL_ID, COL_DATE, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID},
+                COL_SERIES_ID + "=?", new String[]{String.valueOf(seriesId)},
+                null, null, ORDER_BY_TIME_THEN_TITLE);
+        while (c.moveToNext()) {
+            Long sid = c.isNull(4) ? null : c.getLong(4);
+            Long pid = c.isNull(5) ? null : c.getLong(5);
+            Long gid = c.isNull(6) ? null : c.getLong(6);
+            list.add(new Appointment(c.getLong(0), c.getString(1), c.getString(2),
+                    c.getString(3), sid, pid, gid));
+        }
+        c.close();
+        return list;
+    }
+
+    /**
+     * Inserts an appointment using a given id (for restoring from a remote backend).
+     * Uses CONFLICT_IGNORE so existing rows are not overwritten.
+     */
+    public void insertAppointmentWithId(long id, String date, String time,
+                                        String title, Long seriesId) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_ID, id);
+        cv.put(COL_DATE, date);
+        if (time != null && !time.isEmpty()) cv.put(COL_TIME, time);
+        cv.put(COL_TITLE, title);
+        if (seriesId != null) cv.put(COL_SERIES_ID, seriesId);
+        getWritableDatabase().insertWithOnConflict(
+                TABLE_APPOINTMENTS, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
+    }
+
     /**
      * Adds appointments for a recurring pattern from startDate to endDate (both inclusive).
      * recurrence values: "once", "daily", "weekdays" (Mon–Fri), "mon_sat" (Mon–Sat),
      *                    "weekly" (same weekday), "monthly" (same day of month).
      * time is optional (HH:mm or null for all-day).
      * All appointments share the same series_id so the entire series can be deleted at once.
+     * Returns the series_id used (useful for subsequent sync operations).
      */
-    public void addRecurringAppointments(String startDate, String endDate,
+    public long addRecurringAppointments(String startDate, String endDate,
                                          String title, String recurrence, String time,
                                          Long personId) {
-        addRecurringAppointments(startDate, endDate, title, recurrence, time, personId, null);
+        return addRecurringAppointments(startDate, endDate, title, recurrence, time, personId, null);
     }
 
-    public void addRecurringAppointments(String startDate, String endDate,
+    public long addRecurringAppointments(String startDate, String endDate,
                                          String title, String recurrence, String time,
                                          Long personId, Long groupId) {
         try {
             SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
             Date startD = fmt.parse(startDate);
             Date endD   = fmt.parse(endDate);
-            if (startD == null || endD == null) return;
+            if (startD == null || endD == null) return 0;
 
             Calendar startCal = Calendar.getInstance();
             startCal.setTime(startD);
@@ -340,6 +408,7 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                     cal.add(Calendar.DAY_OF_MONTH, 1);
                 }
                 db.setTransactionSuccessful();
+                return seriesId;
             } finally {
                 db.endTransaction();
             }
@@ -347,6 +416,7 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
             // silently ignore parse errors — dates come from our own DATE_FMT so this should
             // never fire, but guard defensively to avoid crashing the calendar UI
         }
+        return 0;
     }
 
     /** Returns all standard templates ordered alphabetically. */
