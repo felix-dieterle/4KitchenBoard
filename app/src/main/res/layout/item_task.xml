@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:minHeight="@dimen/item_height"
+    android:background="@color/panel_bg"
+    android:paddingStart="@dimen/panel_padding"
+    android:paddingEnd="8dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
+
+    <!-- Priority number badge -->
+    <TextView
+        android:id="@+id/tv_task_priority"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:gravity="center"
+        android:textSize="@dimen/small_text_size"
+        android:textStyle="bold"
+        android:textColor="@color/accent"
+        android:background="@color/accent_light"
+        android:layout_marginEnd="12dp"/>
+
+    <!-- Task title -->
+    <TextView
+        android:id="@+id/tv_task_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="@dimen/body_text_size"
+        android:textColor="@color/text_primary"
+        android:paddingEnd="8dp"/>
+
+    <!-- Move up (higher priority) -->
+    <Button
+        android:id="@+id/btn_task_up"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:text="&#9650;"
+        android:textSize="14sp"
+        android:textColor="@color/text_secondary"
+        android:padding="0dp"
+        android:contentDescription="@string/tasks_priority_up"/>
+
+    <!-- Move down (lower priority) -->
+    <Button
+        android:id="@+id/btn_task_down"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:text="&#9660;"
+        android:textSize="14sp"
+        android:textColor="@color/text_secondary"
+        android:padding="0dp"
+        android:contentDescription="@string/tasks_priority_down"/>
+
+    <!-- Mark as done (removes task) -->
+    <Button
+        android:id="@+id/btn_task_done"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:text="&#10003;"
+        android:textSize="18sp"
+        android:textColor="@color/accent"
+        android:padding="0dp"
+        android:contentDescription="@string/tasks_mark_done"/>
+
+</LinearLayout>

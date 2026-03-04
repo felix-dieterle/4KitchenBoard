@@ -7,6 +7,7 @@ import androidx.viewpager2.adapter.FragmentStateAdapter;
 
 import com.kitchenboard.calendar.CalendarFragment;
 import com.kitchenboard.cooking.CookingFragment;
+import com.kitchenboard.tasks.TaskFragment;
 
 public class ScreenPagerAdapter extends FragmentStateAdapter {
 
@@ -20,12 +21,13 @@ public class ScreenPagerAdapter extends FragmentStateAdapter {
         switch (position) {
             case 1:  return new CalendarFragment();
             case 2:  return new CookingFragment();
+            case 3:  return new TaskFragment();
             default: return new CombinedFragment();
         }
     }
 
     @Override
     public int getItemCount() {
-        return 3;
+        return 4;
     }
 }

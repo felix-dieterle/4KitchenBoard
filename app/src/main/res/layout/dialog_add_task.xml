@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="@dimen/panel_padding">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/tasks_title_label"
+        android:textSize="@dimen/small_text_size"
+        android:textColor="@color/text_secondary"
+        android:layout_marginBottom="4dp"/>
+
+    <EditText
+        android:id="@+id/et_task_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/tasks_title_hint"
+        android:inputType="textCapSentences"
+        android:maxLines="3"
+        android:textSize="@dimen/body_text_size"
+        android:background="@drawable/bg_input"
+        android:padding="8dp"/>
+
+</LinearLayout>
