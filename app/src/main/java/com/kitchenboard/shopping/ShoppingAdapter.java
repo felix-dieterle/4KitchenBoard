@@ -9,6 +9,7 @@ import android.widget.CheckBox;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.kitchenboard.R;
@@ -65,7 +66,7 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
     public void setItems(List<ShoppingItem> items) {
         rows.clear();
         if (groupByShop) {
-            // Sort by shop (empty shop goes last), then by name
+            // Sort by shop (empty shop goes last), then by priority, then by name
             List<ShoppingItem> sorted = new ArrayList<>(items);
             java.util.Collections.sort(sorted, new java.util.Comparator<ShoppingItem>() {
                 @Override
@@ -74,6 +75,8 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
                     String shopB = b.getShop().isEmpty() ? "\uffff" : b.getShop();
                     int c = shopA.compareToIgnoreCase(shopB);
                     if (c != 0) return c;
+                    int pc = Integer.compare(a.getPriority(), b.getPriority());
+                    if (pc != 0) return pc;
                     return a.getName().compareToIgnoreCase(b.getName());
                 }
             });
@@ -154,6 +157,7 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
     }
 
     class ItemViewHolder extends RecyclerView.ViewHolder {
+        final View priorityIndicator;
         final CheckBox checkBox;
         final TextView tvName;
         final Button btnMinus;
@@ -163,6 +167,7 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
 
         ItemViewHolder(View v) {
             super(v);
+            priorityIndicator = v.findViewById(R.id.view_priority_indicator);
             checkBox = v.findViewById(R.id.cb_item);
             tvName = v.findViewById(R.id.tv_item_name);
             btnMinus = v.findViewById(R.id.btn_qty_minus);
@@ -176,6 +181,17 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
             tvName.setText(item.getName());
             tvName.setPaintFlags(tvName.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
             tvQuantity.setText(String.valueOf(item.getQuantity()));
+
+            // Show priority indicator
+            int priorityColor;
+            if (item.getPriority() == ShoppingItem.PRIORITY_HIGH) {
+                priorityColor = ContextCompat.getColor(itemView.getContext(), R.color.priority_high);
+            } else if (item.getPriority() == ShoppingItem.PRIORITY_LOW) {
+                priorityColor = ContextCompat.getColor(itemView.getContext(), R.color.priority_low);
+            } else {
+                priorityColor = android.graphics.Color.TRANSPARENT;
+            }
+            priorityIndicator.setBackgroundColor(priorityColor);
 
             checkBox.setOnClickListener(new View.OnClickListener() {
                 @Override

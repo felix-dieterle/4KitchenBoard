@@ -58,7 +58,8 @@ $db->exec("CREATE TABLE IF NOT EXISTS items (
     checked    INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL DEFAULT 0,
     quantity   INTEGER NOT NULL DEFAULT 1,
-    shop       TEXT    NOT NULL DEFAULT ''
+    shop       TEXT    NOT NULL DEFAULT '',
+    priority   INTEGER NOT NULL DEFAULT 2
 )");
 
 // Add quantity column to existing tables that were created without it
@@ -79,6 +80,16 @@ while ($row = $result2->fetchArray(SQLITE3_ASSOC)) {
 }
 if (!$shopColumnExists) {
     $db->exec("ALTER TABLE items ADD COLUMN shop TEXT NOT NULL DEFAULT ''");
+}
+
+// Add priority column to existing tables that were created without it
+$priorityColumnExists = false;
+$result3 = $db->query('PRAGMA table_info(items)');
+while ($row = $result3->fetchArray(SQLITE3_ASSOC)) {
+    if ($row['name'] === 'priority') { $priorityColumnExists = true; break; }
+}
+if (!$priorityColumnExists) {
+    $db->exec('ALTER TABLE items ADD COLUMN priority INTEGER NOT NULL DEFAULT 2');
 }
 
 $db->exec('CREATE TABLE IF NOT EXISTS categories (
@@ -163,9 +174,9 @@ exit;
 function actionList(SQLite3 $db): void
 {
     $result = $db->query(
-        'SELECT id, name, category, quantity, shop FROM items
+        'SELECT id, name, category, quantity, shop, priority FROM items
          WHERE checked = 0
-         ORDER BY category ASC, name ASC'
+         ORDER BY priority ASC, category ASC, name ASC'
     );
     $items = [];
     while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
@@ -175,6 +186,7 @@ function actionList(SQLite3 $db): void
             'category' => $row['category'],
             'quantity' => (int)$row['quantity'],
             'shop'     => (string)$row['shop'],
+            'priority' => (int)$row['priority'],
         ];
     }
     echo json_encode(['items' => $items]);
@@ -186,6 +198,8 @@ function actionAdd(SQLite3 $db): void
     $category = trim((string)($_POST['category'] ?? ''));
     $quantity = max(1, (int)($_POST['quantity'] ?? 1));
     $shop     = trim((string)($_POST['shop']     ?? ''));
+    $priority = (int)($_POST['priority'] ?? 2);
+    if ($priority < 1 || $priority > 3) { $priority = 2; }
 
     if ($name === '' || $category === '') {
         http_response_code(400);
@@ -194,14 +208,15 @@ function actionAdd(SQLite3 $db): void
     }
 
     $stmt = $db->prepare(
-        'INSERT INTO items (name, category, checked, created_at, quantity, shop)
-         VALUES (:name, :category, 0, :ts, :quantity, :shop)'
+        'INSERT INTO items (name, category, checked, created_at, quantity, shop, priority)
+         VALUES (:name, :category, 0, :ts, :quantity, :shop, :priority)'
     );
     $stmt->bindValue(':name',     $name,     SQLITE3_TEXT);
     $stmt->bindValue(':category', $category, SQLITE3_TEXT);
     $stmt->bindValue(':ts',       (int)(microtime(true) * 1000), SQLITE3_INTEGER);
     $stmt->bindValue(':quantity', $quantity, SQLITE3_INTEGER);
     $stmt->bindValue(':shop',     $shop,     SQLITE3_TEXT);
+    $stmt->bindValue(':priority', $priority, SQLITE3_INTEGER);
     $stmt->execute();
 
     $id = $db->lastInsertRowID();
@@ -213,7 +228,7 @@ function actionAdd(SQLite3 $db): void
     $stmtCat->bindValue(':name', $category, SQLITE3_TEXT);
     $stmtCat->execute();
 
-    echo json_encode(['id' => $id, 'name' => $name, 'category' => $category, 'quantity' => $quantity, 'shop' => $shop]);
+    echo json_encode(['id' => $id, 'name' => $name, 'category' => $category, 'quantity' => $quantity, 'shop' => $shop, 'priority' => $priority]);
 }
 
 function actionCheck(SQLite3 $db): void

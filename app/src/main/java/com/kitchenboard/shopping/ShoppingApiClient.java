@@ -63,7 +63,8 @@ public class ShoppingApiClient {
                                 obj.getString("category"),
                                 false,
                                 obj.optInt("quantity", 1),
-                                obj.optString("shop", "")));
+                                obj.optString("shop", ""),
+                                obj.optInt("priority", ShoppingItem.PRIORITY_NORMAL)));
                     }
                     postSuccess(callback, items);
                 } catch (final Exception e) {
@@ -75,7 +76,7 @@ public class ShoppingApiClient {
 
     /** Add a new item on the server. Returns the created item (with server-assigned id). */
     public void addItem(final String name, final String category, final int quantity,
-                        final String shop, final Callback<ShoppingItem> callback) {
+                        final String shop, final int priority, final Callback<ShoppingItem> callback) {
         runAsync(new Runnable() {
             @Override
             public void run() {
@@ -84,7 +85,8 @@ public class ShoppingApiClient {
                             + "&name=" + encode(name)
                             + "&category=" + encode(category)
                             + "&quantity=" + quantity
-                            + "&shop=" + encode(shop != null ? shop : "");
+                            + "&shop=" + encode(shop != null ? shop : "")
+                            + "&priority=" + priority;
                     String response = httpPost(baseUrl, body);
                     JSONObject json = new JSONObject(response);
                     final ShoppingItem item = new ShoppingItem(
@@ -93,13 +95,20 @@ public class ShoppingApiClient {
                             json.getString("category"),
                             false,
                             json.optInt("quantity", 1),
-                            json.optString("shop", ""));
+                            json.optString("shop", ""),
+                            json.optInt("priority", ShoppingItem.PRIORITY_NORMAL));
                     postSuccess(callback, item);
                 } catch (final Exception e) {
                     postError(callback, e.getMessage());
                 }
             }
         });
+    }
+
+    /** Add a new item on the server. Returns the created item (with server-assigned id). */
+    public void addItem(final String name, final String category, final int quantity,
+                        final String shop, final Callback<ShoppingItem> callback) {
+        addItem(name, category, quantity, shop, ShoppingItem.PRIORITY_NORMAL, callback);
     }
 
     /** Add a new item on the server (no shop). Returns the created item (with server-assigned id). */

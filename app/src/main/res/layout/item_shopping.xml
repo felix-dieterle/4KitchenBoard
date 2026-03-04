@@ -8,6 +8,14 @@
     android:paddingEnd="@dimen/panel_padding"
     android:background="?android:attr/selectableItemBackground">
 
+    <!-- Priority indicator: narrow colored strip on the left -->
+    <View
+        android:id="@+id/view_priority_indicator"
+        android:layout_width="4dp"
+        android:layout_height="32dp"
+        android:layout_marginEnd="8dp"
+        android:background="@android:color/transparent"/>
+
     <CheckBox
         android:id="@+id/cb_item"
         android:layout_width="wrap_content"
