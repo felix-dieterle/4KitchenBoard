@@ -176,6 +176,7 @@
     <string name="group_by_category">Kategorie</string>
     <string name="group_by_shop">Shop</string>
     <string name="no_shop_label">Kein Shop</string>
+    <string name="shop_common_stores_hint">Bekannten Shop wählen…</string>
 
     <!-- Startup version overlay -->
     <string name="version_display">v%1$s (%2$d)</string>

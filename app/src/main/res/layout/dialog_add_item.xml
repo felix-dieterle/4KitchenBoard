@@ -99,6 +99,13 @@
         android:layout_marginTop="@dimen/spacing_normal"
         android:layout_marginBottom="4dp"/>
 
+    <!-- Quick-pick: common German stores -->
+    <Spinner
+        android:id="@+id/sp_common_store"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"/>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -17,6 +17,7 @@ import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
+import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -343,6 +344,36 @@ public class ShoppingFragment extends Fragment {
         }
     }
 
+    /**
+     * Populates a Spinner with the 20 common German stores (plus a hint entry) and
+     * updates {@code selectedShop} and {@code tvShopName} when the user picks one.
+     */
+    private void setupCommonStoreSpinner(final Spinner spinner,
+                                         final String[] selectedShop,
+                                         final TextView tvShopName) {
+        java.util.List<String> entries = new java.util.ArrayList<>();
+        entries.add(getString(R.string.shop_common_stores_hint));
+        entries.addAll(GermanStores.COMMON_STORES);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, entries);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (position > 0) {
+                    String store = GermanStores.COMMON_STORES.get(position - 1);
+                    selectedShop[0] = store;
+                    tvShopName.setText(store);
+                    tvShopName.setTextColor(
+                            ContextCompat.getColor(requireContext(), R.color.text_primary));
+                }
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+    }
+
     private void showAddItemDialog() {
         View dialogView = LayoutInflater.from(requireContext())
                 .inflate(R.layout.dialog_add_item, null);
@@ -356,6 +387,7 @@ public class ShoppingFragment extends Fragment {
         final Button btnPlus = dialogView.findViewById(R.id.btn_qty_plus);
         final TextView tvShopName = dialogView.findViewById(R.id.tv_shop_name);
         final Button btnSearchShop = dialogView.findViewById(R.id.btn_search_shop);
+        final Spinner spCommonStore = dialogView.findViewById(R.id.sp_common_store);
 
         // Mutable quantity holder
         final int[] quantity = {1};
@@ -381,6 +413,9 @@ public class ShoppingFragment extends Fragment {
             }
         });
 
+        // Common store spinner
+        setupCommonStoreSpinner(spCommonStore, selectedShop, tvShopName);
+
         // Shop search button opens the map picker dialog
         btnSearchShop.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -392,6 +427,8 @@ public class ShoppingFragment extends Fragment {
                         tvShopName.setText(shopName);
                         tvShopName.setTextColor(
                                 ContextCompat.getColor(requireContext(), R.color.text_primary));
+                        // Reset spinner to hint position
+                        spCommonStore.setSelection(0);
                     }
                 }).show();
             }
@@ -582,6 +619,7 @@ public class ShoppingFragment extends Fragment {
         final Button btnPlus = dialogView.findViewById(R.id.btn_qty_plus);
         final TextView tvShopName = dialogView.findViewById(R.id.tv_shop_name);
         final Button btnSearchShop = dialogView.findViewById(R.id.btn_search_shop);
+        final Spinner spCommonStore = dialogView.findViewById(R.id.sp_common_store);
 
         etName.setText(name);
         etCategory.setText(category);
@@ -601,12 +639,16 @@ public class ShoppingFragment extends Fragment {
             tvQuantity.setText(String.valueOf(quantity[0]));
         });
 
+        // Common store spinner
+        setupCommonStoreSpinner(spCommonStore, selectedShop, tvShopName);
+
         btnSearchShop.setOnClickListener(v -> new ShopPickerDialog(requireContext(),
                 shopName -> {
                     selectedShop[0] = shopName;
                     tvShopName.setText(shopName);
                     tvShopName.setTextColor(
                             ContextCompat.getColor(requireContext(), R.color.text_primary));
+                    spCommonStore.setSelection(0);
                 }).show());
 
         List<String> categories = db.getCategories();

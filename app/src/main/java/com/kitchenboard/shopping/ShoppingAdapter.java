@@ -149,7 +149,7 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         }
 
         void bind(String category) {
-            tvCategory.setText(category);
+            tvCategory.setText(ShoppingIcons.getCategoryIcon(category) + "  " + category);
         }
     }
 
@@ -173,7 +173,8 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
 
         void bind(final ShoppingItem item) {
             checkBox.setChecked(false);
-            tvName.setText(item.getName());
+            String icon = ShoppingIcons.getItemIcon(item.getName());
+            tvName.setText(icon.isEmpty() ? item.getName() : icon + "  " + item.getName());
             tvName.setPaintFlags(tvName.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
             tvQuantity.setText(String.valueOf(item.getQuantity()));
 
