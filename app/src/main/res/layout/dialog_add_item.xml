@@ -127,4 +127,49 @@
 
     </LinearLayout>
 
+    <!-- Priority selection -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/priority_label"
+        android:textSize="@dimen/small_text_size"
+        android:textColor="@color/text_secondary"
+        android:layout_marginTop="@dimen/spacing_normal"
+        android:layout_marginBottom="4dp"/>
+
+    <RadioGroup
+        android:id="@+id/rg_priority"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <RadioButton
+            android:id="@+id/rb_priority_high"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/priority_high"
+            android:textColor="@color/priority_high"
+            android:textSize="@dimen/small_text_size"/>
+
+        <RadioButton
+            android:id="@+id/rb_priority_normal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/priority_normal"
+            android:textSize="@dimen/small_text_size"
+            android:checked="true"/>
+
+        <RadioButton
+            android:id="@+id/rb_priority_low"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/priority_low"
+            android:textColor="@color/priority_low"
+            android:textSize="@dimen/small_text_size"/>
+
+    </RadioGroup>
+
 </LinearLayout>

@@ -195,6 +195,11 @@
     <string name="tasks_delete_confirm">„%s" löschen?</string>
     <string name="tasks_sync_status_ok">✓ Synced</string>
     <string name="tasks_sync_status_error">Sync failed</string>
+    <!-- Priority feature -->
+    <string name="priority_label">Priorität</string>
+    <string name="priority_high">Hoch</string>
+    <string name="priority_normal">Normal</string>
+    <string name="priority_low">Niedrig</string>
 
     <!-- Startup version overlay -->
     <string name="version_display">v%1$s (%2$d)</string>
