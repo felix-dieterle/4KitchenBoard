@@ -177,6 +177,25 @@
     <string name="group_by_shop">Shop</string>
     <string name="no_shop_label">Kein Shop</string>
 
+    <!-- Tasks page -->
+    <string name="tasks_title">Aufgaben</string>
+    <string name="tasks_empty">Keine Aufgaben.\nTippe + um eine Aufgabe hinzuzufügen.</string>
+    <string name="tasks_add_title">Neue Aufgabe</string>
+    <string name="tasks_edit_title">Aufgabe bearbeiten</string>
+    <string name="tasks_title_label">Aufgabe</string>
+    <string name="tasks_title_hint">z. B. Küche aufräumen…</string>
+    <string name="tasks_save">Speichern</string>
+    <string name="tasks_priority_up">Priorität erhöhen</string>
+    <string name="tasks_priority_down">Priorität senken</string>
+    <string name="tasks_mark_done">Erledigt</string>
+    <string name="tasks_done_toast">„%s" erledigt</string>
+    <string name="tasks_edit_option">Bearbeiten</string>
+    <string name="tasks_delete_option">Löschen</string>
+    <string name="tasks_delete_title">Aufgabe löschen</string>
+    <string name="tasks_delete_confirm">„%s" löschen?</string>
+    <string name="tasks_sync_status_ok">✓ Synced</string>
+    <string name="tasks_sync_status_error">Sync failed</string>
+
     <!-- Startup version overlay -->
     <string name="version_display">v%1$s (%2$d)</string>
 </resources>

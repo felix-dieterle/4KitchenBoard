@@ -22,6 +22,10 @@
  *   POST ?action=cooking_delete       → body: id                                  → {"success":true}
  *   POST ?action=cooking_mark_cooked  → body: id, last_cooked                     → {"success":true}
  *
+ *   GET  ?action=tasks_list    → JSON list of all tasks sorted by sort_order
+ *   POST ?action=tasks_upsert  → body: id, title, sort_order → {"success":true}
+ *   POST ?action=tasks_delete  → body: id                    → {"success":true}
+ *
  * Storage: SQLite3 file (shopping.db) placed beside this script.
  * The database file is protected by .htaccess so it cannot be downloaded.
  */
@@ -103,6 +107,12 @@ $db->exec('CREATE TABLE IF NOT EXISTS cooking_dishes (
     last_cooked      TEXT
 )');
 
+$db->exec('CREATE TABLE IF NOT EXISTS tasks (
+    id         INTEGER PRIMARY KEY,
+    title      TEXT    NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0
+)');
+
 // ── Dispatch ──────────────────────────────────────────────────────────────────
 
 $action = trim((string)($_GET['action'] ?? $_POST['action'] ?? ''));
@@ -149,6 +159,15 @@ switch ($action) {
         break;
     case 'cooking_mark_cooked':
         cookingMarkCooked($db);
+        break;
+    case 'tasks_list':
+        tasksList($db);
+        break;
+    case 'tasks_upsert':
+        tasksUpsert($db);
+        break;
+    case 'tasks_delete':
+        tasksDelete($db);
         break;
     default:
         http_response_code(400);
@@ -456,6 +475,63 @@ function cookingMarkCooked(SQLite3 $db): void
     $stmt = $db->prepare('UPDATE cooking_dishes SET last_cooked = :last_cooked WHERE id = :id');
     $stmt->bindValue(':last_cooked', $lastCooked, SQLITE3_TEXT);
     $stmt->bindValue(':id',          $id,         SQLITE3_INTEGER);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+// ── Tasks action handlers ─────────────────────────────────────────────────────
+
+function tasksList(SQLite3 $db): void
+{
+    $result = $db->query(
+        'SELECT id, title, sort_order FROM tasks ORDER BY sort_order ASC'
+    );
+    $tasks = [];
+    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+        $tasks[] = [
+            'id'         => (int)$row['id'],
+            'title'      => $row['title'],
+            'sort_order' => (int)$row['sort_order'],
+        ];
+    }
+    echo json_encode(['tasks' => $tasks]);
+}
+
+function tasksUpsert(SQLite3 $db): void
+{
+    $id        = (int)($_POST['id']         ?? 0);
+    $title     = trim((string)($_POST['title']     ?? ''));
+    $sortOrder = (int)($_POST['sort_order'] ?? 0);
+
+    if ($id <= 0 || $title === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameters "id" and "title" are required']);
+        return;
+    }
+
+    $stmt = $db->prepare(
+        'INSERT OR REPLACE INTO tasks (id, title, sort_order) VALUES (:id, :title, :sort_order)'
+    );
+    $stmt->bindValue(':id',         $id,        SQLITE3_INTEGER);
+    $stmt->bindValue(':title',      $title,     SQLITE3_TEXT);
+    $stmt->bindValue(':sort_order', $sortOrder, SQLITE3_INTEGER);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+function tasksDelete(SQLite3 $db): void
+{
+    $id = (int)($_POST['id'] ?? 0);
+    if ($id <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameter "id" is required']);
+        return;
+    }
+
+    $stmt = $db->prepare('DELETE FROM tasks WHERE id = :id');
+    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
