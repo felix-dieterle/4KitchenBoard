@@ -18,7 +18,9 @@
     <color name="error">#B71C1C</color>
     <color name="drag_slot_overlay">#CC1565C0</color>
 
-    <!-- Material theme required colors -->
+    <!-- Priority colors -->
+    <color name="priority_high">#C62828</color>
+    <color name="priority_low">#9E9E9E</color>
     <color name="colorPrimary">#1565C0</color>
     <color name="colorPrimaryDark">#0D47A1</color>
     <color name="colorAccent">#1565C0</color>

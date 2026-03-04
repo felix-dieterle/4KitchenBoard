@@ -356,6 +356,7 @@ public class ShoppingFragment extends Fragment {
         final Button btnPlus = dialogView.findViewById(R.id.btn_qty_plus);
         final TextView tvShopName = dialogView.findViewById(R.id.tv_shop_name);
         final Button btnSearchShop = dialogView.findViewById(R.id.btn_search_shop);
+        final RadioGroup rgPriority = dialogView.findViewById(R.id.rg_priority);
 
         // Mutable quantity holder
         final int[] quantity = {1};
@@ -425,9 +426,10 @@ public class ShoppingFragment extends Fragment {
                         if (name.isEmpty()) return;
                         final int qty = quantity[0];
                         final String shop = selectedShop[0];
+                        final int priority = getSelectedPriority(rgPriority);
 
                         if (apiClient != null) {
-                            apiClient.addItem(name, category, qty, shop,
+                            apiClient.addItem(name, category, qty, shop, priority,
                                     new ShoppingApiClient.Callback<ShoppingItem>() {
                                 @Override
                                 public void onSuccess(ShoppingItem item) {
@@ -442,7 +444,7 @@ public class ShoppingFragment extends Fragment {
                             });
                         } else {
                             db.addCategory(category);
-                            db.addItem(name, category, qty, shop);
+                            db.addItem(name, category, qty, shop, priority);
                             refreshList();
                         }
                     }
@@ -477,6 +479,14 @@ public class ShoppingFragment extends Fragment {
                 return false;
             }
         });
+    }
+
+    /** Maps the checked RadioButton in the priority group to a ShoppingItem priority constant. */
+    private int getSelectedPriority(RadioGroup rg) {
+        int checkedId = rg.getCheckedRadioButtonId();
+        if (checkedId == R.id.rb_priority_high) return ShoppingItem.PRIORITY_HIGH;
+        if (checkedId == R.id.rb_priority_low)  return ShoppingItem.PRIORITY_LOW;
+        return ShoppingItem.PRIORITY_NORMAL;
     }
 
     private void showDeleteConfirmation(final ShoppingItem item) {
@@ -582,6 +592,7 @@ public class ShoppingFragment extends Fragment {
         final Button btnPlus = dialogView.findViewById(R.id.btn_qty_plus);
         final TextView tvShopName = dialogView.findViewById(R.id.tv_shop_name);
         final Button btnSearchShop = dialogView.findViewById(R.id.btn_search_shop);
+        final RadioGroup rgPriority = dialogView.findViewById(R.id.rg_priority);
 
         etName.setText(name);
         etCategory.setText(category);
@@ -626,9 +637,10 @@ public class ShoppingFragment extends Fragment {
                     if (itemName.isEmpty()) return;
                     final int qty = quantity[0];
                     final String shop = selectedShop[0];
+                    final int priority = getSelectedPriority(rgPriority);
 
                     if (apiClient != null) {
-                        apiClient.addItem(itemName, itemCategory, qty, shop,
+                        apiClient.addItem(itemName, itemCategory, qty, shop, priority,
                                 new ShoppingApiClient.Callback<ShoppingItem>() {
                             @Override
                             public void onSuccess(ShoppingItem item) {
@@ -640,7 +652,7 @@ public class ShoppingFragment extends Fragment {
                         });
                     } else {
                         db.addCategory(itemCategory);
-                        db.addItem(itemName, itemCategory, qty, shop);
+                        db.addItem(itemName, itemCategory, qty, shop, priority);
                         refreshList();
                     }
                 })
