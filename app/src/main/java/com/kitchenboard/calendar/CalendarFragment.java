@@ -7,9 +7,12 @@ import android.content.ClipData;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -26,11 +29,14 @@ import android.widget.CheckBox;
 import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
@@ -43,6 +49,10 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.kitchenboard.MainActivity;
 import com.kitchenboard.R;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -84,6 +94,20 @@ public class CalendarFragment extends Fragment {
 
     /** Non-null when a valid server URL is configured. */
     private CalendarApiClient apiClient;
+
+    /** Person ID awaiting an image pick result; set before launching the picker. */
+    private Long pendingImagePersonId = null;
+    /** Container that should be rebuilt after an image is saved. */
+    private LinearLayout pendingPersonListContainer = null;
+
+    /** Launcher for picking a person photo from the gallery. */
+    private final ActivityResultLauncher<String> imagePickerLauncher =
+            registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
+                if (uri != null && pendingImagePersonId != null) {
+                    savePersonImage(pendingImagePersonId, uri);
+                }
+                pendingImagePersonId = null;
+            });
 
     /** Handler for periodic sync on the main thread. */
     private final Handler syncHandler = new Handler(Looper.getMainLooper());
@@ -1435,20 +1459,24 @@ public class CalendarFragment extends Fragment {
             rowLp.setMargins(0, dpToPx(4), 0, dpToPx(4));
             row.setLayoutParams(rowLp);
 
-            // Color dot
-            View dot = new View(requireContext());
-            LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dpToPx(12), dpToPx(12));
-            dotLp.setMargins(0, 0, dpToPx(8), 0);
-            dot.setLayoutParams(dotLp);
-            GradientDrawable gd = new GradientDrawable();
-            gd.setShape(GradientDrawable.OVAL);
-            try {
-                gd.setColor(Color.parseColor(p.getColor()));
-            } catch (IllegalArgumentException e) {
-                gd.setColor(Color.GRAY);
+            // Person photo thumbnail or color dot
+            ImageView ivPhoto = new ImageView(requireContext());
+            LinearLayout.LayoutParams photoLp = new LinearLayout.LayoutParams(dpToPx(28), dpToPx(28));
+            photoLp.setMargins(0, 0, dpToPx(8), 0);
+            ivPhoto.setLayoutParams(photoLp);
+            ivPhoto.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            String imagePath = p.getImagePath();
+            if (imagePath != null && new File(imagePath).exists()) {
+                Bitmap bmp = BitmapFactory.decodeFile(imagePath);
+                if (bmp != null) {
+                    ivPhoto.setImageBitmap(AppointmentAdapter.toCircularBitmap(bmp));
+                } else {
+                    setColorDotBackground(ivPhoto, p.getColor());
+                }
+            } else {
+                setColorDotBackground(ivPhoto, p.getColor());
             }
-            dot.setBackground(gd);
-            row.addView(dot);
+            row.addView(ivPhoto);
 
             // Name
             TextView tv = new TextView(requireContext());
@@ -1460,12 +1488,25 @@ public class CalendarFragment extends Fragment {
             tv.setLayoutParams(tvLp);
             row.addView(tv);
 
+            // Photo button
+            Button btnPhoto = new Button(requireContext());
+            btnPhoto.setText(R.string.calendar_person_photo);
+            btnPhoto.setAllCaps(false);
+            btnPhoto.setTextSize(13f);
+            btnPhoto.setOnClickListener(v -> {
+                pendingImagePersonId = p.getId();
+                pendingPersonListContainer = container;
+                imagePickerLauncher.launch("image/*");
+            });
+            row.addView(btnPhoto);
+
             // Delete button
             Button btnDel = new Button(requireContext());
             btnDel.setText(R.string.delete);
             btnDel.setAllCaps(false);
             btnDel.setTextSize(13f);
             btnDel.setOnClickListener(v -> {
+                deletePersonImage(p.getId());
                 db.deletePerson(p.getId());
                 rebuildPersonList(container);
             });
@@ -1473,6 +1514,85 @@ public class CalendarFragment extends Fragment {
 
             container.addView(row);
         }
+    }
+
+    private static void setColorDotBackground(ImageView iv, String colorHex) {
+        iv.setImageDrawable(null);
+        GradientDrawable gd = new GradientDrawable();
+        gd.setShape(GradientDrawable.OVAL);
+        try {
+            gd.setColor(Color.parseColor(colorHex));
+        } catch (IllegalArgumentException e) {
+            gd.setColor(Color.GRAY);
+        }
+        iv.setBackground(gd);
+    }
+
+    /**
+     * Copies the image at the given URI into internal storage and saves the path for the person.
+     * The image is scaled to at most 200×200 px to conserve space.
+     */
+    private void savePersonImage(long personId, @NonNull Uri uri) {
+        if (!isAdded() || getContext() == null) return;
+        File dir = new File(requireContext().getFilesDir(), "person_images");
+        if (!dir.exists()) dir.mkdirs();
+        File dest = new File(dir, personId + ".jpg");
+        try {
+            // First pass: determine original dimensions without loading pixels
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inJustDecodeBounds = true;
+            try (InputStream probe = requireContext().getContentResolver().openInputStream(uri)) {
+                if (probe == null) return;
+                BitmapFactory.decodeStream(probe, null, opts);
+            }
+            int maxDim = 200;
+            int sampleSize = 1;
+            int w = opts.outWidth;
+            int h = opts.outHeight;
+            while (w / sampleSize > maxDim * 2 || h / sampleSize > maxDim * 2) {
+                sampleSize *= 2;
+            }
+            // Second pass: decode with inSampleSize to limit memory usage
+            opts = new BitmapFactory.Options();
+            opts.inSampleSize = sampleSize;
+            Bitmap bmp;
+            try (InputStream in = requireContext().getContentResolver().openInputStream(uri)) {
+                if (in == null) return;
+                bmp = BitmapFactory.decodeStream(in, null, opts);
+            }
+            if (bmp == null) return;
+            // Fine-scale down to at most maxDim in either dimension
+            w = bmp.getWidth();
+            h = bmp.getHeight();
+            if (w > maxDim || h > maxDim) {
+                float scale = Math.min((float) maxDim / w, (float) maxDim / h);
+                Bitmap scaled = Bitmap.createScaledBitmap(
+                        bmp, Math.round(w * scale), Math.round(h * scale), true);
+                bmp.recycle();
+                bmp = scaled;
+            }
+            try (FileOutputStream out = new FileOutputStream(dest)) {
+                bmp.compress(Bitmap.CompressFormat.JPEG, 90, out);
+            }
+            bmp.recycle();
+            db.updatePersonImage(personId, dest.getAbsolutePath());
+        } catch (IOException e) {
+            android.widget.Toast.makeText(requireContext(),
+                    "Foto konnte nicht gespeichert werden.", android.widget.Toast.LENGTH_SHORT).show();
+        }
+        // Rebuild person list if the dialog is still open
+        if (pendingPersonListContainer != null && isAdded()) {
+            rebuildPersonList(pendingPersonListContainer);
+        }
+        pendingPersonListContainer = null;
+    }
+
+    /** Deletes the stored photo file for a person (if any). */
+    private void deletePersonImage(long personId) {
+        if (getContext() == null) return;
+        File f = new File(requireContext().getFilesDir(), "person_images/" + personId + ".jpg");
+        if (f.exists()) f.delete();
+        db.updatePersonImage(personId, null);
     }
 
     private void rebuildGroupList(final LinearLayout container) {

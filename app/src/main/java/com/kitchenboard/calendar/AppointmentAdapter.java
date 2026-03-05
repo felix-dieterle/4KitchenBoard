@@ -1,6 +1,14 @@
 package com.kitchenboard.calendar;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.drawable.GradientDrawable;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -14,6 +22,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.kitchenboard.R;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -40,7 +49,7 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
         notifyDataSetChanged();
     }
 
-    /** Updates the person lookup map used to show color dots. */
+    /** Updates the person lookup map used to show color dots or photos. */
     public void setPersons(List<Person> persons) {
         personMap.clear();
         for (Person p : persons) personMap.put(p.getId(), p);
@@ -89,28 +98,61 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
             holder.ivSeriesIndicator.setVisibility(View.GONE);
         }
 
-        // Person color dot
-        // Person color dot or group indicator dot
+        // Person photo, color dot, or group indicator dot
         if (item.getPersonId() != null && personMap.containsKey(item.getPersonId())) {
             Person p = personMap.get(item.getPersonId());
-            GradientDrawable dot = new GradientDrawable();
-            dot.setShape(GradientDrawable.OVAL);
-            try {
-                dot.setColor(Color.parseColor(p.getColor()));
-            } catch (IllegalArgumentException e) {
-                dot.setColor(Color.GRAY);
+            holder.ivPersonDot.setVisibility(View.VISIBLE);
+            String imagePath = p.getImagePath();
+            if (imagePath != null && new File(imagePath).exists()) {
+                // Show person photo as circular bitmap
+                Bitmap bmp = BitmapFactory.decodeFile(imagePath);
+                if (bmp != null) {
+                    holder.ivPersonDot.setBackground(null);
+                    holder.ivPersonDot.setImageBitmap(toCircularBitmap(bmp));
+                } else {
+                    showColorDot(holder.ivPersonDot, p.getColor());
+                }
+            } else {
+                showColorDot(holder.ivPersonDot, p.getColor());
             }
-            holder.viewPersonDot.setBackground(dot);
-            holder.viewPersonDot.setVisibility(View.VISIBLE);
         } else if (item.getGroupId() != null && groupMap.containsKey(item.getGroupId())) {
+            holder.ivPersonDot.setImageDrawable(null);
             GradientDrawable dot = new GradientDrawable();
             dot.setShape(GradientDrawable.OVAL);
             dot.setColor(Color.GRAY);
-            holder.viewPersonDot.setBackground(dot);
-            holder.viewPersonDot.setVisibility(View.VISIBLE);
+            holder.ivPersonDot.setBackground(dot);
+            holder.ivPersonDot.setVisibility(View.VISIBLE);
         } else {
-            holder.viewPersonDot.setVisibility(View.INVISIBLE);
+            holder.ivPersonDot.setVisibility(View.INVISIBLE);
         }
+    }
+
+    private static void showColorDot(@NonNull ImageView iv, String colorHex) {
+        iv.setImageDrawable(null);
+        GradientDrawable dot = new GradientDrawable();
+        dot.setShape(GradientDrawable.OVAL);
+        try {
+            dot.setColor(Color.parseColor(colorHex));
+        } catch (IllegalArgumentException e) {
+            dot.setColor(Color.GRAY);
+        }
+        iv.setBackground(dot);
+    }
+
+    /** Returns a circular cropped version of the given bitmap. */
+    static Bitmap toCircularBitmap(@NonNull Bitmap source) {
+        int size = Math.min(source.getWidth(), source.getHeight());
+        Bitmap output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(output);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        Rect srcRect = new Rect(
+                (source.getWidth() - size) / 2, (source.getHeight() - size) / 2,
+                (source.getWidth() + size) / 2, (source.getHeight() + size) / 2);
+        RectF dstRect = new RectF(0, 0, size, size);
+        canvas.drawOval(dstRect, paint);
+        paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
+        canvas.drawBitmap(source, srcRect, dstRect, paint);
+        return output;
     }
 
     @Override
@@ -120,7 +162,7 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
         final TextView tvTitle;
         final TextView tvTime;
         final ImageButton btnDelete;
-        final View viewPersonDot;
+        final ImageView ivPersonDot;
         final ImageView ivSeriesIndicator;
 
         ViewHolder(@NonNull View itemView) {
@@ -128,7 +170,7 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
             tvTitle           = itemView.findViewById(R.id.tv_appointment_title);
             tvTime            = itemView.findViewById(R.id.tv_appointment_time);
             btnDelete         = itemView.findViewById(R.id.btn_delete_appointment);
-            viewPersonDot     = itemView.findViewById(R.id.view_person_dot);
+            ivPersonDot       = itemView.findViewById(R.id.view_person_dot);
             ivSeriesIndicator = itemView.findViewById(R.id.iv_series_indicator);
         }
     }
