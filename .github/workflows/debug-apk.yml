@@ -43,6 +43,7 @@ jobs:
       - name: Build debug APK
         env:
           BUILD_NUMBER: ${{ github.run_number }}
+          GITHUB_ISSUE_TOKEN: ${{ secrets.GITHUB_ISSUE_TOKEN }}
         run: ./gradlew assembleDebug
 
       - name: Rename APK

@@ -23,6 +23,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.kitchenboard.R;
+import com.kitchenboard.feedback.FeatureRequestHelper;
 
 import java.util.List;
 
@@ -42,6 +43,9 @@ public class TaskFragment extends Fragment {
 
     /** Non-null when a valid server URL is configured. */
     private TaskApiClient apiClient;
+
+    private final FeatureRequestHelper featureRequestHelper =
+            new FeatureRequestHelper(this, "Aufgaben");
 
     private final Handler  syncHandler  = new Handler(Looper.getMainLooper());
     private final Runnable syncRunnable = new Runnable() {
@@ -109,6 +113,14 @@ public class TaskFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 showSyncConfigDialog();
+            }
+        });
+
+        ImageButton btnFeatureRequest = view.findViewById(R.id.btn_feature_request);
+        btnFeatureRequest.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                featureRequestHelper.show();
             }
         });
 

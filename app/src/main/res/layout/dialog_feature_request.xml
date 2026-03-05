@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/feature_request_hint"
+        android:textSize="@dimen/small_text_size"
+        android:textColor="@color/text_secondary"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- Input field + voice button -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <EditText
+            android:id="@+id/et_feature_request"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/feature_request_input_hint"
+            android:inputType="textMultiLine|textCapSentences"
+            android:lines="3"
+            android:maxLines="6"
+            android:gravity="top|start"
+            android:paddingEnd="48dp"/>
+
+        <ImageButton
+            android:id="@+id/btn_voice_feature_request"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:src="@android:drawable/ic_btn_speak_now"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/cooking_voice_input"
+            android:padding="4dp"/>
+
+    </RelativeLayout>
+
+</LinearLayout>

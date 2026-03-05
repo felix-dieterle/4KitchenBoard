@@ -41,6 +41,7 @@ import com.journeyapps.barcodescanner.BarcodeEncoder;
 import com.journeyapps.barcodescanner.ScanContract;
 import com.journeyapps.barcodescanner.ScanOptions;
 import com.kitchenboard.R;
+import com.kitchenboard.feedback.FeatureRequestHelper;
 
 import java.util.List;
 
@@ -75,6 +76,8 @@ public class ShoppingFragment extends Fragment {
     };
 
     private ActivityResultLauncher<ScanOptions> scanLauncher;
+    private final FeatureRequestHelper featureRequestHelper =
+            new FeatureRequestHelper(this, "Einkaufen");
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -145,6 +148,14 @@ public class ShoppingFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 showSyncConfigDialog();
+            }
+        });
+
+        ImageButton btnFeatureRequest = view.findViewById(R.id.btn_feature_request);
+        btnFeatureRequest.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                featureRequestHelper.show();
             }
         });
 

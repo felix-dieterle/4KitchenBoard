@@ -5,15 +5,34 @@
     android:orientation="vertical"
     android:padding="@dimen/panel_padding">
 
-    <!-- Title -->
-    <TextView
+    <!-- Title row with feature request button -->
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/weather_title"
-        android:textSize="@dimen/title_text_size"
-        android:textStyle="bold"
-        android:textColor="@color/text_primary"
-        android:layout_marginBottom="@dimen/spacing_normal"/>
+        android:layout_marginBottom="@dimen/spacing_normal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/weather_title"
+            android:textSize="@dimen/title_text_size"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_centerVertical="true"
+            android:layout_alignParentStart="true"/>
+
+        <ImageButton
+            android:id="@+id/btn_feature_request"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:src="@android:drawable/ic_btn_speak_now"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="8dp"
+            android:contentDescription="@string/feature_request_hint"/>
+
+    </RelativeLayout>
 
     <!-- City search row -->
     <LinearLayout
