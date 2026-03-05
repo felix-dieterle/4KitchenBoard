@@ -2,6 +2,10 @@
 /**
  * 4KitchenBoard – Shopping List Sync API
  *
+ * All endpoints accept an optional `board_token` parameter (GET or POST).
+ * Passing the same token on multiple devices lets them share a board.
+ * Existing installations without a token continue to work unchanged.
+ *
  * Endpoints (action= GET or POST parameter):
  *   GET  ?action=list            → JSON list of active items (includes quantity)
  *   POST ?action=add             → body: name, category[, quantity] → new item JSON
@@ -63,37 +67,26 @@ $db->exec("CREATE TABLE IF NOT EXISTS items (
     created_at INTEGER NOT NULL DEFAULT 0,
     quantity   INTEGER NOT NULL DEFAULT 1,
     shop       TEXT    NOT NULL DEFAULT '',
-    priority   INTEGER NOT NULL DEFAULT 2
+    priority   INTEGER NOT NULL DEFAULT 2,
+    board_id   TEXT    NOT NULL DEFAULT ''
 )");
 
-// Add quantity column to existing tables that were created without it
-$columnExists = false;
-$result = $db->query('PRAGMA table_info(items)');
-while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-    if ($row['name'] === 'quantity') { $columnExists = true; break; }
-}
-if (!$columnExists) {
+// ── Column migrations for the items table ─────────────────────────────────────
+$itemsColumns = [];
+$r = $db->query('PRAGMA table_info(items)');
+while ($row = $r->fetchArray(SQLITE3_ASSOC)) { $itemsColumns[] = $row['name']; }
+
+if (!in_array('quantity', $itemsColumns)) {
     $db->exec('ALTER TABLE items ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1');
 }
-
-// Add shop column to existing tables that were created without it
-$shopColumnExists = false;
-$result2 = $db->query('PRAGMA table_info(items)');
-while ($row = $result2->fetchArray(SQLITE3_ASSOC)) {
-    if ($row['name'] === 'shop') { $shopColumnExists = true; break; }
-}
-if (!$shopColumnExists) {
+if (!in_array('shop', $itemsColumns)) {
     $db->exec("ALTER TABLE items ADD COLUMN shop TEXT NOT NULL DEFAULT ''");
 }
-
-// Add priority column to existing tables that were created without it
-$priorityColumnExists = false;
-$result3 = $db->query('PRAGMA table_info(items)');
-while ($row = $result3->fetchArray(SQLITE3_ASSOC)) {
-    if ($row['name'] === 'priority') { $priorityColumnExists = true; break; }
-}
-if (!$priorityColumnExists) {
+if (!in_array('priority', $itemsColumns)) {
     $db->exec('ALTER TABLE items ADD COLUMN priority INTEGER NOT NULL DEFAULT 2');
+}
+if (!in_array('board_id', $itemsColumns)) {
+    $db->exec("ALTER TABLE items ADD COLUMN board_id TEXT NOT NULL DEFAULT ''");
 }
 
 $db->exec('CREATE TABLE IF NOT EXISTS categories (
@@ -102,83 +95,153 @@ $db->exec('CREATE TABLE IF NOT EXISTS categories (
 )');
 
 $db->exec('CREATE TABLE IF NOT EXISTS calendar_appointments (
-    id        INTEGER PRIMARY KEY,
+    id        INTEGER NOT NULL,
+    board_id  TEXT    NOT NULL DEFAULT \'\',
     date      TEXT    NOT NULL,
     time      TEXT,
     title     TEXT    NOT NULL,
-    series_id INTEGER
+    series_id INTEGER,
+    PRIMARY KEY (id, board_id)
 )');
 
+// Migrate calendar_appointments: add board_id column if missing (old single-PK schema)
+$calColumns = [];
+$r2 = $db->query('PRAGMA table_info(calendar_appointments)');
+while ($row = $r2->fetchArray(SQLITE3_ASSOC)) { $calColumns[] = $row['name']; }
+if (!in_array('board_id', $calColumns)) {
+    // Old table has id as sole PK – add column and recreate with composite PK
+    $db->exec("ALTER TABLE calendar_appointments ADD COLUMN board_id TEXT NOT NULL DEFAULT ''");
+    $db->exec('CREATE TABLE IF NOT EXISTS calendar_appointments_new (
+        id        INTEGER NOT NULL,
+        board_id  TEXT    NOT NULL DEFAULT \'\',
+        date      TEXT    NOT NULL,
+        time      TEXT,
+        title     TEXT    NOT NULL,
+        series_id INTEGER,
+        PRIMARY KEY (id, board_id)
+    )');
+    $db->exec('INSERT OR IGNORE INTO calendar_appointments_new
+               SELECT id, board_id, date, time, title, series_id FROM calendar_appointments');
+    $db->exec('DROP TABLE calendar_appointments');
+    $db->exec('ALTER TABLE calendar_appointments_new RENAME TO calendar_appointments');
+}
+
 $db->exec('CREATE TABLE IF NOT EXISTS cooking_dishes (
-    id               INTEGER PRIMARY KEY,
+    id               INTEGER NOT NULL,
+    board_id         TEXT    NOT NULL DEFAULT \'\',
     name             TEXT    NOT NULL,
     duration_minutes INTEGER NOT NULL DEFAULT 0,
     ingredients      TEXT,
     notes            TEXT,
-    last_cooked      TEXT
+    last_cooked      TEXT,
+    PRIMARY KEY (id, board_id)
 )');
 
+// Migrate cooking_dishes: add board_id column if missing
+$cookColumns = [];
+$r3 = $db->query('PRAGMA table_info(cooking_dishes)');
+while ($row = $r3->fetchArray(SQLITE3_ASSOC)) { $cookColumns[] = $row['name']; }
+if (!in_array('board_id', $cookColumns)) {
+    $db->exec("ALTER TABLE cooking_dishes ADD COLUMN board_id TEXT NOT NULL DEFAULT ''");
+    $db->exec('CREATE TABLE IF NOT EXISTS cooking_dishes_new (
+        id               INTEGER NOT NULL,
+        board_id         TEXT    NOT NULL DEFAULT \'\',
+        name             TEXT    NOT NULL,
+        duration_minutes INTEGER NOT NULL DEFAULT 0,
+        ingredients      TEXT,
+        notes            TEXT,
+        last_cooked      TEXT,
+        PRIMARY KEY (id, board_id)
+    )');
+    $db->exec('INSERT OR IGNORE INTO cooking_dishes_new
+               SELECT id, board_id, name, duration_minutes, ingredients, notes, last_cooked FROM cooking_dishes');
+    $db->exec('DROP TABLE cooking_dishes');
+    $db->exec('ALTER TABLE cooking_dishes_new RENAME TO cooking_dishes');
+}
+
 $db->exec('CREATE TABLE IF NOT EXISTS tasks (
-    id         INTEGER PRIMARY KEY,
+    id         INTEGER NOT NULL,
+    board_id   TEXT    NOT NULL DEFAULT \'\',
     title      TEXT    NOT NULL,
-    sort_order INTEGER NOT NULL DEFAULT 0
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (id, board_id)
 )');
+
+// Migrate tasks: add board_id column if missing
+$taskColumns = [];
+$r4 = $db->query('PRAGMA table_info(tasks)');
+while ($row = $r4->fetchArray(SQLITE3_ASSOC)) { $taskColumns[] = $row['name']; }
+if (!in_array('board_id', $taskColumns)) {
+    $db->exec("ALTER TABLE tasks ADD COLUMN board_id TEXT NOT NULL DEFAULT ''");
+    $db->exec('CREATE TABLE IF NOT EXISTS tasks_new (
+        id         INTEGER NOT NULL,
+        board_id   TEXT    NOT NULL DEFAULT \'\',
+        title      TEXT    NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (id, board_id)
+    )');
+    $db->exec('INSERT OR IGNORE INTO tasks_new
+               SELECT id, board_id, title, sort_order FROM tasks');
+    $db->exec('DROP TABLE tasks');
+    $db->exec('ALTER TABLE tasks_new RENAME TO tasks');
+}
 
 // ── Dispatch ──────────────────────────────────────────────────────────────────
 
-$action = trim((string)($_GET['action'] ?? $_POST['action'] ?? ''));
+$action  = trim((string)($_GET['action']     ?? $_POST['action']     ?? ''));
+$boardId = trim((string)($_GET['board_token'] ?? $_POST['board_token'] ?? ''));
 
 switch ($action) {
     case 'list':
-        actionList($db);
+        actionList($db, $boardId);
         break;
     case 'add':
-        actionAdd($db);
+        actionAdd($db, $boardId);
         break;
     case 'check':
-        actionCheck($db);
+        actionCheck($db, $boardId);
         break;
     case 'delete':
-        actionDelete($db);
+        actionDelete($db, $boardId);
         break;
     case 'update_quantity':
-        actionUpdateQuantity($db);
+        actionUpdateQuantity($db, $boardId);
         break;
     case 'calendar_list':
-        calendarList($db);
+        calendarList($db, $boardId);
         break;
     case 'calendar_upsert':
-        calendarUpsert($db);
+        calendarUpsert($db, $boardId);
         break;
     case 'calendar_delete':
-        calendarDelete($db);
+        calendarDelete($db, $boardId);
         break;
     case 'calendar_delete_series':
-        calendarDeleteSeries($db);
+        calendarDeleteSeries($db, $boardId);
         break;
     case 'calendar_update_datetime':
-        calendarUpdateDatetime($db);
+        calendarUpdateDatetime($db, $boardId);
         break;
     case 'cooking_list':
-        cookingList($db);
+        cookingList($db, $boardId);
         break;
     case 'cooking_upsert':
-        cookingUpsert($db);
+        cookingUpsert($db, $boardId);
         break;
     case 'cooking_delete':
-        cookingDelete($db);
+        cookingDelete($db, $boardId);
         break;
     case 'cooking_mark_cooked':
-        cookingMarkCooked($db);
+        cookingMarkCooked($db, $boardId);
         break;
     case 'tasks_list':
-        tasksList($db);
+        tasksList($db, $boardId);
         break;
     case 'tasks_upsert':
-        tasksUpsert($db);
+        tasksUpsert($db, $boardId);
         break;
     case 'tasks_delete':
-        tasksDelete($db);
+        tasksDelete($db, $boardId);
         break;
     default:
         http_response_code(400);
@@ -190,13 +253,15 @@ exit;
 
 // ── Action handlers ───────────────────────────────────────────────────────────
 
-function actionList(SQLite3 $db): void
+function actionList(SQLite3 $db, string $boardId): void
 {
-    $result = $db->query(
+    $stmt = $db->prepare(
         'SELECT id, name, category, quantity, shop, priority FROM items
-         WHERE checked = 0
+         WHERE checked = 0 AND board_id = :board_id
          ORDER BY priority ASC, category ASC, name ASC'
     );
+    $stmt->bindValue(':board_id', $boardId, SQLITE3_TEXT);
+    $result = $stmt->execute();
     $items = [];
     while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
         $items[] = [
@@ -211,7 +276,7 @@ function actionList(SQLite3 $db): void
     echo json_encode(['items' => $items]);
 }
 
-function actionAdd(SQLite3 $db): void
+function actionAdd(SQLite3 $db, string $boardId): void
 {
     $name     = trim((string)($_POST['name']     ?? ''));
     $category = trim((string)($_POST['category'] ?? ''));
@@ -227,8 +292,8 @@ function actionAdd(SQLite3 $db): void
     }
 
     $stmt = $db->prepare(
-        'INSERT INTO items (name, category, checked, created_at, quantity, shop, priority)
-         VALUES (:name, :category, 0, :ts, :quantity, :shop, :priority)'
+        'INSERT INTO items (name, category, checked, created_at, quantity, shop, priority, board_id)
+         VALUES (:name, :category, 0, :ts, :quantity, :shop, :priority, :board_id)'
     );
     $stmt->bindValue(':name',     $name,     SQLITE3_TEXT);
     $stmt->bindValue(':category', $category, SQLITE3_TEXT);
@@ -236,11 +301,12 @@ function actionAdd(SQLite3 $db): void
     $stmt->bindValue(':quantity', $quantity, SQLITE3_INTEGER);
     $stmt->bindValue(':shop',     $shop,     SQLITE3_TEXT);
     $stmt->bindValue(':priority', $priority, SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id', $boardId,  SQLITE3_TEXT);
     $stmt->execute();
 
     $id = $db->lastInsertRowID();
 
-    // Persist category for future suggestions
+    // Persist category for future suggestions (global, not scoped per board)
     $stmtCat = $db->prepare(
         'INSERT OR IGNORE INTO categories (name) VALUES (:name)'
     );
@@ -250,7 +316,7 @@ function actionAdd(SQLite3 $db): void
     echo json_encode(['id' => $id, 'name' => $name, 'category' => $category, 'quantity' => $quantity, 'shop' => $shop, 'priority' => $priority]);
 }
 
-function actionCheck(SQLite3 $db): void
+function actionCheck(SQLite3 $db, string $boardId): void
 {
     $id = (int)($_POST['id'] ?? 0);
     if ($id <= 0) {
@@ -259,14 +325,15 @@ function actionCheck(SQLite3 $db): void
         return;
     }
 
-    $stmt = $db->prepare('UPDATE items SET checked = 1 WHERE id = :id');
-    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+    $stmt = $db->prepare('UPDATE items SET checked = 1 WHERE id = :id AND board_id = :board_id');
+    $stmt->bindValue(':id',       $id,      SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id', $boardId, SQLITE3_TEXT);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
 }
 
-function actionDelete(SQLite3 $db): void
+function actionDelete(SQLite3 $db, string $boardId): void
 {
     $id = (int)($_POST['id'] ?? 0);
     if ($id <= 0) {
@@ -275,14 +342,15 @@ function actionDelete(SQLite3 $db): void
         return;
     }
 
-    $stmt = $db->prepare('DELETE FROM items WHERE id = :id');
-    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+    $stmt = $db->prepare('DELETE FROM items WHERE id = :id AND board_id = :board_id');
+    $stmt->bindValue(':id',       $id,      SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id', $boardId, SQLITE3_TEXT);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
 }
 
-function actionUpdateQuantity(SQLite3 $db): void
+function actionUpdateQuantity(SQLite3 $db, string $boardId): void
 {
     $id       = (int)($_POST['id']       ?? 0);
     $quantity = max(1, (int)($_POST['quantity'] ?? 1));
@@ -292,9 +360,10 @@ function actionUpdateQuantity(SQLite3 $db): void
         return;
     }
 
-    $stmt = $db->prepare('UPDATE items SET quantity = :quantity WHERE id = :id');
+    $stmt = $db->prepare('UPDATE items SET quantity = :quantity WHERE id = :id AND board_id = :board_id');
     $stmt->bindValue(':quantity', $quantity, SQLITE3_INTEGER);
     $stmt->bindValue(':id',       $id,       SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id', $boardId,  SQLITE3_TEXT);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
@@ -302,12 +371,15 @@ function actionUpdateQuantity(SQLite3 $db): void
 
 // ── Calendar action handlers ──────────────────────────────────────────────────
 
-function calendarList(SQLite3 $db): void
+function calendarList(SQLite3 $db, string $boardId): void
 {
-    $result = $db->query(
+    $stmt = $db->prepare(
         'SELECT id, date, time, title, series_id FROM calendar_appointments
+         WHERE board_id = :board_id
          ORDER BY date ASC, time ASC, title ASC'
     );
+    $stmt->bindValue(':board_id', $boardId, SQLITE3_TEXT);
+    $result = $stmt->execute();
     $appointments = [];
     while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
         $appointments[] = [
@@ -321,7 +393,7 @@ function calendarList(SQLite3 $db): void
     echo json_encode(['appointments' => $appointments]);
 }
 
-function calendarUpsert(SQLite3 $db): void
+function calendarUpsert(SQLite3 $db, string $boardId): void
 {
     $id       = (int)($_POST['id']        ?? 0);
     $date     = trim((string)($_POST['date']    ?? ''));
@@ -336,21 +408,28 @@ function calendarUpsert(SQLite3 $db): void
         return;
     }
 
+    // Delete existing row for this (id, board_id) pair, then insert fresh
+    $del = $db->prepare('DELETE FROM calendar_appointments WHERE id = :id AND board_id = :board_id');
+    $del->bindValue(':id',       $id,      SQLITE3_INTEGER);
+    $del->bindValue(':board_id', $boardId, SQLITE3_TEXT);
+    $del->execute();
+
     $stmt = $db->prepare(
-        'INSERT OR REPLACE INTO calendar_appointments (id, date, time, title, series_id)
-         VALUES (:id, :date, :time, :title, :series_id)'
+        'INSERT INTO calendar_appointments (id, board_id, date, time, title, series_id)
+         VALUES (:id, :board_id, :date, :time, :title, :series_id)'
     );
-    $stmt->bindValue(':id',        $id,    SQLITE3_INTEGER);
-    $stmt->bindValue(':date',      $date,  SQLITE3_TEXT);
+    $stmt->bindValue(':id',        $id,      SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id',  $boardId, SQLITE3_TEXT);
+    $stmt->bindValue(':date',      $date,    SQLITE3_TEXT);
     $stmt->bindValue(':time',      $time !== '' ? $time : null, $time !== '' ? SQLITE3_TEXT : SQLITE3_NULL);
-    $stmt->bindValue(':title',     $title, SQLITE3_TEXT);
+    $stmt->bindValue(':title',     $title,   SQLITE3_TEXT);
     $stmt->bindValue(':series_id', $seriesId, $seriesId !== null ? SQLITE3_INTEGER : SQLITE3_NULL);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
 }
 
-function calendarDelete(SQLite3 $db): void
+function calendarDelete(SQLite3 $db, string $boardId): void
 {
     $id = (int)($_POST['id'] ?? 0);
     if ($id <= 0) {
@@ -359,14 +438,15 @@ function calendarDelete(SQLite3 $db): void
         return;
     }
 
-    $stmt = $db->prepare('DELETE FROM calendar_appointments WHERE id = :id');
-    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+    $stmt = $db->prepare('DELETE FROM calendar_appointments WHERE id = :id AND board_id = :board_id');
+    $stmt->bindValue(':id',       $id,      SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id', $boardId, SQLITE3_TEXT);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
 }
 
-function calendarDeleteSeries(SQLite3 $db): void
+function calendarDeleteSeries(SQLite3 $db, string $boardId): void
 {
     $seriesId = (int)($_POST['series_id'] ?? 0);
     if ($seriesId <= 0) {
@@ -375,14 +455,15 @@ function calendarDeleteSeries(SQLite3 $db): void
         return;
     }
 
-    $stmt = $db->prepare('DELETE FROM calendar_appointments WHERE series_id = :series_id');
+    $stmt = $db->prepare('DELETE FROM calendar_appointments WHERE series_id = :series_id AND board_id = :board_id');
     $stmt->bindValue(':series_id', $seriesId, SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id',  $boardId,  SQLITE3_TEXT);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
 }
 
-function calendarUpdateDatetime(SQLite3 $db): void
+function calendarUpdateDatetime(SQLite3 $db, string $boardId): void
 {
     $id   = (int)($_POST['id']   ?? 0);
     $date = trim((string)($_POST['date'] ?? ''));
@@ -395,11 +476,13 @@ function calendarUpdateDatetime(SQLite3 $db): void
     }
 
     $stmt = $db->prepare(
-        'UPDATE calendar_appointments SET date = :date, time = :time, series_id = NULL WHERE id = :id'
+        'UPDATE calendar_appointments SET date = :date, time = :time, series_id = NULL
+         WHERE id = :id AND board_id = :board_id'
     );
-    $stmt->bindValue(':date', $date, SQLITE3_TEXT);
-    $stmt->bindValue(':time', $time !== '' ? $time : null, $time !== '' ? SQLITE3_TEXT : SQLITE3_NULL);
-    $stmt->bindValue(':id',   $id,   SQLITE3_INTEGER);
+    $stmt->bindValue(':date',     $date,    SQLITE3_TEXT);
+    $stmt->bindValue(':time',     $time !== '' ? $time : null, $time !== '' ? SQLITE3_TEXT : SQLITE3_NULL);
+    $stmt->bindValue(':id',       $id,      SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id', $boardId, SQLITE3_TEXT);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
@@ -407,12 +490,14 @@ function calendarUpdateDatetime(SQLite3 $db): void
 
 // ── Cooking action handlers ───────────────────────────────────────────────────
 
-function cookingList(SQLite3 $db): void
+function cookingList(SQLite3 $db, string $boardId): void
 {
-    $result = $db->query(
+    $stmt = $db->prepare(
         'SELECT id, name, duration_minutes, ingredients, notes, last_cooked
-         FROM cooking_dishes ORDER BY name ASC'
+         FROM cooking_dishes WHERE board_id = :board_id ORDER BY name ASC'
     );
+    $stmt->bindValue(':board_id', $boardId, SQLITE3_TEXT);
+    $result = $stmt->execute();
     $dishes = [];
     while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
         $dishes[] = [
@@ -427,7 +512,7 @@ function cookingList(SQLite3 $db): void
     echo json_encode(['dishes' => $dishes]);
 }
 
-function cookingUpsert(SQLite3 $db): void
+function cookingUpsert(SQLite3 $db, string $boardId): void
 {
     $id          = (int)($_POST['id']               ?? 0);
     $name        = trim((string)($_POST['name']     ?? ''));
@@ -442,11 +527,18 @@ function cookingUpsert(SQLite3 $db): void
         return;
     }
 
+    // Delete existing row for this (id, board_id) pair, then insert fresh
+    $del = $db->prepare('DELETE FROM cooking_dishes WHERE id = :id AND board_id = :board_id');
+    $del->bindValue(':id',       $id,      SQLITE3_INTEGER);
+    $del->bindValue(':board_id', $boardId, SQLITE3_TEXT);
+    $del->execute();
+
     $stmt = $db->prepare(
-        'INSERT OR REPLACE INTO cooking_dishes (id, name, duration_minutes, ingredients, notes, last_cooked)
-         VALUES (:id, :name, :duration, :ingredients, :notes, :last_cooked)'
+        'INSERT INTO cooking_dishes (id, board_id, name, duration_minutes, ingredients, notes, last_cooked)
+         VALUES (:id, :board_id, :name, :duration, :ingredients, :notes, :last_cooked)'
     );
     $stmt->bindValue(':id',          $id,       SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id',    $boardId,  SQLITE3_TEXT);
     $stmt->bindValue(':name',        $name,     SQLITE3_TEXT);
     $stmt->bindValue(':duration',    $duration, SQLITE3_INTEGER);
     $stmt->bindValue(':ingredients', $ingredients !== '' ? $ingredients : null,
@@ -460,7 +552,7 @@ function cookingUpsert(SQLite3 $db): void
     echo json_encode(['success' => true]);
 }
 
-function cookingDelete(SQLite3 $db): void
+function cookingDelete(SQLite3 $db, string $boardId): void
 {
     $id = (int)($_POST['id'] ?? 0);
     if ($id <= 0) {
@@ -469,14 +561,15 @@ function cookingDelete(SQLite3 $db): void
         return;
     }
 
-    $stmt = $db->prepare('DELETE FROM cooking_dishes WHERE id = :id');
-    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+    $stmt = $db->prepare('DELETE FROM cooking_dishes WHERE id = :id AND board_id = :board_id');
+    $stmt->bindValue(':id',       $id,      SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id', $boardId, SQLITE3_TEXT);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
 }
 
-function cookingMarkCooked(SQLite3 $db): void
+function cookingMarkCooked(SQLite3 $db, string $boardId): void
 {
     $id         = (int)($_POST['id']          ?? 0);
     $lastCooked = trim((string)($_POST['last_cooked'] ?? ''));
@@ -487,9 +580,12 @@ function cookingMarkCooked(SQLite3 $db): void
         return;
     }
 
-    $stmt = $db->prepare('UPDATE cooking_dishes SET last_cooked = :last_cooked WHERE id = :id');
+    $stmt = $db->prepare(
+        'UPDATE cooking_dishes SET last_cooked = :last_cooked WHERE id = :id AND board_id = :board_id'
+    );
     $stmt->bindValue(':last_cooked', $lastCooked, SQLITE3_TEXT);
     $stmt->bindValue(':id',          $id,         SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id',    $boardId,    SQLITE3_TEXT);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
@@ -497,11 +593,13 @@ function cookingMarkCooked(SQLite3 $db): void
 
 // ── Tasks action handlers ─────────────────────────────────────────────────────
 
-function tasksList(SQLite3 $db): void
+function tasksList(SQLite3 $db, string $boardId): void
 {
-    $result = $db->query(
-        'SELECT id, title, sort_order FROM tasks ORDER BY sort_order ASC'
+    $stmt = $db->prepare(
+        'SELECT id, title, sort_order FROM tasks WHERE board_id = :board_id ORDER BY sort_order ASC'
     );
+    $stmt->bindValue(':board_id', $boardId, SQLITE3_TEXT);
+    $result = $stmt->execute();
     $tasks = [];
     while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
         $tasks[] = [
@@ -513,7 +611,7 @@ function tasksList(SQLite3 $db): void
     echo json_encode(['tasks' => $tasks]);
 }
 
-function tasksUpsert(SQLite3 $db): void
+function tasksUpsert(SQLite3 $db, string $boardId): void
 {
     $id        = (int)($_POST['id']         ?? 0);
     $title     = trim((string)($_POST['title']     ?? ''));
@@ -525,10 +623,17 @@ function tasksUpsert(SQLite3 $db): void
         return;
     }
 
+    // Delete existing row for this (id, board_id) pair, then insert fresh
+    $del = $db->prepare('DELETE FROM tasks WHERE id = :id AND board_id = :board_id');
+    $del->bindValue(':id',       $id,      SQLITE3_INTEGER);
+    $del->bindValue(':board_id', $boardId, SQLITE3_TEXT);
+    $del->execute();
+
     $stmt = $db->prepare(
-        'INSERT OR REPLACE INTO tasks (id, title, sort_order) VALUES (:id, :title, :sort_order)'
+        'INSERT INTO tasks (id, board_id, title, sort_order) VALUES (:id, :board_id, :title, :sort_order)'
     );
     $stmt->bindValue(':id',         $id,        SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id',   $boardId,   SQLITE3_TEXT);
     $stmt->bindValue(':title',      $title,     SQLITE3_TEXT);
     $stmt->bindValue(':sort_order', $sortOrder, SQLITE3_INTEGER);
     $stmt->execute();
@@ -536,7 +641,7 @@ function tasksUpsert(SQLite3 $db): void
     echo json_encode(['success' => true]);
 }
 
-function tasksDelete(SQLite3 $db): void
+function tasksDelete(SQLite3 $db, string $boardId): void
 {
     $id = (int)($_POST['id'] ?? 0);
     if ($id <= 0) {
@@ -545,8 +650,9 @@ function tasksDelete(SQLite3 $db): void
         return;
     }
 
-    $stmt = $db->prepare('DELETE FROM tasks WHERE id = :id');
-    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+    $stmt = $db->prepare('DELETE FROM tasks WHERE id = :id AND board_id = :board_id');
+    $stmt->bindValue(':id',       $id,      SQLITE3_INTEGER);
+    $stmt->bindValue(':board_id', $boardId, SQLITE3_TEXT);
     $stmt->execute();
 
     echo json_encode(['success' => true]);

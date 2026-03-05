@@ -3,6 +3,8 @@ package com.kitchenboard.cooking;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -48,6 +50,7 @@ public class CookingFragment extends Fragment {
 
     private static final String PREFS_NAME   = "shopping_prefs";
     private static final String PREF_SERVER_URL = "server_url";
+    private static final String PREF_BOARD_TOKEN = "board_token";
 
     /** Periodic sync interval: 5 minutes. */
     private static final long SYNC_INTERVAL_MS = 5 * 60 * 1000L;
@@ -266,8 +269,9 @@ public class CookingFragment extends Fragment {
     private void initApiClient() {
         SharedPreferences prefs = requireContext()
                 .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        String url = prefs.getString(PREF_SERVER_URL, "");
-        apiClient = (url != null && !url.isEmpty()) ? new CookingApiClient(url) : null;
+        String url   = prefs.getString(PREF_SERVER_URL, "");
+        String token = prefs.getString(PREF_BOARD_TOKEN, "");
+        apiClient = (url != null && !url.isEmpty()) ? new CookingApiClient(url, token) : null;
         if (apiClient == null && tvSyncStatus != null) {
             tvSyncStatus.setVisibility(View.GONE);
         }
@@ -288,30 +292,61 @@ public class CookingFragment extends Fragment {
     }
 
     private void showSyncConfigDialog() {
+        SharedPreferences prefs = requireContext()
+                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        int pad = requireContext().getResources().getDimensionPixelSize(R.dimen.panel_padding);
+
         final EditText etUrl = new EditText(requireContext());
         etUrl.setHint(R.string.sync_url_hint);
         etUrl.setSingleLine(true);
-        SharedPreferences prefs = requireContext()
-                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         etUrl.setText(prefs.getString(PREF_SERVER_URL, ""));
 
-        new AlertDialog.Builder(requireContext())
+        final TextView tvTokenDesc = new TextView(requireContext());
+        tvTokenDesc.setText(R.string.board_token_description);
+        tvTokenDesc.setTextSize(12f);
+
+        final EditText etToken = new EditText(requireContext());
+        etToken.setHint(R.string.board_token_hint);
+        etToken.setSingleLine(true);
+        etToken.setText(prefs.getString(PREF_BOARD_TOKEN, ""));
+
+        LinearLayout layout = new LinearLayout(requireContext());
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(pad, pad, pad, pad);
+        layout.addView(etUrl);
+        layout.addView(tvTokenDesc);
+        layout.addView(etToken);
+
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.sync_url_title)
                 .setMessage(R.string.sync_url_message)
-                .setView(etUrl)
+                .setView(layout)
                 .setPositiveButton(R.string.sync_save, new DialogInterface.OnClickListener() {
                     @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        String url = etUrl.getText().toString().trim();
-                        requireContext()
-                                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                                .edit().putString(PREF_SERVER_URL, url).apply();
+                    public void onClick(DialogInterface d, int which) {
+                        String url   = etUrl.getText().toString().trim();
+                        String token = etToken.getText().toString().trim();
+                        prefs.edit()
+                                .putString(PREF_SERVER_URL, url)
+                                .putString(PREF_BOARD_TOKEN, token)
+                                .apply();
                         initApiClient();
                         if (apiClient != null) periodicSync();
                     }
                 })
+                .setNeutralButton(R.string.board_token_copy_config, null)
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                .create();
+        dialog.show();
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+            String url   = etUrl.getText().toString().trim();
+            String token = etToken.getText().toString().trim();
+            String config = url + (token.isEmpty() ? "" : "\nToken: " + token);
+            ClipboardManager cm = (ClipboardManager) requireContext()
+                    .getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(ClipData.newPlainText("KitchenBoard Sync Config", config));
+            Toast.makeText(requireContext(), R.string.board_token_copied, Toast.LENGTH_SHORT).show();
+        });
     }
 
     /**

@@ -32,14 +32,17 @@ public class TaskApiClient {
     }
 
     private final String          baseUrl;
+    private final String          boardToken;
     private final Handler         mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor    = Executors.newFixedThreadPool(2);
 
     /**
-     * @param baseUrl Full URL of api.php, e.g. {@code http://192.168.1.10/kitchenboard/api.php}
+     * @param baseUrl    Full URL of api.php, e.g. {@code http://192.168.1.10/kitchenboard/api.php}
+     * @param boardToken Shared board token that scopes all data (empty = default board)
      */
-    public TaskApiClient(String baseUrl) {
+    public TaskApiClient(String baseUrl, String boardToken) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        this.boardToken = boardToken != null ? boardToken : "";
     }
 
     /** Fetch all tasks from the server. */
@@ -48,7 +51,7 @@ public class TaskApiClient {
             @Override
             public void run() {
                 try {
-                    String response = httpGet(baseUrl + "?action=tasks_list");
+                    String response = httpGet(baseUrl + "?action=tasks_list&board_token=" + encode(boardToken));
                     JSONObject json = new JSONObject(response);
                     JSONArray arr = json.getJSONArray("tasks");
                     final List<Task> list = new ArrayList<>();
@@ -76,7 +79,8 @@ public class TaskApiClient {
                     String body = "action=tasks_upsert"
                             + "&id=" + task.id
                             + "&title=" + encode(task.title)
-                            + "&sort_order=" + task.sortOrder;
+                            + "&sort_order=" + task.sortOrder
+                            + "&board_token=" + encode(boardToken);
                     httpPost(baseUrl, body);
                     postSuccess(callback, null);
                 } catch (final Exception e) {
@@ -92,7 +96,7 @@ public class TaskApiClient {
             @Override
             public void run() {
                 try {
-                    httpPost(baseUrl, "action=tasks_delete&id=" + id);
+                    httpPost(baseUrl, "action=tasks_delete&id=" + id + "&board_token=" + encode(boardToken));
                     postSuccess(callback, null);
                 } catch (final Exception e) {
                     postError(callback, e.getMessage());

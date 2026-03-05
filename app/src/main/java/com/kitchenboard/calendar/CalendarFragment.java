@@ -81,6 +81,7 @@ public class CalendarFragment extends Fragment {
     /** SharedPreferences name shared with the shopping fragment (same server URL). */
     private static final String PREFS_NAME = "shopping_prefs";
     private static final String PREF_SERVER_URL = "server_url";
+    private static final String PREF_BOARD_TOKEN = "board_token";
 
     /** Periodic sync interval: 5 minutes. */
     private static final long SYNC_INTERVAL_MS = 5 * 60 * 1000L;
@@ -1229,8 +1230,9 @@ public class CalendarFragment extends Fragment {
     private void initApiClient() {
         SharedPreferences prefs = requireContext()
                 .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        String url = prefs.getString(PREF_SERVER_URL, "");
-        apiClient = (url != null && !url.isEmpty()) ? new CalendarApiClient(url) : null;
+        String url   = prefs.getString(PREF_SERVER_URL, "");
+        String token = prefs.getString(PREF_BOARD_TOKEN, "");
+        apiClient = (url != null && !url.isEmpty()) ? new CalendarApiClient(url, token) : null;
         if (apiClient == null && tvSyncStatus != null) {
             tvSyncStatus.setVisibility(View.GONE);
         }

@@ -32,15 +32,18 @@ public class ShoppingApiClient {
     }
 
     private final String baseUrl;
+    private final String boardToken;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
 
     /**
-     * @param baseUrl Full URL of api.php, e.g. {@code http://192.168.1.10/kitchenboard/api.php}
+     * @param baseUrl    Full URL of api.php, e.g. {@code http://192.168.1.10/kitchenboard/api.php}
+     * @param boardToken Shared board token that scopes all data (empty = default board)
      */
-    public ShoppingApiClient(String baseUrl) {
+    public ShoppingApiClient(String baseUrl, String boardToken) {
         // Normalise: strip trailing slash
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        this.boardToken = boardToken != null ? boardToken : "";
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -51,7 +54,7 @@ public class ShoppingApiClient {
             @Override
             public void run() {
                 try {
-                    String response = httpGet(baseUrl + "?action=list");
+                    String response = httpGet(baseUrl + "?action=list&board_token=" + encode(boardToken));
                     JSONObject json = new JSONObject(response);
                     JSONArray arr = json.getJSONArray("items");
                     final List<ShoppingItem> items = new ArrayList<>();
@@ -86,7 +89,8 @@ public class ShoppingApiClient {
                             + "&category=" + encode(category)
                             + "&quantity=" + quantity
                             + "&shop=" + encode(shop != null ? shop : "")
-                            + "&priority=" + priority;
+                            + "&priority=" + priority
+                            + "&board_token=" + encode(boardToken);
                     String response = httpPost(baseUrl, body);
                     JSONObject json = new JSONObject(response);
                     final ShoppingItem item = new ShoppingItem(
@@ -123,7 +127,8 @@ public class ShoppingApiClient {
             @Override
             public void run() {
                 try {
-                    httpPost(baseUrl, "action=update_quantity&id=" + id + "&quantity=" + quantity);
+                    httpPost(baseUrl, "action=update_quantity&id=" + id + "&quantity=" + quantity
+                            + "&board_token=" + encode(boardToken));
                     postSuccess(callback, null);
                 } catch (final Exception e) {
                     postError(callback, e.getMessage());
@@ -138,7 +143,7 @@ public class ShoppingApiClient {
             @Override
             public void run() {
                 try {
-                    httpPost(baseUrl, "action=check&id=" + id);
+                    httpPost(baseUrl, "action=check&id=" + id + "&board_token=" + encode(boardToken));
                     postSuccess(callback, null);
                 } catch (final Exception e) {
                     postError(callback, e.getMessage());
@@ -153,7 +158,7 @@ public class ShoppingApiClient {
             @Override
             public void run() {
                 try {
-                    httpPost(baseUrl, "action=delete&id=" + id);
+                    httpPost(baseUrl, "action=delete&id=" + id + "&board_token=" + encode(boardToken));
                     postSuccess(callback, null);
                 } catch (final Exception e) {
                     postError(callback, e.getMessage());

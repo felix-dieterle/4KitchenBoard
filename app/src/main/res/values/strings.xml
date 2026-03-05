@@ -35,6 +35,13 @@
     <string name="category_default">Other</string>
     <string name="quantity_label">Quantity</string>
 
+    <!-- Board token (shared account) -->
+    <string name="board_token_label">Board-Token (geteilter Account)</string>
+    <string name="board_token_hint">z. B. meine-familie-2024</string>
+    <string name="board_token_description">Gleicher Token auf allen Geräten = geteiltes Board</string>
+    <string name="board_token_copy_config">Konfiguration kopieren</string>
+    <string name="board_token_copied">Konfiguration in die Zwischenablage kopiert</string>
+
     <!-- Share shopping list -->
     <string name="share_list">Einkaufsliste teilen</string>
     <string name="share_title">Einkaufsliste teilen via…</string>

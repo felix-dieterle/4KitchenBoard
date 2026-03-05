@@ -32,14 +32,17 @@ public class CalendarApiClient {
     }
 
     private final String baseUrl;
+    private final String boardToken;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
 
     /**
-     * @param baseUrl Full URL of api.php, e.g. {@code http://192.168.1.10/kitchenboard/api.php}
+     * @param baseUrl    Full URL of api.php, e.g. {@code http://192.168.1.10/kitchenboard/api.php}
+     * @param boardToken Shared board token that scopes all data (empty = default board)
      */
-    public CalendarApiClient(String baseUrl) {
+    public CalendarApiClient(String baseUrl, String boardToken) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        this.boardToken = boardToken != null ? boardToken : "";
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -50,7 +53,7 @@ public class CalendarApiClient {
             @Override
             public void run() {
                 try {
-                    String response = httpGet(baseUrl + "?action=calendar_list");
+                    String response = httpGet(baseUrl + "?action=calendar_list&board_token=" + encode(boardToken));
                     JSONObject json = new JSONObject(response);
                     JSONArray arr = json.getJSONArray("appointments");
                     final List<Appointment> list = new ArrayList<>();
@@ -93,6 +96,7 @@ public class CalendarApiClient {
                     if (apt.getSeriesId() != null) {
                         body.append("&series_id=").append(apt.getSeriesId());
                     }
+                    body.append("&board_token=").append(encode(boardToken));
                     httpPost(baseUrl, body.toString());
                     postSuccess(callback, null);
                 } catch (final Exception e) {
@@ -108,7 +112,7 @@ public class CalendarApiClient {
             @Override
             public void run() {
                 try {
-                    httpPost(baseUrl, "action=calendar_delete&id=" + id);
+                    httpPost(baseUrl, "action=calendar_delete&id=" + id + "&board_token=" + encode(boardToken));
                     postSuccess(callback, null);
                 } catch (final Exception e) {
                     postError(callback, e.getMessage());
@@ -123,7 +127,7 @@ public class CalendarApiClient {
             @Override
             public void run() {
                 try {
-                    httpPost(baseUrl, "action=calendar_delete_series&series_id=" + seriesId);
+                    httpPost(baseUrl, "action=calendar_delete_series&series_id=" + seriesId + "&board_token=" + encode(boardToken));
                     postSuccess(callback, null);
                 } catch (final Exception e) {
                     postError(callback, e.getMessage());
@@ -146,6 +150,7 @@ public class CalendarApiClient {
                     if (time != null && !time.isEmpty()) {
                         body.append("&time=").append(encode(time));
                     }
+                    body.append("&board_token=").append(encode(boardToken));
                     httpPost(baseUrl, body.toString());
                     postSuccess(callback, null);
                 } catch (final Exception e) {
