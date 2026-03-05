@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fisch / Fish – Apache 2.0 Google Material Icons (generic food/meal icon) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/icon_fish"
+        android:pathData="M22,12C22,12 19,8 15,8C13.06,8 11.37,8.89 10.08,9.83
+C8.96,8.69 7.46,8 6,8C2,8 2,12 2,12C2,12 2,16 6,16
+C7.46,16 8.96,15.31 10.08,14.17C11.37,15.11 13.06,16 15,16
+C19,16 22,12 22,12Z
+M8,12A2,2 0,1 1,4,12A2,2 0,1 1,8,12Z
+M15,14C13.34,14 12,13.1 12,12C12,10.9 13.34,10 15,10
+C16.66,10 18,10.9 18,12C18,13.1 16.66,14 15,14Z" />
+</vector>

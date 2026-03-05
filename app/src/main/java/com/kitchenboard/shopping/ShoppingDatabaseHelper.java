@@ -13,7 +13,7 @@ import java.util.List;
 public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "shopping.db";
-    private static final int DB_VERSION = 5;
+    private static final int DB_VERSION = 6;
 
     static final String TABLE = "shopping_items";
     static final String COL_ID = "_id";
@@ -28,6 +28,8 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     static final String TABLE_CATEGORIES = "categories";
     static final String COL_CAT_ID = "_id";
     static final String COL_CAT_NAME = "name";
+    /** Optional user-chosen icon name (maps to a drawable via {@link IconProvider}). */
+    static final String COL_CAT_ICON = "icon_name";
 
     public ShoppingDatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -46,7 +48,8 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
                 COL_PRIORITY + " INTEGER DEFAULT 2)");
         db.execSQL("CREATE TABLE " + TABLE_CATEGORIES + " (" +
                 COL_CAT_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                COL_CAT_NAME + " TEXT NOT NULL UNIQUE)");
+                COL_CAT_NAME + " TEXT NOT NULL UNIQUE, " +
+                COL_CAT_ICON + " TEXT DEFAULT '')");
     }
 
     @Override
@@ -68,6 +71,13 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
         if (oldVersion < 5) {
             try {
                 db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " + COL_PRIORITY + " INTEGER DEFAULT 2");
+            } catch (SQLiteException ignored) {
+                // Column may already exist if upgrade runs twice; ignore.
+            }
+        }
+        if (oldVersion < 6) {
+            try {
+                db.execSQL("ALTER TABLE " + TABLE_CATEGORIES + " ADD COLUMN " + COL_CAT_ICON + " TEXT DEFAULT ''");
             } catch (SQLiteException ignored) {
                 // Column may already exist if upgrade runs twice; ignore.
             }
@@ -182,6 +192,40 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
         cv.put(COL_CAT_NAME, name);
         getWritableDatabase().insertWithOnConflict(
                 TABLE_CATEGORIES, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
+    }
+
+    /**
+     * Updates the icon name stored for a category. Creates the category row if it
+     * does not exist yet.
+     */
+    public void setCategoryIcon(String categoryName, String iconName) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_CAT_NAME, categoryName);
+        cv.put(COL_CAT_ICON, iconName != null ? iconName : "");
+        SQLiteDatabase db = getWritableDatabase();
+        int rows = db.update(TABLE_CATEGORIES, cv,
+                COL_CAT_NAME + "=?", new String[]{categoryName});
+        if (rows == 0) {
+            db.insertWithOnConflict(TABLE_CATEGORIES, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
+        }
+    }
+
+    /**
+     * Returns the icon name stored for the given category, or {@code ""} if none.
+     */
+    public String getCategoryIcon(String categoryName) {
+        Cursor c = getReadableDatabase().query(
+                TABLE_CATEGORIES, new String[]{COL_CAT_ICON},
+                COL_CAT_NAME + "=?", new String[]{categoryName}, null, null, null);
+        try {
+            if (c.moveToFirst()) {
+                String icon = c.getString(0);
+                return icon != null ? icon : "";
+            }
+        } finally {
+            c.close();
+        }
+        return "";
     }
 
     /**

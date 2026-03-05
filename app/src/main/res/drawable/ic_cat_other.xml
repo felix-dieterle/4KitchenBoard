@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonstiges / Other – Apache 2.0 Google Material Icons (shopping_cart) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/icon_other"
+        android:pathData="M7,18C5.9,18 5.01,18.9 5.01,20S5.9,22 7,22S9,21.1 9,20S8.1,18 7,18Z
+M1,2V4H3L6.6,11.59L5.25,14.04C5.09,14.32 5,14.65 5,15C5,16.1 5.9,17 7,17H21V15
+H7.42C7.28,15 7.17,14.89 7.17,14.75L7.2,14.63L8.1,13H17C17.75,13 18.41,12.59 18.75,11.97
+L22.33,5.48C22.41,5.34 22.45,5.17 22.45,5C22.45,4.45 22,4 21.45,4H5.21L4.27,2H1Z
+M17,18C15.9,18 15.01,18.9 15.01,20S15.9,22 17,22S19,21.1 19,20S18.1,18 17,18Z" />
+</vector>

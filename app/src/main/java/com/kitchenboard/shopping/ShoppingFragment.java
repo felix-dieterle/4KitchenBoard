@@ -108,6 +108,7 @@ public class ShoppingFragment extends Fragment {
         db = new ShoppingDatabaseHelper(requireContext());
         adapter = new ShoppingAdapter();
         adapter.setNoShopLabel(getString(R.string.no_shop_label));
+        adapter.setDatabase(db);
         tvEmpty = view.findViewById(R.id.tv_empty);
         tvSyncStatus = view.findViewById(R.id.tv_sync_status);
 
@@ -412,6 +413,7 @@ public class ShoppingFragment extends Fragment {
         final Button btnPlus = dialogView.findViewById(R.id.btn_qty_plus);
         final TextView tvShopName = dialogView.findViewById(R.id.tv_shop_name);
         final Button btnSearchShop = dialogView.findViewById(R.id.btn_search_shop);
+        final Button btnKnownStores = dialogView.findViewById(R.id.btn_known_stores);
         final RadioGroup rgPriority = dialogView.findViewById(R.id.rg_priority);
 
         // Mutable quantity holder
@@ -435,6 +437,23 @@ public class ShoppingFragment extends Fragment {
             public void onClick(View v) {
                 quantity[0]++;
                 tvQuantity.setText(String.valueOf(quantity[0]));
+            }
+        });
+
+        // Known stores button opens the curated store grid
+        btnKnownStores.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new KnownStoresDialog(requireContext(),
+                        new KnownStoresDialog.OnStoreSelectedListener() {
+                    @Override
+                    public void onStoreSelected(String storeName) {
+                        selectedShop[0] = storeName;
+                        tvShopName.setText(storeName);
+                        tvShopName.setTextColor(
+                                ContextCompat.getColor(requireContext(), R.color.text_primary));
+                    }
+                }).show();
             }
         });
 
@@ -648,6 +667,7 @@ public class ShoppingFragment extends Fragment {
         final Button btnPlus = dialogView.findViewById(R.id.btn_qty_plus);
         final TextView tvShopName = dialogView.findViewById(R.id.tv_shop_name);
         final Button btnSearchShop = dialogView.findViewById(R.id.btn_search_shop);
+        final Button btnKnownStores = dialogView.findViewById(R.id.btn_known_stores);
         final RadioGroup rgPriority = dialogView.findViewById(R.id.rg_priority);
 
         etName.setText(name);
@@ -667,6 +687,14 @@ public class ShoppingFragment extends Fragment {
             quantity[0]++;
             tvQuantity.setText(String.valueOf(quantity[0]));
         });
+
+        btnKnownStores.setOnClickListener(v ->
+                new KnownStoresDialog(requireContext(), storeName -> {
+                    selectedShop[0] = storeName;
+                    tvShopName.setText(storeName);
+                    tvShopName.setTextColor(
+                            ContextCompat.getColor(requireContext(), R.color.text_primary));
+                }).show());
 
         btnSearchShop.setOnClickListener(v -> new ShopPickerDialog(requireContext(),
                 shopName -> {

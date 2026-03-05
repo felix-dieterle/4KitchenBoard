@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nudeln & Reis / Pasta & Rice – Apache 2.0 Google Material Icons (ramen_dining) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/icon_pasta"
+        android:pathData="M12,3A9,9 0,0 0,3,12H21A9,9 0,0 0,12,3Z
+M3.17,14C3.76,17.45 6.79,20 10.4,20L8.63,22H15.37L13.6,20
+C17.21,20 20.24,17.45 20.83,14H3.17Z
+M8,6C8,6 8,9 10,9C10,9 10,6 8,6Z
+M12,5C12,5 12,8 14,8C14,8 14,5 12,5Z
+M16,7C16,7 16,10 18,10C18,10 18,7 16,7Z" />
+</vector>

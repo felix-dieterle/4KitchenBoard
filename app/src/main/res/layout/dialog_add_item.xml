@@ -117,6 +117,15 @@
             android:maxLines="1"/>
 
         <Button
+            android:id="@+id/btn_known_stores"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/known_stores_button"
+            android:textColor="@color/accent"
+            android:textSize="@dimen/small_text_size"/>
+
+        <Button
             android:id="@+id/btn_search_shop"
             style="?android:attr/borderlessButtonStyle"
             android:layout_width="wrap_content"

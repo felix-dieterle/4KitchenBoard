@@ -24,4 +24,25 @@
     <color name="colorPrimary">#1565C0</color>
     <color name="colorPrimaryDark">#0D47A1</color>
     <color name="colorAccent">#1565C0</color>
+
+    <!-- Category icon colors -->
+    <color name="icon_produce">#388E3C</color>
+    <color name="icon_dairy">#1565C0</color>
+    <color name="icon_meat">#C62828</color>
+    <color name="icon_fish">#0277BD</color>
+    <color name="icon_bakery">#E65100</color>
+    <color name="icon_frozen">#0097A7</color>
+    <color name="icon_beverages">#6A1B9A</color>
+    <color name="icon_canned">#4E342E</color>
+    <color name="icon_pasta">#F57F17</color>
+    <color name="icon_sweets">#AD1457</color>
+    <color name="icon_spreads">#827717</color>
+    <color name="icon_condiments">#BF360C</color>
+    <color name="icon_cereals">#558B2F</color>
+    <color name="icon_household">#37474F</color>
+    <color name="icon_personal_care">#7B1FA2</color>
+    <color name="icon_pets">#5D4037</color>
+    <color name="icon_baby">#00838F</color>
+    <color name="icon_other">#455A64</color>
+    <color name="icon_store">#1565C0</color>
 </resources>

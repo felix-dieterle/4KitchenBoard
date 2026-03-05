@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Müsli & Frühstück / Cereals and Breakfast – Apache 2.0 Google Material Icons (rice_bowl) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/icon_cereals"
+        android:pathData="M12,3C7.58,3 4,4.79 4,7V8C4,10 6.5,11.67 10,12.07V13H8
+C6.9,13 6,13.9 6,15H4V18H20V15H18C18,13.9 17.1,13 16,13H14V12.07
+C17.5,11.67 20,10 20,8V7C20,4.79 16.42,3 12,3Z
+M12,5C15.32,5 18,5.9 18,7S15.32,9 12,9S6,8.1 6,7S8.68,5 12,5Z" />
+</vector>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Öle & Gewürze / Oils and Spices – Apache 2.0 Google Material Icons (local_fire_department) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/icon_condiments"
+        android:pathData="M13.5,0.67L13.5,0.67C13.5,0.67 14.24,3.32 14.24,5.47
+C14.24,7.53 12.89,9.2 10.83,9.2C8.76,9.2 7.2,7.53 7.2,5.47
+L7.23,5.09C5.21,7.5 4,10.61 4,14C4,18.42 7.58,22 12,22
+C16.42,22 20,18.42 20,14C20,8.61 17.41,3.8 13.5,0.67Z
+M11.71,19C9.93,19 8.5,17.59 8.5,15.82C8.5,14.14 9.71,12.78 11.48,12.43
+C13.26,12.07 15.1,12.14 16.32,13.73C16.73,14.26 17,14.94 17,15.82
+C17,17.59 15.5,19 13.71,19H11.71Z" />
+</vector>
