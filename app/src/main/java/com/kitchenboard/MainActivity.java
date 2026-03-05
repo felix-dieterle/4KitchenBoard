@@ -80,9 +80,17 @@ public class MainActivity extends AppCompatActivity {
                 autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
                 autoAdvanceHandler.postDelayed(autoAdvanceRunnable, AUTO_ADVANCE_DELAY_MS);
                 updateDots(position);
+                // Persist the current page so it can be restored on next launch
+                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        .edit().putInt(PREF_LAST_PAGE, position).apply();
             }
         };
         viewPager.registerOnPageChangeCallback(pageChangeCallback);
+
+        // Restore the last viewed page (deep-link handling may override this below)
+        int lastPage = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt(PREF_LAST_PAGE, 0);
+        viewPager.setCurrentItem(lastPage, false);
 
         checkForUpdates();
         handleDeepLinkIntent(getIntent());
@@ -153,6 +161,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREFS_NAME      = "shopping_prefs";
     private static final String PREF_SERVER_URL  = "server_url";
     private static final String PREF_BOARD_TOKEN = "board_token";
+    private static final String PREF_LAST_PAGE   = "last_page";
 
     private void showAccountSetupDialog() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
