@@ -18,7 +18,7 @@ import java.util.Set;
 public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "calendar.db";
-    private static final int    DB_VERSION = 5;
+    private static final int    DB_VERSION = 6;
 
     static final String TABLE_APPOINTMENTS  = "appointments";
     static final String TABLE_TEMPLATES     = "standard_templates";
@@ -26,14 +26,15 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
     static final String TABLE_PERSON_GROUPS = "person_groups";
     static final String TABLE_GROUP_MEMBERS = "group_members";
 
-    static final String COL_ID        = "_id";
-    static final String COL_DATE      = "date";       // YYYY-MM-DD
-    static final String COL_TIME      = "time";       // HH:mm, nullable
-    static final String COL_TITLE     = "title";
-    static final String COL_SERIES_ID = "series_id";  // INTEGER, nullable – shared by all entries of a series
-    static final String COL_PERSON_ID = "person_id";  // INTEGER, nullable – assigned person
-    static final String COL_COLOR     = "color";      // hex color string for persons
-    static final String COL_GROUP_ID  = "group_id";
+    static final String COL_ID         = "_id";
+    static final String COL_DATE       = "date";       // YYYY-MM-DD
+    static final String COL_TIME       = "time";       // HH:mm, nullable
+    static final String COL_TITLE      = "title";
+    static final String COL_SERIES_ID  = "series_id";  // INTEGER, nullable – shared by all entries of a series
+    static final String COL_PERSON_ID  = "person_id";  // INTEGER, nullable – assigned person
+    static final String COL_COLOR      = "color";      // hex color string for persons
+    static final String COL_GROUP_ID   = "group_id";
+    static final String COL_IMAGE_PATH = "image_path"; // absolute path to person photo, nullable
 
     /** Predefined colors cycled through when auto-assigning to new persons. */
     static final String[] PERSON_COLORS = {
@@ -66,9 +67,10 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 COL_TITLE + " TEXT NOT NULL UNIQUE)");
 
         db.execSQL("CREATE TABLE " + TABLE_PERSONS + " (" +
-                COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                COL_TITLE + " TEXT NOT NULL UNIQUE, " +
-                COL_COLOR + " TEXT NOT NULL)");
+                COL_ID         + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COL_TITLE      + " TEXT NOT NULL UNIQUE, " +
+                COL_COLOR      + " TEXT NOT NULL, " +
+                COL_IMAGE_PATH + " TEXT)");
 
         db.execSQL("CREATE TABLE " + TABLE_PERSON_GROUPS + " (" +
                 COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -112,6 +114,9 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
         }
         if (oldVersion < 5) {
             db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN " + COL_GROUP_ID + " INTEGER");
+        }
+        if (oldVersion < 6) {
+            db.execSQL("ALTER TABLE " + TABLE_PERSONS + " ADD COLUMN " + COL_IMAGE_PATH + " TEXT");
         }
     }
 
@@ -438,10 +443,11 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
     public List<Person> getPersons() {
         List<Person> list = new ArrayList<>();
         Cursor c = getReadableDatabase().query(TABLE_PERSONS,
-                new String[]{COL_ID, COL_TITLE, COL_COLOR},
+                new String[]{COL_ID, COL_TITLE, COL_COLOR, COL_IMAGE_PATH},
                 null, null, null, null, COL_TITLE + " ASC");
         while (c.moveToNext()) {
-            list.add(new Person(c.getLong(0), c.getString(1), c.getString(2)));
+            String imagePath = c.isNull(3) ? null : c.getString(3);
+            list.add(new Person(c.getLong(0), c.getString(1), c.getString(2), imagePath));
         }
         c.close();
         return list;
@@ -461,6 +467,18 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.delete(TABLE_GROUP_MEMBERS, COL_PERSON_ID + "=?", new String[]{String.valueOf(id)});
         db.delete(TABLE_PERSONS, COL_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    /** Stores the absolute file path of a person's photo. Pass null to remove the photo. */
+    public void updatePersonImage(long id, String imagePath) {
+        ContentValues cv = new ContentValues();
+        if (imagePath != null) {
+            cv.put(COL_IMAGE_PATH, imagePath);
+        } else {
+            cv.putNull(COL_IMAGE_PATH);
+        }
+        getWritableDatabase().update(TABLE_PERSONS, cv,
+                COL_ID + "=?", new String[]{String.valueOf(id)});
     }
 
     // ── Person groups ─────────────────────────────────────────────────────────

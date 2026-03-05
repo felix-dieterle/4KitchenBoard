@@ -7,13 +7,15 @@
     android:paddingStart="@dimen/panel_padding"
     android:paddingEnd="@dimen/spacing_small">
 
-    <!-- Person color dot -->
-    <View
+    <!-- Person photo or color dot -->
+    <ImageView
         android:id="@+id/view_person_dot"
-        android:layout_width="10dp"
-        android:layout_height="10dp"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
         android:layout_marginEnd="8dp"
-        android:visibility="invisible"/>
+        android:scaleType="centerCrop"
+        android:visibility="invisible"
+        android:contentDescription="@string/calendar_person_photo_desc"/>
 
     <LinearLayout
         android:layout_width="0dp"
