@@ -18,7 +18,7 @@
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@color/panel_bg"
+            android:background="@color/module_cooking_light"
             android:paddingStart="@dimen/panel_padding"
             android:paddingEnd="@dimen/panel_padding"
             android:paddingTop="@dimen/spacing_normal"
@@ -30,7 +30,7 @@
                 android:text="@string/cooking_recently_cooked"
                 android:textSize="@dimen/title_text_size"
                 android:textStyle="bold"
-                android:textColor="@color/text_primary"
+                android:textColor="@color/module_cooking"
                 android:layout_centerVertical="true"
                 android:layout_alignParentStart="true"/>
 
@@ -112,8 +112,8 @@
                 android:text="@string/cooking_suggestions"
                 android:textSize="@dimen/title_text_size"
                 android:textStyle="bold"
-                android:textColor="@color/text_primary"
-                android:background="@color/panel_bg"
+                android:textColor="@color/module_cooking"
+                android:background="@color/module_cooking_light"
                 android:paddingStart="@dimen/panel_padding"
                 android:paddingEnd="@dimen/panel_padding"
                 android:paddingTop="@dimen/spacing_normal"

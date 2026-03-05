@@ -28,6 +28,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
+import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.kitchenboard.shopping.ShoppingFragment;
@@ -80,17 +81,9 @@ public class MainActivity extends AppCompatActivity {
                 autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
                 autoAdvanceHandler.postDelayed(autoAdvanceRunnable, AUTO_ADVANCE_DELAY_MS);
                 updateDots(position);
-                // Persist the current page so it can be restored on next launch
-                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                        .edit().putInt(PREF_LAST_PAGE, position).apply();
             }
         };
         viewPager.registerOnPageChangeCallback(pageChangeCallback);
-
-        // Restore the last viewed page (deep-link handling may override this below)
-        int lastPage = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getInt(PREF_LAST_PAGE, 0);
-        viewPager.setCurrentItem(lastPage, false);
 
         checkForUpdates();
         handleDeepLinkIntent(getIntent());
@@ -161,7 +154,6 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREFS_NAME      = "shopping_prefs";
     private static final String PREF_SERVER_URL  = "server_url";
     private static final String PREF_BOARD_TOKEN = "board_token";
-    private static final String PREF_LAST_PAGE   = "last_page";
 
     private void showAccountSetupDialog() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -220,6 +212,14 @@ public class MainActivity extends AppCompatActivity {
 
     // ── Dot indicator helpers ─────────────────────────────────────────────────
 
+    /** Module accent color resources, ordered by page index (matches ScreenPagerAdapter). */
+    private static final int[] MODULE_COLORS = {
+        R.color.module_shopping,   // page 0: CombinedFragment – shopping (right) + weather (left)
+        R.color.module_calendar,   // page 1: CalendarFragment
+        R.color.module_cooking,    // page 2: CookingFragment
+        R.color.module_tasks       // page 3: TaskFragment
+    };
+
     private void setupDots(int count) {
         dotContainer.removeAllViews();
         dots = new View[count];
@@ -240,7 +240,15 @@ public class MainActivity extends AppCompatActivity {
     private void updateDots(int activeIndex) {
         if (dots == null) return;
         for (int i = 0; i < dots.length; i++) {
-            dots[i].setAlpha(i == activeIndex ? 0.7f : 0.2f);
+            android.graphics.drawable.Drawable dotDrawable =
+                    ContextCompat.getDrawable(this, R.drawable.dot_indicator);
+            if (dotDrawable != null) {
+                dotDrawable = DrawableCompat.wrap(dotDrawable).mutate();
+                int colorRes = (i < MODULE_COLORS.length) ? MODULE_COLORS[i] : R.color.text_primary;
+                DrawableCompat.setTint(dotDrawable, ContextCompat.getColor(this, colorRes));
+                dots[i].setBackground(dotDrawable);
+            }
+            dots[i].setAlpha(i == activeIndex ? 1.0f : 0.25f);
         }
     }
 

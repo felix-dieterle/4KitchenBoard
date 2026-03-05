@@ -14,6 +14,18 @@
     <color name="accent">#1565C0</color>
     <color name="accent_light">#E3F2FD</color>
 
+    <!-- Module accent colors (header bar tint) -->
+    <color name="module_calendar">#1565C0</color>
+    <color name="module_calendar_light">#E3F2FD</color>
+    <color name="module_cooking">#E65100</color>
+    <color name="module_cooking_light">#FBE9E7</color>
+    <color name="module_tasks">#C62828</color>
+    <color name="module_tasks_light">#FFEBEE</color>
+    <color name="module_shopping">#388E3C</color>
+    <color name="module_shopping_light">#E8F5E9</color>
+    <color name="module_weather">#0097A7</color>
+    <color name="module_weather_light">#E0F7FA</color>
+
     <!-- State -->
     <color name="error">#B71C1C</color>
     <color name="drag_slot_overlay">#CC1565C0</color>
