@@ -19,6 +19,7 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -31,6 +32,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.kitchenboard.R;
+import com.kitchenboard.feedback.FeatureRequestHelper;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -47,6 +49,9 @@ public class WeatherFragment extends Fragment {
 
     private EditText etCity;
     private ProgressBar progressBar;
+
+    private final FeatureRequestHelper featureRequestHelper =
+            new FeatureRequestHelper(this, "Wetter");
 
     // Views inside view_weather_current.xml (page 0)
     private TextView tvIcon;
@@ -136,6 +141,16 @@ public class WeatherFragment extends Fragment {
 
         Button btnRefresh = view.findViewById(R.id.btn_refresh);
         Button btnLocate = view.findViewById(R.id.btn_locate);
+
+        ImageButton btnFeatureRequest = view.findViewById(R.id.btn_feature_request);
+        if (btnFeatureRequest != null) {
+            btnFeatureRequest.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    featureRequestHelper.show();
+                }
+            });
+        }
 
         String savedCity = getSavedCity();
         etCity.setText(savedCity);

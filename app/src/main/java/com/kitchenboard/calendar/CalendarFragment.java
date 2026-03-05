@@ -48,6 +48,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.kitchenboard.MainActivity;
 import com.kitchenboard.R;
+import com.kitchenboard.feedback.FeatureRequestHelper;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -108,6 +109,9 @@ public class CalendarFragment extends Fragment {
                 }
                 pendingImagePersonId = null;
             });
+
+    private final FeatureRequestHelper featureRequestHelper =
+            new FeatureRequestHelper(this, "Kalender");
 
     /** Handler for periodic sync on the main thread. */
     private final Handler syncHandler = new Handler(Looper.getMainLooper());
@@ -272,6 +276,10 @@ public class CalendarFragment extends Fragment {
         // ── Manage persons ────────────────────────────────────────────────────
         view.findViewById(R.id.btn_manage_persons).setOnClickListener(
                 v -> showManagePersonsDialog());
+
+        // ── Feature request ───────────────────────────────────────────────────
+        view.findViewById(R.id.btn_feature_request).setOnClickListener(
+                v -> featureRequestHelper.show());
 
         // Activate default 3-day mode
         setViewMode(3);

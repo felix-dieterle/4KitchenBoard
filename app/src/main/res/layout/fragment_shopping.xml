@@ -30,27 +30,44 @@
                 android:layout_centerVertical="true"
                 android:layout_alignParentStart="true"/>
 
-            <ImageButton
-                android:id="@+id/btn_sync_configure"
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_alignParentEnd="true"
                 android:layout_centerVertical="true"
-                android:src="@android:drawable/ic_popup_sync"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:padding="8dp"
-                android:contentDescription="@string/sync_configure"/>
+                android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/tv_sync_status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_toStartOf="@id/btn_sync_configure"
-                android:layout_centerVertical="true"
-                android:layout_marginEnd="@dimen/spacing_small"
-                android:textSize="@dimen/small_text_size"
-                android:textColor="@color/text_secondary"
-                android:visibility="gone"/>
+                <TextView
+                    android:id="@+id/tv_sync_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:paddingEnd="@dimen/spacing_small"
+                    android:textSize="@dimen/small_text_size"
+                    android:textColor="@color/text_secondary"
+                    android:visibility="gone"/>
+
+                <ImageButton
+                    android:id="@+id/btn_feature_request"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:src="@android:drawable/ic_btn_speak_now"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:padding="8dp"
+                    android:contentDescription="@string/feature_request_hint"/>
+
+                <ImageButton
+                    android:id="@+id/btn_sync_configure"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:src="@android:drawable/ic_popup_sync"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:padding="8dp"
+                    android:contentDescription="@string/sync_configure"/>
+
+            </LinearLayout>
 
         </RelativeLayout>
 

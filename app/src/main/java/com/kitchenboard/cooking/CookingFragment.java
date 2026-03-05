@@ -38,6 +38,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.kitchenboard.R;
+import com.kitchenboard.feedback.FeatureRequestHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -82,6 +83,9 @@ public class CookingFragment extends Fragment {
     private ActivityResultLauncher<Intent> voiceLauncher;
     /** Holds a reference to the notes EditText currently shown in the edit dialog. */
     private EditText pendingNotesField;
+
+    private final FeatureRequestHelper featureRequestHelper =
+            new FeatureRequestHelper(this, "Gerichte");
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -131,6 +135,16 @@ public class CookingFragment extends Fragment {
                 @Override
                 public void onClick(View v) {
                     showSyncConfigDialog();
+                }
+            });
+        }
+
+        ImageButton btnFeatureRequest = view.findViewById(R.id.btn_feature_request);
+        if (btnFeatureRequest != null) {
+            btnFeatureRequest.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    featureRequestHelper.show();
                 }
             });
         }

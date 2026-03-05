@@ -12,6 +12,8 @@ android {
         targetSdk 34
         versionCode System.getenv("BUILD_NUMBER")?.toInteger() ?: 1
         versionName "1.0"
+        buildConfigField "String", "GITHUB_ISSUE_TOKEN",
+                "\"${System.getenv('GITHUB_ISSUE_TOKEN') ?: project.findProperty('GITHUB_ISSUE_TOKEN') ?: ''}\""
     }
 
     buildTypes {
