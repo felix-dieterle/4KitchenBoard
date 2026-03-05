@@ -32,4 +32,17 @@
         android:fontFamily="sans-serif"
         android:visibility="visible"/>
 
+    <!-- Global account / sync setup button (bottom-start corner) -->
+    <ImageButton
+        android:id="@+id/btn_account_setup"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginBottom="4dp"
+        android:layout_marginStart="6dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_preferences"
+        android:contentDescription="@string/account_setup_title"
+        android:alpha="0.45"/>
+
 </FrameLayout>
