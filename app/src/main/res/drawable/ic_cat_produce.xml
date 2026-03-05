@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Obst & Gemüse / Produce – Apache 2.0 Google Material Icons (eco) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/icon_produce"
+        android:pathData="M17,8C8,10 5.9,16.17 3.82,21H5.71C5.89,20.57 6.07,20.12 6.24,19.68
+C7.38,20.27 9.5,21 12,21C17.51,21 21.76,17.3 21.98,12H20
+C19.51,5.08 15,2 12,2C10,2 8.21,2.91 7,4.34
+L7.38,5.17C8.39,4.44 9.64,4 11,4C11.53,4 12.04,4.07 12.54,4.2
+C12.54,4.2 14.45,4.82 15.7,6.49C14.87,6.18 14,6 13.06,6
+C11.58,6 10.21,6.52 9.17,7.39C10.48,8.24 11.91,9.17 13.48,9.96
+L15.56,8.72C15.84,8.55 16.14,8.42 16.45,8.31
+C16.65,8.24 16.82,8.15 17,8Z" />
+</vector>

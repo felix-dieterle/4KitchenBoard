@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Konserven / Canned Goods – Apache 2.0 Google Material Icons (inventory_2) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/icon_canned"
+        android:pathData="M20,2H4V4H20V2Z
+M4,22H20V6H4V22Z
+M16,14H13V17H11V14H8L12,10L16,14Z" />
+</vector>

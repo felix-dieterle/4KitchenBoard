@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Milch & Eier / Dairy – Apache 2.0 Google Material Icons (local_drink) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/icon_dairy"
+        android:pathData="M3,2L5,20.23C5.13,21.23 5.97,22 6.96,22H17.03C18.03,22 18.87,21.23 19,20.23
+L21,2H3Z
+M7,6H17L16.52,8.48H7.48L7,6Z
+M12,19C9.24,19 7,16.76 7,14C7,11.87 8.28,10 10,9.19V10.5
+C10,11.33 10.67,12 11.5,12H12.5C13.33,12 14,11.33 14,10.5V9.19
+C15.72,10 17,11.87 17,14C17,16.76 14.76,19 12,19Z" />
+</vector>

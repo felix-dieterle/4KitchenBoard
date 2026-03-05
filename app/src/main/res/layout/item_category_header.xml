@@ -1,15 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/tv_category_header"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/layout_category_header"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
     android:paddingStart="@dimen/panel_padding"
     android:paddingEnd="@dimen/panel_padding"
     android:paddingTop="@dimen/spacing_small"
     android:paddingBottom="@dimen/spacing_small"
-    android:textSize="@dimen/small_text_size"
-    android:textStyle="bold"
-    android:textAllCaps="true"
-    android:textColor="@color/accent"
+    android:background="@color/category_header_bg">
 
-    android:background="@color/category_header_bg"/>
+    <ImageView
+        android:id="@+id/iv_category_icon"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:layout_marginEnd="6dp"
+        android:contentDescription="@string/category_icon_desc"
+        android:scaleType="fitCenter" />
+
+    <TextView
+        android:id="@+id/tv_category_header"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="@dimen/small_text_size"
+        android:textStyle="bold"
+        android:textAllCaps="true"
+        android:textColor="@color/accent" />
+
+</LinearLayout>

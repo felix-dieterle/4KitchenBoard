@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Babyprodukte / Baby – Apache 2.0 Google Material Icons (child_care) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/icon_baby"
+        android:pathData="M12,2A7,7 0,1 0,12,16A7,7 0,0 0,12,2Z
+M15,9A1,1 0,1 1,15,7A1,1 0,0 1,15,9Z
+M9,9A1,1 0,1 1,9,7A1,1 0,0 1,9,9Z
+M12,14C10.33,14 8.88,13.15 8,11.9H16C15.12,13.15 13.67,14 12,14Z
+M19,16H5C3.9,16 3,16.9 3,18V22H21V18C21,16.9 20.1,16 19,16Z" />
+</vector>

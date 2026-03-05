@@ -186,6 +186,12 @@
     <string name="group_by_shop">Shop</string>
     <string name="no_shop_label">Kein Shop</string>
 
+    <!-- Known stores quick picker -->
+    <string name="known_stores_title">Bekannte Geschäfte</string>
+    <string name="known_stores_button">🏪 Liste</string>
+    <string name="category_icon_desc">Kategorie-Icon</string>
+    <string name="store_icon_desc">Shop-Icon</string>
+
     <!-- Tasks page -->
     <string name="tasks_title">Aufgaben</string>
     <string name="tasks_empty">Keine Aufgaben.\nTippe + um eine Aufgabe hinzuzufügen.</string>

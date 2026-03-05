@@ -6,6 +6,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -50,11 +51,16 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
     private OnShowQrListener showQrListener;
     private boolean groupByShop = false;
     private String noShopLabel = "Kein Shop";
+    /** Optional DB helper – used to look up saved category icons. May be null. */
+    private ShoppingDatabaseHelper db;
 
     public void setOnItemCheckedListener(OnItemCheckedListener l) { checkedListener = l; }
     public void setOnItemLongClickListener(OnItemLongClickListener l) { longClickListener = l; }
     public void setOnQuantityChangedListener(OnQuantityChangedListener l) { quantityChangedListener = l; }
     public void setOnShowQrListener(OnShowQrListener l) { showQrListener = l; }
+
+    /** Provide the database helper so category icons can be resolved. */
+    public void setDatabase(ShoppingDatabaseHelper database) { this.db = database; }
 
     /** Switch between category and shop grouping. */
     public void setGroupByShop(boolean groupByShop) { this.groupByShop = groupByShop; }
@@ -144,15 +150,36 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
     // ── ViewHolders ──────────────────────────────────────────────────────────
 
     class HeaderViewHolder extends RecyclerView.ViewHolder {
+        final ImageView ivIcon;
         final TextView tvCategory;
 
         HeaderViewHolder(View v) {
             super(v);
+            ivIcon = v.findViewById(R.id.iv_category_icon);
             tvCategory = v.findViewById(R.id.tv_category_header);
         }
 
         void bind(String category) {
             tvCategory.setText(category);
+            // Resolve icon: prefer user-saved icon, auto-detect from category name as fallback
+            int iconRes = R.drawable.ic_cat_other;
+            if (db != null) {
+                String savedIcon = db.getCategoryIcon(category);
+                if (savedIcon != null && !savedIcon.isEmpty()) {
+                    iconRes = resolveDrawableByName(savedIcon, itemView.getContext());
+                } else {
+                    iconRes = IconProvider.iconForCategory(category);
+                }
+            } else {
+                iconRes = IconProvider.iconForCategory(category);
+            }
+            ivIcon.setImageResource(iconRes);
+            ivIcon.setVisibility(View.VISIBLE);
+        }
+
+        private int resolveDrawableByName(String name, android.content.Context ctx) {
+            int id = ctx.getResources().getIdentifier(name, "drawable", ctx.getPackageName());
+            return id != 0 ? id : IconProvider.iconForCategory(tvCategory.getText().toString());
         }
     }
 
