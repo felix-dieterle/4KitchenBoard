@@ -253,6 +253,19 @@ public class MainActivity extends AppCompatActivity {
         ScrollView scrollView = new ScrollView(this);
         scrollView.addView(layout);
 
+        // ── Update-Protokoll section ──────────────────────────────────────────
+        final TextView tvLogsSection = new TextView(this);
+        tvLogsSection.setText(R.string.update_logs_section);
+        tvLogsSection.setTextSize(12f);
+        tvLogsSection.setPadding(0, padPx, 0, padPx / 4);
+
+        android.widget.Button btnViewLogs = new android.widget.Button(this);
+        btnViewLogs.setText(R.string.update_logs_view_button);
+        btnViewLogs.setOnClickListener(v -> showUpdateLogsDialog());
+
+        layout.addView(tvLogsSection);
+        layout.addView(btnViewLogs);
+
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.account_setup_title)
                 .setMessage(R.string.account_setup_message)
@@ -288,6 +301,49 @@ public class MainActivity extends AppCompatActivity {
             }
             Toast.makeText(this, R.string.account_setup_copied, Toast.LENGTH_SHORT).show();
         });
+    }
+
+    // ── Update-Protokoll dialog ───────────────────────────────────────────────
+
+    private void showUpdateLogsDialog() {
+        String logs = com.kitchenboard.update.UpdateLogger.readLogs(this);
+        if (logs.isEmpty()) {
+            logs = getString(R.string.update_logs_empty);
+        }
+
+        final TextView tvLogs = new TextView(this);
+        tvLogs.setText(logs);
+        tvLogs.setTextSize(10f);
+        tvLogs.setTypeface(android.graphics.Typeface.MONOSPACE);
+
+        int padPx = Math.round(8 * getResources().getDisplayMetrics().density);
+        tvLogs.setPadding(padPx, padPx, padPx, padPx);
+
+        final ScrollView svLogs = new ScrollView(this);
+        svLogs.addView(tvLogs);
+        svLogs.post(() -> svLogs.fullScroll(View.FOCUS_DOWN));
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.update_logs_title)
+                .setView(svLogs)
+                .setPositiveButton(R.string.update_logs_share, (d, which) -> {
+                    Intent shareIntent =
+                            com.kitchenboard.update.UpdateLogger.createShareIntent(this);
+                    if (shareIntent != null) {
+                        startActivity(Intent.createChooser(shareIntent,
+                                getString(R.string.update_logs_share)));
+                    } else {
+                        Toast.makeText(this, R.string.update_logs_empty,
+                                Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNeutralButton(R.string.update_logs_clear, (d, which) -> {
+                    com.kitchenboard.update.UpdateLogger.clearLogs(this);
+                    Toast.makeText(this, R.string.update_logs_cleared,
+                            Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
     }
 
     // ── Dot indicator helpers ─────────────────────────────────────────────────
@@ -418,6 +474,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onError(String message) {
                 if (isFinishing() || isDestroyed()) return;
+                com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
+                        "Manual update check failed: "
+                                + (message != null ? message : "unknown error"));
                 Toast.makeText(MainActivity.this,
                         R.string.update_check_error,
                         Toast.LENGTH_SHORT).show();

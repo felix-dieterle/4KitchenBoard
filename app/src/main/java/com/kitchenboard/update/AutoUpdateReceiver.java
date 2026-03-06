@@ -85,6 +85,9 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
                     @Override
                     public void onUpdateAvailable(UpdateChecker.UpdateResult result) {
                         try {
+                            UpdateLogger.logInfo(context,
+                                    "Update available: " + result.tagName
+                                            + (result.isAutoUpdate ? " [auto_update]" : ""));
                             if (result.isAutoUpdate) {
                                 if (result.downloadUrl.endsWith(".apk")) {
                                     startDownload(context, result.downloadUrl, result.tagName);
@@ -92,6 +95,8 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
                                     cancelNotification(context, NOTIF_ID_STATUS);
                                 } else {
                                     // No APK asset – inform user; no silent install possible
+                                    UpdateLogger.logError(context,
+                                            "Auto-update: no APK asset found for " + result.tagName);
                                     showStatusNotification(context,
                                             context.getString(R.string.auto_update_available_title),
                                             context.getString(
@@ -119,6 +124,9 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
                     @Override
                     public void onError(String message) {
                         try {
+                            UpdateLogger.logError(context,
+                                    "Auto-update check failed: "
+                                            + (message != null ? message : "unknown error"));
                             cancelNotification(context, NOTIF_ID_STATUS);
                         } finally {
                             pendingResult.finish();
@@ -130,8 +138,11 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
     // ── Download ──────────────────────────────────────────────────────────────
 
     private void startDownload(Context context, String url, String tagName) {
+        UpdateLogger.logInfo(context, "Starting APK download for " + tagName + " from " + url);
         File downloadDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
         if (downloadDir == null) {
+            UpdateLogger.logError(context,
+                    "APK download failed: external storage unavailable for " + tagName);
             showStatusNotification(context,
                     context.getString(R.string.auto_update_available_title),
                     context.getString(R.string.auto_update_download_failed_text));
@@ -152,7 +163,11 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
 
         DownloadManager dm =
                 (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
-        if (dm == null) return;
+        if (dm == null) {
+            UpdateLogger.logError(context,
+                    "APK download failed: DownloadManager service unavailable for " + tagName);
+            return;
+        }
         long downloadId = dm.enqueue(request);
 
         // Persist download ID and file path so the completion receiver can verify them
