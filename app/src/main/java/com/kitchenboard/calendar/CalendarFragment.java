@@ -34,6 +34,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -62,9 +63,11 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 public class CalendarFragment extends Fragment {
@@ -357,6 +360,10 @@ public class CalendarFragment extends Fragment {
         int textSecondary    = ContextCompat.getColor(requireContext(), R.color.text_secondary);
         int padPx = dpToPx(4);
 
+        // Build person lookup map for color dots in appointment rows
+        Map<Long, Person> stripPersonMap = new HashMap<>();
+        for (Person p : db.getPersons()) stripPersonMap.put(p.getId(), p);
+
         Calendar cal = (Calendar) stripStart.clone();
         for (int i = 0; i < viewMode; i++) {
             final String dateStr = DATE_FMT.format(cal.getTime());
@@ -409,20 +416,56 @@ public class CalendarFragment extends Fragment {
             int maxShow = 3;
             for (int j = 0; j < Math.min(dayApts.size(), maxShow); j++) {
                 final Appointment apt = dayApts.get(j);
-                TextView tvApt = new TextView(requireContext());
                 String aptText = apt.getTime() != null
                         ? apt.getTime() + " " + apt.getTitle()
                         : apt.getTitle();
                 if (apt.getSeriesId() != null) aptText += SERIES_INDICATOR_SYMBOL;
+
+                // Row: optional person color dot + appointment text
+                LinearLayout aptRow = new LinearLayout(requireContext());
+                aptRow.setOrientation(LinearLayout.HORIZONTAL);
+                aptRow.setGravity(Gravity.CENTER_VERTICAL);
+                LinearLayout.LayoutParams aptRowLp = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+                aptRow.setLayoutParams(aptRowLp);
+                aptRow.setPadding(padPx, dpToPx(1), padPx, dpToPx(1));
+
+                // Person color dot shown when the appointment has a person assigned
+                Person aptPerson = apt.getPersonId() != null
+                        ? stripPersonMap.get(apt.getPersonId()) : null;
+                if (aptPerson != null) {
+                    View dot = new View(requireContext());
+                    int dotSize = dpToPx(5);
+                    LinearLayout.LayoutParams dotLp =
+                            new LinearLayout.LayoutParams(dotSize, dotSize);
+                    dotLp.setMargins(0, 0, dpToPx(2), 0);
+                    dot.setLayoutParams(dotLp);
+                    GradientDrawable dotBg = new GradientDrawable();
+                    dotBg.setShape(GradientDrawable.OVAL);
+                    try {
+                        dotBg.setColor(Color.parseColor(aptPerson.getColor()));
+                    } catch (IllegalArgumentException e) {
+                        dotBg.setColor(Color.GRAY);
+                    }
+                    dot.setBackground(dotBg);
+                    aptRow.addView(dot);
+                }
+
+                TextView tvApt = new TextView(requireContext());
                 tvApt.setText(aptText);
-                tvApt.setGravity(Gravity.CENTER);
+                tvApt.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
                 tvApt.setTextSize(9f);
                 tvApt.setTextColor(accentColor);
                 tvApt.setMaxLines(1);
                 tvApt.setEllipsize(TextUtils.TruncateAt.END);
-                tvApt.setPadding(padPx, dpToPx(1), padPx, dpToPx(1));
+                LinearLayout.LayoutParams tvAptLp = new LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                tvApt.setLayoutParams(tvAptLp);
+                aptRow.addView(tvApt);
+
                 // Tap on appointment in day strip → select that day and offer delete
-                tvApt.setOnClickListener(v2 -> {
+                aptRow.setOnClickListener(v2 -> {
                     selectedDate = dateStr;
                     updateDateLabel();
                     refreshAppointments();
@@ -430,7 +473,7 @@ public class CalendarFragment extends Fragment {
                     confirmDeleteAppointment(apt);
                 });
                 // Long-press on appointment → start drag to move it to another day
-                tvApt.setOnLongClickListener(v2 -> {
+                aptRow.setOnLongClickListener(v2 -> {
                     ClipData data = ClipData.newPlainText(
                             "appointment", String.valueOf(apt.getId()));
                     View.DragShadowBuilder shadow = new View.DragShadowBuilder(v2);
@@ -441,7 +484,7 @@ public class CalendarFragment extends Fragment {
                     }
                     return true;
                 });
-                content.addView(tvApt);
+                content.addView(aptRow);
             }
             if (dayApts.size() > maxShow) {
                 TextView tvMore = new TextView(requireContext());
@@ -627,7 +670,7 @@ public class CalendarFragment extends Fragment {
                     LinearLayout.LayoutParams.WRAP_CONTENT);
             lp.setMargins(0, 0, marginPx, 0);
             btn.setLayoutParams(lp);
-            btn.setOnClickListener(v -> showRecurrenceDialog(t));
+            btn.setOnClickListener(v -> showSimpleTemplateDialog(t));
             btn.setOnLongClickListener(v -> {
                 ClipData data = ClipData.newPlainText("template", t.getTitle());
                 View.DragShadowBuilder shadow = new View.DragShadowBuilder(v);
@@ -752,6 +795,120 @@ public class CalendarFragment extends Fragment {
         if (getActivity() instanceof MainActivity) {
             ((MainActivity) getActivity()).resumeAutoAdvance();
         }
+    }
+
+    // ── Simple template quick-add dialog ─────────────────────────────────────
+
+    /**
+     * Shows a focused quick-add dialog for a standard template appointment.
+     * Lets the user pick a date, an optional time, and an optional person/group
+     * assignment — all in one step with good UX.
+     * A "Wiederholen…" button escalates to the full recurrence dialog.
+     */
+    private void showSimpleTemplateDialog(final Template t) {
+        if (!isAdded() || getContext() == null) return;
+
+        final String[] chosenDate = {selectedDate};
+        final String[] chosenTime = {null};
+        final Long[] chosenPersonId = {null};
+        final Long[] chosenGroupId  = {null};
+
+        LinearLayout layout = new LinearLayout(requireContext());
+        layout.setOrientation(LinearLayout.VERTICAL);
+        int padPx = dpToPx(16);
+        layout.setPadding(padPx, padPx, padPx, padPx);
+
+        // Date button
+        final Button btnDate = new Button(requireContext());
+        try {
+            btnDate.setText(getString(R.string.calendar_recurrence_date,
+                    LABEL_FMT.format(DATE_FMT.parse(selectedDate))));
+        } catch (Exception e) {
+            btnDate.setText(selectedDate);
+        }
+        btnDate.setAllCaps(false);
+        btnDate.setTextSize(16f);
+        layout.addView(btnDate);
+
+        btnDate.setOnClickListener(v -> {
+            Calendar cur = Calendar.getInstance();
+            try { cur.setTime(DATE_FMT.parse(chosenDate[0])); } catch (ParseException ignored) {}
+            new DatePickerDialog(requireContext(), (picker, year, month, day) -> {
+                Calendar chosen = Calendar.getInstance();
+                chosen.set(year, month, day);
+                chosenDate[0] = DATE_FMT.format(chosen.getTime());
+                try {
+                    btnDate.setText(getString(R.string.calendar_recurrence_date,
+                            LABEL_FMT.format(chosen.getTime())));
+                } catch (Exception ignored) {}
+            }, cur.get(Calendar.YEAR), cur.get(Calendar.MONTH),
+                    cur.get(Calendar.DAY_OF_MONTH)).show();
+        });
+
+        // Time button (optional)
+        final Button btnTime = new Button(requireContext());
+        btnTime.setText(R.string.calendar_recurrence_time_optional);
+        btnTime.setAllCaps(false);
+        btnTime.setTextSize(16f);
+        layout.addView(btnTime);
+
+        btnTime.setOnClickListener(v -> {
+            Calendar cur = Calendar.getInstance();
+            int hour = cur.get(Calendar.HOUR_OF_DAY);
+            int minute = 0;
+            if (chosenTime[0] != null) {
+                String[] parts = chosenTime[0].split(":");
+                try {
+                    hour   = Integer.parseInt(parts[0]);
+                    minute = Integer.parseInt(parts[1]);
+                } catch (NumberFormatException ignored) {}
+            }
+            new TimePickerDialog(requireContext(), (picker, h, m) -> {
+                chosenTime[0] = String.format(Locale.US, "%02d:%02d", h, m);
+                btnTime.setText(getString(R.string.calendar_recurrence_time, chosenTime[0]));
+            }, hour, minute, true).show();
+        });
+
+        // Person / group picker
+        List<Person> persons = db.getPersons();
+        List<PersonGroup> groups = db.getPersonGroups();
+        if (!persons.isEmpty() || !groups.isEmpty()) {
+            TextView tvPersonLabel = new TextView(requireContext());
+            tvPersonLabel.setText(R.string.calendar_person_label);
+            tvPersonLabel.setTextSize(14f);
+            tvPersonLabel.setPadding(0, dpToPx(8), 0, dpToPx(4));
+            layout.addView(tvPersonLabel);
+
+            LinearLayout llPersonPicker = new LinearLayout(requireContext());
+            llPersonPicker.setOrientation(LinearLayout.HORIZONTAL);
+            layout.addView(llPersonPicker);
+
+            buildPersonPickerButtons(llPersonPicker, persons, chosenPersonId, chosenGroupId);
+        }
+
+        ScrollView scrollView = new ScrollView(requireContext());
+        scrollView.addView(layout);
+
+        pauseAutoAdvance();
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                .setTitle(t.getTitle())
+                .setView(scrollView)
+                .setPositiveButton(R.string.add, (d, which) -> {
+                    long id = db.addAppointment(chosenDate[0], chosenTime[0], t.getTitle(),
+                            chosenPersonId[0], chosenGroupId[0]);
+                    if (id > 0) {
+                        pushAppointment(new Appointment(id, chosenDate[0], chosenTime[0],
+                                t.getTitle(), null, chosenPersonId[0], chosenGroupId[0]));
+                    }
+                    refreshAppointments();
+                    refreshDayStrip();
+                })
+                .setNeutralButton(R.string.calendar_template_recurrence, (d, which) ->
+                        showRecurrenceDialog(t))
+                .setNegativeButton(R.string.cancel, null)
+                .create();
+        dialog.setOnDismissListener(d -> resumeAutoAdvance());
+        dialog.show();
     }
 
     // ── Recurrence dialog ─────────────────────────────────────────────────────
@@ -1064,7 +1221,7 @@ public class CalendarFragment extends Fragment {
                 .setNegativeButton(R.string.cancel, null)
                 .create();
 
-        // Template buttons open the recurrence selector (consistent with header row)
+        // Template buttons open the simple template dialog (with person picker and date)
         for (final Template t : templates) {
             Button btn = new Button(requireContext());
             btn.setText(t.getTitle());
@@ -1078,7 +1235,7 @@ public class CalendarFragment extends Fragment {
                 @Override
                 public void onClick(View v) {
                     dialog.dismiss();
-                    showRecurrenceDialog(t);
+                    showSimpleTemplateDialog(t);
                 }
             });
             llTemplates.addView(btn);

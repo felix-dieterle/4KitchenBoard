@@ -184,6 +184,9 @@
     <string name="cooking_save">Speichern</string>
     <string name="cooking_speech_unavailable">Spracherkennung nicht verfügbar</string>
 
+    <!-- Simple template quick-add dialog -->
+    <string name="calendar_template_recurrence">Wiederholen…</string>
+
     <!-- Calendar sync -->
     <string name="calendar_sync_status_ok">✓ Synced</string>
     <string name="calendar_sync_status_error">Sync failed</string>
