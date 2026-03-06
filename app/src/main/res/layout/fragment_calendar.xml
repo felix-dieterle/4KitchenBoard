@@ -231,6 +231,16 @@
                         android:padding="8dp"
                         android:contentDescription="@string/calendar_manage_templates"/>
 
+                    <ImageButton
+                        android:id="@+id/btn_rotation_toggle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:src="@drawable/ic_rotation"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="8dp"
+                        android:contentDescription="@string/rotation_toggle_hint"/>
+
                 </LinearLayout>
 
             </RelativeLayout>
