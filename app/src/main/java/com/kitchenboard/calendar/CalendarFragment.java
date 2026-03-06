@@ -34,11 +34,13 @@ import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.ItemTouchHelper;
@@ -179,6 +181,9 @@ public class CalendarFragment extends Fragment {
         db = new CalendarDatabaseHelper(requireContext());
         adapter = new AppointmentAdapter();
 
+        // Ensure the reminder notification channel exists (no-op on API < 26)
+        ReminderReceiver.createNotificationChannel(requireContext());
+
         tvSelectedDate    = view.findViewById(R.id.tv_selected_date);
         tvEmpty           = view.findViewById(R.id.tv_appointments_empty);
         tvSyncStatus      = view.findViewById(R.id.tv_calendar_sync_status);
@@ -235,6 +240,13 @@ public class CalendarFragment extends Fragment {
             @Override
             public void onDelete(Appointment appointment) {
                 confirmDeleteAppointment(appointment);
+            }
+        });
+
+        adapter.setOnTimerListener(new AppointmentAdapter.OnTimerListener() {
+            @Override
+            public void onTimer(Appointment appointment) {
+                showReminderDialog(appointment);
             }
         });
 
@@ -1088,6 +1100,7 @@ public class CalendarFragment extends Fragment {
             // Part of a series: offer per-entry or full-series delete
             builder.setPositiveButton(R.string.calendar_delete_this_only,
                     (d, which) -> {
+                        ReminderScheduler.cancelReminder(requireContext(), appointment.getId());
                         db.deleteAppointment(appointment.getId());
                         if (apiClient != null) {
                             apiClient.deleteAppointment(appointment.getId(),
@@ -1102,6 +1115,9 @@ public class CalendarFragment extends Fragment {
             builder.setNeutralButton(R.string.calendar_delete_series,
                     (d, which) -> {
                         long seriesId = appointment.getSeriesId();
+                        for (Appointment apt : db.getAppointmentsBySeriesId(seriesId)) {
+                            ReminderScheduler.cancelReminder(requireContext(), apt.getId());
+                        }
                         db.deleteSeriesById(seriesId);
                         if (apiClient != null) {
                             apiClient.deleteSeriesById(seriesId,
@@ -1115,6 +1131,7 @@ public class CalendarFragment extends Fragment {
                     });
         } else {
             builder.setPositiveButton(R.string.delete, (d, which) -> {
+                ReminderScheduler.cancelReminder(requireContext(), appointment.getId());
                 db.deleteAppointment(appointment.getId());
                 if (apiClient != null) {
                     apiClient.deleteAppointment(appointment.getId(),
@@ -1125,6 +1142,93 @@ public class CalendarFragment extends Fragment {
                 }
                 refreshAppointments();
                 refreshDayStrip();
+            });
+        }
+
+        AlertDialog dialog = builder.create();
+        dialog.setOnDismissListener(d -> resumeAutoAdvance());
+        dialog.show();
+    }
+
+    // ── Reminder / alarm dialog ────────────────────────────────────────────────
+
+    private void showReminderDialog(final Appointment appointment) {
+        if (!isAdded() || getContext() == null) return;
+
+        // Appointments without a time cannot have a time-based reminder
+        if (appointment.getTime() == null || appointment.getTime().isEmpty()) {
+            Toast.makeText(requireContext(),
+                    R.string.calendar_reminder_no_time, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        pauseAutoAdvance();
+
+        // On Android 13+ request the POST_NOTIFICATIONS permission if not yet granted
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(requireContext(),
+                    android.Manifest.permission.POST_NOTIFICATIONS)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(
+                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 0);
+            }
+        }
+
+        // Ensure the notification channel exists
+        ReminderReceiver.createNotificationChannel(requireContext());
+
+        // Default to existing reminder value, or 30 min if not yet set
+        final int[] currentMinutes = {
+                appointment.getReminderMinutes() > 0 ? appointment.getReminderMinutes() : 30};
+        final int step = 15;
+        final int minMinutes = 15;
+
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_timer, null);
+        final TextView tvValue = dialogView.findViewById(R.id.tv_timer_value);
+        final Button btnMinus  = dialogView.findViewById(R.id.btn_timer_minus);
+        final Button btnPlus   = dialogView.findViewById(R.id.btn_timer_plus);
+
+        tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+
+        btnMinus.setOnClickListener(v -> {
+            if (currentMinutes[0] - step >= minMinutes) {
+                currentMinutes[0] -= step;
+                tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+            }
+        });
+        btnPlus.setOnClickListener(v -> {
+            currentMinutes[0] += step;
+            tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+        });
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext())
+                .setView(dialogView)
+                .setNegativeButton(R.string.cancel, null);
+
+        if (appointment.getSeriesId() != null) {
+            // Part of a recurring series: offer per-entry or full-series save
+            builder.setPositiveButton(R.string.calendar_timer_this_only, (d, which) -> {
+                db.setReminderForAppointment(appointment.getId(), currentMinutes[0]);
+                ReminderScheduler.scheduleReminder(requireContext(),
+                        appointment.withReminderMinutes(currentMinutes[0]));
+                refreshAppointments();
+            });
+            builder.setNeutralButton(R.string.calendar_timer_whole_series, (d, which) -> {
+                long sid = appointment.getSeriesId();
+                db.setReminderForSeries(sid, currentMinutes[0]);
+                for (Appointment apt : db.getAppointmentsBySeriesId(sid)) {
+                    ReminderScheduler.scheduleReminder(requireContext(),
+                            apt.withReminderMinutes(currentMinutes[0]));
+                }
+                refreshAppointments();
+            });
+        } else {
+            builder.setPositiveButton(R.string.ok, (d, which) -> {
+                db.setReminderForAppointment(appointment.getId(), currentMinutes[0]);
+                ReminderScheduler.scheduleReminder(requireContext(),
+                        appointment.withReminderMinutes(currentMinutes[0]));
+                refreshAppointments();
             });
         }
 

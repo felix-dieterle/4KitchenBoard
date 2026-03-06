@@ -50,6 +50,15 @@
         android:visibility="gone"/>
 
     <ImageButton
+        android:id="@+id/btn_timer_appointment"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@android:drawable/ic_menu_recent_history"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/calendar_timer_button_desc"
+        android:padding="10dp"/>
+
+    <ImageButton
         android:id="@+id/btn_delete_appointment"
         android:layout_width="48dp"
         android:layout_height="48dp"

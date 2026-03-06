@@ -110,6 +110,20 @@
     <string name="calendar_delete_series">Ganze Serie löschen</string>
     <string name="calendar_series_indicator">Serientermin</string>
 
+    <!-- Timer / reminder popup -->
+    <string name="calendar_timer_button_desc">Erinnerung festlegen</string>
+    <string name="calendar_timer_title">Erinnerung (Minuten vorher)</string>
+    <string name="calendar_timer_value">%d min vorher</string>
+    <string name="calendar_timer_this_only">Nur diesen</string>
+    <string name="calendar_timer_whole_series">Ganze Serie</string>
+
+    <!-- Reminder notifications -->
+    <string name="calendar_reminder_notification_title">Terminerinnerung</string>
+    <string name="calendar_reminder_text">In %d min: %s</string>
+    <string name="calendar_reminder_channel_name">Terminerinnerungen</string>
+    <string name="calendar_reminder_channel_desc">Erinnerungen für bevorstehende Termine</string>
+    <string name="calendar_reminder_no_time">Zeitbasierte Erinnerungen sind nur für Termine mit Uhrzeit möglich.</string>
+
     <!-- Persons and groups -->
     <string name="calendar_manage_persons">Personen verwalten</string>
     <string name="calendar_persons_section">Personen:</string>

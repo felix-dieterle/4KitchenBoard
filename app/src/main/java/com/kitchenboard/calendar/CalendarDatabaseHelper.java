@@ -18,7 +18,7 @@ import java.util.Set;
 public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "calendar.db";
-    private static final int    DB_VERSION = 6;
+    private static final int    DB_VERSION = 7;
 
     static final String TABLE_APPOINTMENTS  = "appointments";
     static final String TABLE_TEMPLATES     = "standard_templates";
@@ -35,6 +35,7 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
     static final String COL_COLOR      = "color";      // hex color string for persons
     static final String COL_GROUP_ID   = "group_id";
     static final String COL_IMAGE_PATH = "image_path"; // absolute path to person photo, nullable
+    static final String COL_DURATION   = "duration";   // INTEGER, reminder minutes before appointment (0 = no reminder)
 
     /** Predefined colors cycled through when auto-assigning to new persons. */
     static final String[] PERSON_COLORS = {
@@ -60,7 +61,8 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 COL_TITLE     + " TEXT NOT NULL, " +
                 COL_SERIES_ID + " INTEGER, " +
                 COL_PERSON_ID + " INTEGER, " +
-                COL_GROUP_ID  + " INTEGER)");
+                COL_GROUP_ID  + " INTEGER, " +
+                COL_DURATION  + " INTEGER NOT NULL DEFAULT 0)");
 
         db.execSQL("CREATE TABLE " + TABLE_TEMPLATES + " (" +
                 COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -118,6 +120,10 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
         if (oldVersion < 6) {
             db.execSQL("ALTER TABLE " + TABLE_PERSONS + " ADD COLUMN " + COL_IMAGE_PATH + " TEXT");
         }
+        if (oldVersion < 7) {
+            db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN "
+                    + COL_DURATION + " INTEGER NOT NULL DEFAULT 0");
+        }
     }
 
     // ── Appointments ──────────────────────────────────────────────────────────
@@ -160,6 +166,22 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 COL_SERIES_ID + "=?", new String[]{String.valueOf(seriesId)});
     }
 
+    /** Sets the reminder (minutes before appointment) for a single appointment. */
+    public void setReminderForAppointment(long id, int minutes) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_DURATION, minutes);
+        getWritableDatabase().update(TABLE_APPOINTMENTS, cv,
+                COL_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    /** Sets the reminder (minutes before appointment) for all appointments that share the given series id. */
+    public void setReminderForSeries(long seriesId, int minutes) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_DURATION, minutes);
+        getWritableDatabase().update(TABLE_APPOINTMENTS, cv,
+                COL_SERIES_ID + "=?", new String[]{String.valueOf(seriesId)});
+    }
+
     /** Moves an appointment to a new date and updates its time. */
     public void updateAppointmentDateTime(long id, String newDate, String newTime) {
         ContentValues cv = new ContentValues();
@@ -198,14 +220,15 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
             selectionArgs = new String[]{date, String.valueOf(personId)};
         }
         Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
-                new String[]{COL_ID, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID},
+                new String[]{COL_ID, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID, COL_DURATION},
                 selection, selectionArgs,
                 null, null, ORDER_BY_TIME_THEN_TITLE);
         while (c.moveToNext()) {
             Long sid = c.isNull(3) ? null : c.getLong(3);
             Long pid = c.isNull(4) ? null : c.getLong(4);
             Long gid = c.isNull(5) ? null : c.getLong(5);
-            list.add(new Appointment(c.getLong(0), date, c.getString(1), c.getString(2), sid, pid, gid));
+            int dur  = c.getInt(6);
+            list.add(new Appointment(c.getLong(0), date, c.getString(1), c.getString(2), sid, pid, gid, dur));
         }
         c.close();
         return list;
@@ -243,13 +266,14 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
         selection.append(")");
         String[] args = argsList.toArray(new String[0]);
         Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
-                new String[]{COL_ID, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID},
+                new String[]{COL_ID, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID, COL_DURATION},
                 selection.toString(), args, null, null, ORDER_BY_TIME_THEN_TITLE);
         while (c.moveToNext()) {
             Long sid = c.isNull(3) ? null : c.getLong(3);
             Long pid = c.isNull(4) ? null : c.getLong(4);
             Long gid = c.isNull(5) ? null : c.getLong(5);
-            list.add(new Appointment(c.getLong(0), date, c.getString(1), c.getString(2), sid, pid, gid));
+            int dur  = c.getInt(6);
+            list.add(new Appointment(c.getLong(0), date, c.getString(1), c.getString(2), sid, pid, gid, dur));
         }
         c.close();
         return list;
@@ -288,15 +312,35 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
     public List<Appointment> getAllAppointments() {
         List<Appointment> list = new ArrayList<>();
         Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
-                new String[]{COL_ID, COL_DATE, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID},
+                new String[]{COL_ID, COL_DATE, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID, COL_DURATION},
                 null, null, null, null,
                 COL_DATE + " ASC, " + ORDER_BY_TIME_THEN_TITLE);
         while (c.moveToNext()) {
             Long sid = c.isNull(4) ? null : c.getLong(4);
             Long pid = c.isNull(5) ? null : c.getLong(5);
             Long gid = c.isNull(6) ? null : c.getLong(6);
+            int dur  = c.getInt(7);
             list.add(new Appointment(c.getLong(0), c.getString(1), c.getString(2),
-                    c.getString(3), sid, pid, gid));
+                    c.getString(3), sid, pid, gid, dur));
+        }
+        c.close();
+        return list;
+    }
+
+    /** Returns only appointments that have a reminder set (reminderMinutes &gt; 0). */
+    public List<Appointment> getAppointmentsWithReminder() {
+        List<Appointment> list = new ArrayList<>();
+        Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
+                new String[]{COL_ID, COL_DATE, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID, COL_DURATION},
+                COL_DURATION + ">0", null, null, null,
+                COL_DATE + " ASC, " + ORDER_BY_TIME_THEN_TITLE);
+        while (c.moveToNext()) {
+            Long sid = c.isNull(4) ? null : c.getLong(4);
+            Long pid = c.isNull(5) ? null : c.getLong(5);
+            Long gid = c.isNull(6) ? null : c.getLong(6);
+            int dur  = c.getInt(7);
+            list.add(new Appointment(c.getLong(0), c.getString(1), c.getString(2),
+                    c.getString(3), sid, pid, gid, dur));
         }
         c.close();
         return list;
@@ -306,15 +350,16 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
     public List<Appointment> getAppointmentsBySeriesId(long seriesId) {
         List<Appointment> list = new ArrayList<>();
         Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
-                new String[]{COL_ID, COL_DATE, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID},
+                new String[]{COL_ID, COL_DATE, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID, COL_DURATION},
                 COL_SERIES_ID + "=?", new String[]{String.valueOf(seriesId)},
                 null, null, ORDER_BY_TIME_THEN_TITLE);
         while (c.moveToNext()) {
             Long sid = c.isNull(4) ? null : c.getLong(4);
             Long pid = c.isNull(5) ? null : c.getLong(5);
             Long gid = c.isNull(6) ? null : c.getLong(6);
+            int dur  = c.getInt(7);
             list.add(new Appointment(c.getLong(0), c.getString(1), c.getString(2),
-                    c.getString(3), sid, pid, gid));
+                    c.getString(3), sid, pid, gid, dur));
         }
         c.close();
         return list;
