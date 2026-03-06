@@ -47,6 +47,7 @@ import com.kitchenboard.R;
 import com.kitchenboard.feedback.FeatureRequestHelper;
 
 import java.util.List;
+import java.util.Locale;
 
 public class ShoppingFragment extends Fragment {
 
@@ -164,6 +165,8 @@ public class ShoppingFragment extends Fragment {
                 featureRequestHelper.show();
             }
         });
+
+        setupRotationToggle(view, 0);
 
         adapter.setOnItemCheckedListener(new ShoppingAdapter.OnItemCheckedListener() {
             @Override
@@ -880,5 +883,30 @@ public class ShoppingFragment extends Fragment {
         intent.setType("text/plain");
         intent.putExtra(Intent.EXTRA_TEXT, sb.toString().trim());
         startActivity(Intent.createChooser(intent, getString(R.string.share_title)));
+    }
+
+    // ── Rotation-toggle helper ────────────────────────────────────────────────
+
+    private static final String PREF_PAGE_IN_ROTATION = "page_%d_in_rotation";
+
+    private void setupRotationToggle(View view, int pageIndex) {
+        ImageButton btn = view.findViewById(R.id.btn_rotation_toggle);
+        if (btn == null) return;
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        updateRotationToggleAlpha(btn, prefs.getBoolean(
+                String.format(Locale.US, PREF_PAGE_IN_ROTATION, pageIndex), true));
+        btn.setOnClickListener(v -> {
+            boolean current = prefs.getBoolean(
+                    String.format(Locale.US, PREF_PAGE_IN_ROTATION, pageIndex), true);
+            boolean newValue = !current;
+            prefs.edit()
+                    .putBoolean(String.format(Locale.US, PREF_PAGE_IN_ROTATION, pageIndex), newValue)
+                    .apply();
+            updateRotationToggleAlpha(btn, newValue);
+        });
+    }
+
+    private static void updateRotationToggleAlpha(ImageButton btn, boolean inRotation) {
+        btn.setAlpha(inRotation ? 1.0f : 0.25f);
     }
 }

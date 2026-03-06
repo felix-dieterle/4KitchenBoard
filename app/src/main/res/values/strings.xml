@@ -24,6 +24,9 @@
     <string name="update_available_message">Version %s is available. Download and install to update.</string>
     <string name="update_download">Download</string>
 
+    <!-- Auto-page-rotation toggle (per-page button) -->
+    <string name="rotation_toggle_hint">Auto-Wechsel ein/aus</string>
+
     <!-- Shopping list sync -->
     <string name="sync_configure">Configure sync</string>
     <string name="sync_url_title">Sync Server URL</string>

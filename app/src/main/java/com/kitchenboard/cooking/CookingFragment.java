@@ -44,6 +44,7 @@ import com.kitchenboard.feedback.FeatureRequestHelper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public class CookingFragment extends Fragment {
@@ -152,6 +153,8 @@ public class CookingFragment extends Fragment {
                 }
             });
         }
+
+        setupRotationToggle(view, 2);
 
         // ── Left panel: recently cooked ───────────────────────────────────────
         rvRecentlyCooked = view.findViewById(R.id.rv_recently_cooked);
@@ -680,5 +683,26 @@ public class CookingFragment extends Fragment {
         divider.setBackgroundColor(
                 ContextCompat.getColor(requireContext(), R.color.divider));
         return divider;
+    }
+
+    // ── Rotation-toggle helper ────────────────────────────────────────────────
+
+    private static final String PREF_PAGE_IN_ROTATION = "page_%d_in_rotation";
+
+    private void setupRotationToggle(View view, int pageIndex) {
+        ImageButton btn = view.findViewById(R.id.btn_rotation_toggle);
+        if (btn == null) return;
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        btn.setAlpha(prefs.getBoolean(
+                String.format(Locale.US, PREF_PAGE_IN_ROTATION, pageIndex), true) ? 1.0f : 0.25f);
+        btn.setOnClickListener(v -> {
+            boolean current = prefs.getBoolean(
+                    String.format(Locale.US, PREF_PAGE_IN_ROTATION, pageIndex), true);
+            boolean newValue = !current;
+            prefs.edit()
+                    .putBoolean(String.format(Locale.US, PREF_PAGE_IN_ROTATION, pageIndex), newValue)
+                    .apply();
+            btn.setAlpha(newValue ? 1.0f : 0.25f);
+        });
     }
 }

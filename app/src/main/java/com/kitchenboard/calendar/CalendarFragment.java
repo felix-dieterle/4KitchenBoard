@@ -29,6 +29,7 @@ import android.widget.CheckBox;
 import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
@@ -294,6 +295,9 @@ public class CalendarFragment extends Fragment {
         // ── Feature request ───────────────────────────────────────────────────
         view.findViewById(R.id.btn_feature_request).setOnClickListener(
                 v -> featureRequestHelper.show());
+
+        // ── Rotation toggle ───────────────────────────────────────────────────
+        setupRotationToggle(view, 1);
 
         // Activate default 3-day mode
         setViewMode(3);
@@ -1777,5 +1781,26 @@ public class CalendarFragment extends Fragment {
 
             container.addView(groupSection);
         }
+    }
+
+    // ── Rotation-toggle helper ────────────────────────────────────────────────
+
+    private static final String PREF_PAGE_IN_ROTATION = "page_%d_in_rotation";
+
+    private void setupRotationToggle(View view, int pageIndex) {
+        ImageButton btn = view.findViewById(R.id.btn_rotation_toggle);
+        if (btn == null) return;
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        btn.setAlpha(prefs.getBoolean(
+                String.format(Locale.US, PREF_PAGE_IN_ROTATION, pageIndex), true) ? 1.0f : 0.25f);
+        btn.setOnClickListener(v -> {
+            boolean current = prefs.getBoolean(
+                    String.format(Locale.US, PREF_PAGE_IN_ROTATION, pageIndex), true);
+            boolean newValue = !current;
+            prefs.edit()
+                    .putBoolean(String.format(Locale.US, PREF_PAGE_IN_ROTATION, pageIndex), newValue)
+                    .apply();
+            btn.setAlpha(newValue ? 1.0f : 0.25f);
+        });
     }
 }
