@@ -244,6 +244,19 @@
     <string name="account_setup_copy">Konfiguration kopieren</string>
     <string name="account_setup_copied">Konfiguration in die Zwischenablage kopiert</string>
 
+    <!-- Auto-update notifications -->
+    <string name="auto_update_channel_name">Auto-Update</string>
+    <string name="auto_update_channel_desc">Benachrichtigungen über automatische App-Updates</string>
+    <string name="auto_update_checking_title">Update-Prüfung</string>
+    <string name="auto_update_checking_text">Prüfe auf neue App-Version…</string>
+    <string name="auto_update_available_title">Update verfügbar</string>
+    <string name="auto_update_available_text">Version %s ist verfügbar – bitte manuell installieren.</string>
+    <string name="auto_update_download_title">4KitchenBoard Update</string>
+    <string name="auto_update_download_failed_text">Update-Download fehlgeschlagen – Speicher nicht verfügbar.</string>
+    <string name="auto_update_install_title">Update bereit</string>
+    <string name="auto_update_install_text">Das Update wurde heruntergeladen. Tippe hier, um es zu installieren.</string>
+    <string name="auto_update_pending_toast">Update gefunden – wird automatisch heruntergeladen…</string>
+
     <!-- Feature request -->
     <string name="feature_request_title">Feature-Wunsch: %s</string>
     <string name="feature_request_hint">Was würdest du dir für dieses Modul wünschen?</string>

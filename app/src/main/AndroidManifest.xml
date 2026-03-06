@@ -62,6 +62,15 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".update.AutoUpdateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.kitchenboard.action.AUTO_UPDATE_CHECK" />
+                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

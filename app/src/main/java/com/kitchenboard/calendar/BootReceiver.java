@@ -4,11 +4,13 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
+import com.kitchenboard.update.AutoUpdateScheduler;
+
 import java.util.List;
 
 /**
- * Reschedules appointment reminder alarms after the device has been rebooted,
- * because AlarmManager alarms do not survive a power cycle.
+ * Reschedules appointment reminder alarms and the auto-update check alarm after the device
+ * has been rebooted, because AlarmManager alarms do not survive a power cycle.
  */
 public class BootReceiver extends BroadcastReceiver {
 
@@ -21,5 +23,8 @@ public class BootReceiver extends BroadcastReceiver {
         for (Appointment apt : reminders) {
             ReminderScheduler.scheduleReminder(context, apt);
         }
+
+        // Reschedule the twice-daily auto-update check
+        AutoUpdateScheduler.schedule(context);
     }
 }

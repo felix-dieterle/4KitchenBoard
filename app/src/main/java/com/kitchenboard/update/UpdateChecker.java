@@ -14,14 +14,43 @@ import java.nio.charset.StandardCharsets;
 /**
  * Checks GitHub Releases for a newer version of the app.
  * Compares the current versionCode (= build number) against the latest release tag.
+ *
+ * <p>Auto-update releases are identified by the presence of the token {@value #AUTO_UPDATE_FLAG}
+ * anywhere in the release body. Releases without this flag are never installed automatically.
  */
 public class UpdateChecker {
 
     private static final String RELEASES_URL =
             "https://api.github.com/repos/felix-dieterle/4KitchenBoard/releases/latest";
 
+    /** Token that must appear in a release body to enable automatic installation. */
+    public static final String AUTO_UPDATE_FLAG = "[auto_update]";
+
     public interface UpdateCallback {
         void onUpdateAvailable(String tagName, String downloadUrl);
+        void onNoUpdate();
+        void onError(String message);
+    }
+
+    /**
+     * Result object returned by the background check so callers can inspect whether the release
+     * carries the auto-update flag before deciding how to proceed.
+     */
+    public static class UpdateResult {
+        public final String tagName;
+        public final String downloadUrl;
+        public final boolean isAutoUpdate;
+
+        UpdateResult(String tagName, String downloadUrl, boolean isAutoUpdate) {
+            this.tagName     = tagName;
+            this.downloadUrl = downloadUrl;
+            this.isAutoUpdate = isAutoUpdate;
+        }
+    }
+
+    public interface UpdateResultCallback {
+        /** Called when a newer release is found. {@code result.isAutoUpdate} reflects the flag. */
+        void onUpdateAvailable(UpdateResult result);
         void onNoUpdate();
         void onError(String message);
     }
@@ -33,6 +62,40 @@ public class UpdateChecker {
      * @param callback           receives the result
      */
     public static void checkForUpdate(final int currentVersionCode, final UpdateCallback callback) {
+        checkForUpdateInternal(currentVersionCode, new UpdateResultCallback() {
+            @Override
+            public void onUpdateAvailable(UpdateResult result) {
+                callback.onUpdateAvailable(result.tagName, result.downloadUrl);
+            }
+
+            @Override
+            public void onNoUpdate() {
+                callback.onNoUpdate();
+            }
+
+            @Override
+            public void onError(String message) {
+                callback.onError(message);
+            }
+        });
+    }
+
+    /**
+     * Asynchronously checks for updates and reports whether the release carries the
+     * {@value #AUTO_UPDATE_FLAG} flag. The callback is always invoked on the main thread.
+     *
+     * @param currentVersionCode the installed app's versionCode
+     * @param callback           receives a full {@link UpdateResult}
+     */
+    public static void checkForUpdateWithFlag(final int currentVersionCode,
+                                              final UpdateResultCallback callback) {
+        checkForUpdateInternal(currentVersionCode, callback);
+    }
+
+    // ── Internal implementation ───────────────────────────────────────────────
+
+    private static void checkForUpdateInternal(final int currentVersionCode,
+                                               final UpdateResultCallback callback) {
         final Handler mainHandler = new Handler(Looper.getMainLooper());
         new Thread(new Runnable() {
             @Override
@@ -62,12 +125,17 @@ public class UpdateChecker {
                         if (apkUrl == null) {
                             apkUrl = json.getString("html_url");
                         }
-                        final String tag = tagName;
-                        final String url = apkUrl;
+
+                        // Determine whether this release carries the auto-update flag
+                        String body = json.optString("body", "");
+                        boolean isAutoUpdate = body.contains(AUTO_UPDATE_FLAG);
+
+                        final UpdateResult result =
+                                new UpdateResult(tagName, apkUrl, isAutoUpdate);
                         mainHandler.post(new Runnable() {
                             @Override
                             public void run() {
-                                callback.onUpdateAvailable(tag, url);
+                                callback.onUpdateAvailable(result);
                             }
                         });
                     } else {
