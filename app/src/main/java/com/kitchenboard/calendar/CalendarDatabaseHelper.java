@@ -35,7 +35,7 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
     static final String COL_COLOR      = "color";      // hex color string for persons
     static final String COL_GROUP_ID   = "group_id";
     static final String COL_IMAGE_PATH = "image_path"; // absolute path to person photo, nullable
-    static final String COL_DURATION   = "duration";   // INTEGER, appointment duration in minutes (0 = not set)
+    static final String COL_DURATION   = "duration";   // INTEGER, reminder minutes before appointment (0 = no reminder)
 
     /** Predefined colors cycled through when auto-assigning to new persons. */
     static final String[] PERSON_COLORS = {
@@ -166,16 +166,16 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 COL_SERIES_ID + "=?", new String[]{String.valueOf(seriesId)});
     }
 
-    /** Sets the duration (in minutes) for a single appointment. */
-    public void setDurationForAppointment(long id, int minutes) {
+    /** Sets the reminder (minutes before appointment) for a single appointment. */
+    public void setReminderForAppointment(long id, int minutes) {
         ContentValues cv = new ContentValues();
         cv.put(COL_DURATION, minutes);
         getWritableDatabase().update(TABLE_APPOINTMENTS, cv,
                 COL_ID + "=?", new String[]{String.valueOf(id)});
     }
 
-    /** Sets the duration (in minutes) for all appointments that share the given series id. */
-    public void setDurationForSeries(long seriesId, int minutes) {
+    /** Sets the reminder (minutes before appointment) for all appointments that share the given series id. */
+    public void setReminderForSeries(long seriesId, int minutes) {
         ContentValues cv = new ContentValues();
         cv.put(COL_DURATION, minutes);
         getWritableDatabase().update(TABLE_APPOINTMENTS, cv,
@@ -314,6 +314,25 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
         Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
                 new String[]{COL_ID, COL_DATE, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID, COL_DURATION},
                 null, null, null, null,
+                COL_DATE + " ASC, " + ORDER_BY_TIME_THEN_TITLE);
+        while (c.moveToNext()) {
+            Long sid = c.isNull(4) ? null : c.getLong(4);
+            Long pid = c.isNull(5) ? null : c.getLong(5);
+            Long gid = c.isNull(6) ? null : c.getLong(6);
+            int dur  = c.getInt(7);
+            list.add(new Appointment(c.getLong(0), c.getString(1), c.getString(2),
+                    c.getString(3), sid, pid, gid, dur));
+        }
+        c.close();
+        return list;
+    }
+
+    /** Returns only appointments that have a reminder set (reminderMinutes &gt; 0). */
+    public List<Appointment> getAppointmentsWithReminder() {
+        List<Appointment> list = new ArrayList<>();
+        Cursor c = getReadableDatabase().query(TABLE_APPOINTMENTS,
+                new String[]{COL_ID, COL_DATE, COL_TIME, COL_TITLE, COL_SERIES_ID, COL_PERSON_ID, COL_GROUP_ID, COL_DURATION},
+                COL_DURATION + ">0", null, null, null,
                 COL_DATE + " ASC, " + ORDER_BY_TIME_THEN_TITLE);
         while (c.moveToNext()) {
             Long sid = c.isNull(4) ? null : c.getLong(4);
