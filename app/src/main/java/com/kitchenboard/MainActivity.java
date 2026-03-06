@@ -18,6 +18,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
@@ -37,6 +38,7 @@ import com.kitchenboard.update.AutoUpdateScheduler;
 import com.kitchenboard.update.UpdateChecker;
 
 import java.io.File;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -57,7 +59,17 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void run() {
             if (viewPager == null || pagerAdapter == null) return;
-            int next = (viewPager.getCurrentItem() + 1) % pagerAdapter.getItemCount();
+            int current = viewPager.getCurrentItem();
+            int count = pagerAdapter.getItemCount();
+            int next = current;
+            for (int i = 1; i <= count; i++) {
+                int candidate = (current + i) % count;
+                if (isPageInRotation(candidate)) {
+                    next = candidate;
+                    break;
+                }
+            }
+            // If no page is in rotation, next == current and the pager stays put.
             viewPager.setCurrentItem(next, true);
             autoAdvanceHandler.postDelayed(this, AUTO_ADVANCE_DELAY_MS);
         }
@@ -161,6 +173,12 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREF_SERVER_URL  = "server_url";
     private static final String PREF_BOARD_TOKEN = "board_token";
     private static final String PREF_API_TOKEN   = "api_token";
+    private static final String PREF_PAGE_IN_ROTATION = "page_%d_in_rotation";
+
+    private boolean isPageInRotation(int pageIndex) {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        return prefs.getBoolean(String.format(Locale.US, PREF_PAGE_IN_ROTATION, pageIndex), true);
+    }
 
     private void showAccountSetupDialog() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -192,6 +210,25 @@ public class MainActivity extends AppCompatActivity {
         etApiToken.setSingleLine(true);
         etApiToken.setText(prefs.getString(PREF_API_TOKEN, ""));
 
+        // Page rotation section
+        final TextView tvRotationSection = new TextView(this);
+        tvRotationSection.setText(R.string.page_rotation_section);
+        tvRotationSection.setTextSize(12f);
+        tvRotationSection.setPadding(0, padPx, 0, padPx / 4);
+
+        final int[] pageNameResIds = {
+            R.string.page_name_shopping,
+            R.string.page_name_calendar,
+            R.string.page_name_cooking,
+            R.string.page_name_tasks
+        };
+        final CheckBox[] cbPages = new CheckBox[pageNameResIds.length];
+        for (int i = 0; i < pageNameResIds.length; i++) {
+            cbPages[i] = new CheckBox(this);
+            cbPages[i].setText(pageNameResIds[i]);
+            cbPages[i].setChecked(isPageInRotation(i));
+        }
+
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(padPx, padPx, padPx, padPx);
@@ -200,6 +237,10 @@ public class MainActivity extends AppCompatActivity {
         layout.addView(etToken);
         layout.addView(tvApiTokenDesc);
         layout.addView(etApiToken);
+        layout.addView(tvRotationSection);
+        for (CheckBox cb : cbPages) {
+            layout.addView(cb);
+        }
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.account_setup_title)
@@ -209,11 +250,15 @@ public class MainActivity extends AppCompatActivity {
                     String url      = etUrl.getText().toString().trim();
                     String token    = etToken.getText().toString().trim();
                     String apiToken = etApiToken.getText().toString().trim();
-                    prefs.edit()
+                    SharedPreferences.Editor editor = prefs.edit()
                             .putString(PREF_SERVER_URL, url)
                             .putString(PREF_BOARD_TOKEN, token)
-                            .putString(PREF_API_TOKEN, apiToken)
-                            .apply();
+                            .putString(PREF_API_TOKEN, apiToken);
+                    for (int i = 0; i < cbPages.length; i++) {
+                        editor.putBoolean(String.format(Locale.US, PREF_PAGE_IN_ROTATION, i),
+                                cbPages[i].isChecked());
+                    }
+                    editor.apply();
                 })
                 .setNeutralButton(R.string.account_setup_copy, null)
                 .setNegativeButton(R.string.cancel, null)

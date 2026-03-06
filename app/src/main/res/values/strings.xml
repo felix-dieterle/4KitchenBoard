@@ -244,6 +244,13 @@
     <string name="account_setup_copy">Konfiguration kopieren</string>
     <string name="account_setup_copied">Konfiguration in die Zwischenablage kopiert</string>
 
+    <!-- Page rotation settings -->
+    <string name="page_rotation_section">Seiten im automatischen Wechsel:</string>
+    <string name="page_name_shopping">Einkaufen &amp; Wetter</string>
+    <string name="page_name_calendar">Kalender</string>
+    <string name="page_name_cooking">Gerichte</string>
+    <string name="page_name_tasks">Aufgaben</string>
+
     <!-- Auto-update notifications -->
     <string name="auto_update_channel_name">Auto-Update</string>
     <string name="auto_update_channel_desc">Benachrichtigungen über automatische App-Updates</string>
