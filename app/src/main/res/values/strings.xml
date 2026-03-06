@@ -42,6 +42,10 @@
     <string name="board_token_copy_config">Konfiguration kopieren</string>
     <string name="board_token_copied">Konfiguration in die Zwischenablage kopiert</string>
 
+    <!-- API access token (server authentication) -->
+    <string name="api_token_hint">API-Token (aus generate_token.php)</string>
+    <string name="api_token_description">API-Token sichert den Server gegen unbefugten Zugriff ab</string>
+
     <!-- Share shopping list -->
     <string name="share_list">Einkaufsliste teilen</string>
     <string name="share_title">Einkaufsliste teilen via…</string>
@@ -221,7 +225,7 @@
 
     <!-- Centralized account / family-board setup -->
     <string name="account_setup_title">Geteiltes Board einrichten</string>
-    <string name="account_setup_message">Lege denselben Server und denselben Board-Token auf allen Geräten fest – dann teilen sie automatisch eine gemeinsame Liste (Familienkonto).\n\nServer-URL: Adresse deiner api.php (leer lassen = kein Sync).\nBoard-Token: Beliebiges Kennwort – gleicher Token = gleiche Daten.</string>
+    <string name="account_setup_message">Lege denselben Server und denselben Board-Token auf allen Geräten fest – dann teilen sie automatisch eine gemeinsame Liste (Familienkonto).\n\nServer-URL: Adresse deiner api.php (leer lassen = kein Sync).\nBoard-Token: Beliebiges Kennwort – gleicher Token = gleiche Daten.\nAPI-Token: Sicherheits-Token aus generate_token.php (leer lassen, falls nicht konfiguriert).</string>
     <string name="account_setup_save">Speichern</string>
     <string name="account_setup_copy">Konfiguration kopieren</string>
     <string name="account_setup_copied">Konfiguration in die Zwischenablage kopiert</string>

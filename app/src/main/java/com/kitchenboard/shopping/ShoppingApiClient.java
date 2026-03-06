@@ -33,17 +33,28 @@ public class ShoppingApiClient {
 
     private final String baseUrl;
     private final String boardToken;
+    private final String apiToken;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
 
     /**
      * @param baseUrl    Full URL of api.php, e.g. {@code http://192.168.1.10/kitchenboard/api.php}
      * @param boardToken Shared board token that scopes all data (empty = default board)
+     * @param apiToken   Server access token sent as X-Api-Token header (empty = no auth)
      */
-    public ShoppingApiClient(String baseUrl, String boardToken) {
+    public ShoppingApiClient(String baseUrl, String boardToken, String apiToken) {
         // Normalise: strip trailing slash
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.boardToken = boardToken != null ? boardToken : "";
+        this.apiToken = apiToken != null ? apiToken : "";
+    }
+
+    /**
+     * @param baseUrl    Full URL of api.php, e.g. {@code http://192.168.1.10/kitchenboard/api.php}
+     * @param boardToken Shared board token that scopes all data (empty = default board)
+     */
+    public ShoppingApiClient(String baseUrl, String boardToken) {
+        this(baseUrl, boardToken, "");
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -169,17 +180,20 @@ public class ShoppingApiClient {
 
     // ── HTTP helpers ──────────────────────────────────────────────────────────
 
-    private static String httpGet(String urlString) throws Exception {
+    private String httpGet(String urlString) throws Exception {
         URL url = new URL(urlString);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
         conn.setConnectTimeout(8000);
         conn.setReadTimeout(8000);
         conn.setRequestProperty("Accept", "application/json");
+        if (!apiToken.isEmpty()) {
+            conn.setRequestProperty("X-Api-Token", apiToken);
+        }
         return readResponse(conn);
     }
 
-    private static String httpPost(String urlString, String body) throws Exception {
+    private String httpPost(String urlString, String body) throws Exception {
         URL url = new URL(urlString);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("POST");
@@ -188,6 +202,9 @@ public class ShoppingApiClient {
         conn.setDoOutput(true);
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
         conn.setRequestProperty("Accept", "application/json");
+        if (!apiToken.isEmpty()) {
+            conn.setRequestProperty("X-Api-Token", apiToken);
+        }
 
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         conn.setRequestProperty("Content-Length", String.valueOf(bytes.length));

@@ -10,3 +10,7 @@
 local.properties
 app/build/
 *.keystore
+
+# Backend secrets – never commit the generated token config or the SQLite database
+backend/config.php
+backend/shopping.db

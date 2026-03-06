@@ -36,6 +36,7 @@ public class TaskFragment extends Fragment {
     private static final String PREFS_NAME      = "shopping_prefs";
     private static final String PREF_SERVER_URL = "server_url";
     private static final String PREF_BOARD_TOKEN = "board_token";
+    private static final String PREF_API_TOKEN   = "api_token";
 
     /** Periodic sync interval: 5 minutes. */
     private static final long SYNC_INTERVAL_MS = 5 * 60 * 1000L;
@@ -161,9 +162,10 @@ public class TaskFragment extends Fragment {
 
     private void refreshApiClient() {
         SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, 0);
-        String url   = prefs.getString(PREF_SERVER_URL, "").trim();
-        String token = prefs.getString(PREF_BOARD_TOKEN, "").trim();
-        apiClient = url.isEmpty() ? null : new TaskApiClient(url, token);
+        String url      = prefs.getString(PREF_SERVER_URL, "").trim();
+        String token    = prefs.getString(PREF_BOARD_TOKEN, "").trim();
+        String apiToken = prefs.getString(PREF_API_TOKEN, "").trim();
+        apiClient = url.isEmpty() ? null : new TaskApiClient(url, token, apiToken);
     }
 
     private void loadTasks() {
@@ -321,12 +323,23 @@ public class TaskFragment extends Fragment {
         etToken.setSingleLine(true);
         etToken.setText(prefs.getString(PREF_BOARD_TOKEN, ""));
 
+        final TextView tvApiTokenDesc = new TextView(requireContext());
+        tvApiTokenDesc.setText(R.string.api_token_description);
+        tvApiTokenDesc.setTextSize(12f);
+
+        final EditText etApiToken = new EditText(requireContext());
+        etApiToken.setHint(getString(R.string.api_token_hint));
+        etApiToken.setSingleLine(true);
+        etApiToken.setText(prefs.getString(PREF_API_TOKEN, ""));
+
         LinearLayout layout = new LinearLayout(requireContext());
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(pad, pad, pad, pad);
         layout.addView(etUrl);
         layout.addView(tvTokenDesc);
         layout.addView(etToken);
+        layout.addView(tvApiTokenDesc);
+        layout.addView(etApiToken);
 
         AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.sync_url_title)
@@ -335,11 +348,13 @@ public class TaskFragment extends Fragment {
                 .setPositiveButton(R.string.sync_save, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
-                        String url   = etUrl.getText().toString().trim();
-                        String token = etToken.getText().toString().trim();
+                        String url      = etUrl.getText().toString().trim();
+                        String token    = etToken.getText().toString().trim();
+                        String apiToken = etApiToken.getText().toString().trim();
                         prefs.edit()
                                 .putString(PREF_SERVER_URL, url)
                                 .putString(PREF_BOARD_TOKEN, token)
+                                .putString(PREF_API_TOKEN, apiToken)
                                 .apply();
                         refreshApiClient();
                         if (apiClient != null) {
@@ -352,9 +367,12 @@ public class TaskFragment extends Fragment {
                 .create();
         dialog.show();
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
-            String url   = etUrl.getText().toString().trim();
-            String token = etToken.getText().toString().trim();
-            String config = url + (token.isEmpty() ? "" : "\nToken: " + token);
+            String url      = etUrl.getText().toString().trim();
+            String token    = etToken.getText().toString().trim();
+            String apiToken = etApiToken.getText().toString().trim();
+            String config = url
+                    + (token.isEmpty()    ? "" : "\nToken: "     + token)
+                    + (apiToken.isEmpty() ? "" : "\nAPI-Token: " + apiToken);
             ClipboardManager cm = (ClipboardManager) requireContext()
                     .getSystemService(Context.CLIPBOARD_SERVICE);
             cm.setPrimaryClip(ClipData.newPlainText("KitchenBoard Sync Config", config));
