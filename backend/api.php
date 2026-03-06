@@ -34,6 +34,9 @@
  *   POST ?action=tasks_upsert  → body: id, title, sort_order → {"success":true}
  *   POST ?action=tasks_delete  → body: id                    → {"success":true}
  *
+ * Error log endpoint:
+ *   POST ?action=log_error  → body: message, level[, timestamp] → {"success":true}
+ *
  * Update check:
  *   GET  ?action=check_update  → proxies GitHub releases; returns {tag_name, body, download_url}
  *
@@ -228,6 +231,14 @@ if (!in_array('board_id', $taskColumns)) {
     $db->exec('ALTER TABLE tasks_new RENAME TO tasks');
 }
 
+$db->exec('CREATE TABLE IF NOT EXISTS error_logs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id   TEXT    NOT NULL DEFAULT \'\',
+    level      TEXT    NOT NULL DEFAULT \'ERROR\',
+    message    TEXT    NOT NULL,
+    timestamp  TEXT    NOT NULL DEFAULT \'\'
+)');
+
 // ── Dispatch ──────────────────────────────────────────────────────────────────
 
 $action  = trim((string)($_GET['action']     ?? $_POST['action']     ?? ''));
@@ -284,6 +295,9 @@ switch ($action) {
         break;
     case 'tasks_delete':
         tasksDelete($db, $boardId);
+        break;
+    case 'log_error':
+        logErrorEntry($db, $boardId);
         break;
     case 'check_update':
         $db->close();
@@ -699,6 +713,37 @@ function tasksDelete(SQLite3 $db, string $boardId): void
     $stmt = $db->prepare('DELETE FROM tasks WHERE id = :id AND board_id = :board_id');
     $stmt->bindValue(':id',       $id,      SQLITE3_INTEGER);
     $stmt->bindValue(':board_id', $boardId, SQLITE3_TEXT);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+// ── Error log action handler ──────────────────────────────────────────────────
+
+/**
+ * Stores a single error log entry sent by the Android app.
+ * Body parameters: message (required), level (optional, default ERROR), timestamp (optional).
+ */
+function logErrorEntry(SQLite3 $db, string $boardId): void
+{
+    $message   = trim((string)($_POST['message']   ?? ''));
+    $level     = trim((string)($_POST['level']     ?? 'ERROR'));
+    $timestamp = trim((string)($_POST['timestamp'] ?? ''));
+
+    if ($message === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameter "message" is required']);
+        return;
+    }
+
+    $stmt = $db->prepare(
+        'INSERT INTO error_logs (board_id, level, message, timestamp)
+         VALUES (:board_id, :level, :message, :timestamp)'
+    );
+    $stmt->bindValue(':board_id',  $boardId,  SQLITE3_TEXT);
+    $stmt->bindValue(':level',     $level,    SQLITE3_TEXT);
+    $stmt->bindValue(':message',   $message,  SQLITE3_TEXT);
+    $stmt->bindValue(':timestamp', $timestamp, SQLITE3_TEXT);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
