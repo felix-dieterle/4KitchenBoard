@@ -1616,6 +1616,15 @@ public class CalendarFragment extends Fragment {
             });
             row.addView(btnPhoto);
 
+            // Weight chart button
+            Button btnWeight = new Button(requireContext());
+            btnWeight.setText(R.string.weight_chart_button);
+            btnWeight.setAllCaps(false);
+            btnWeight.setTextSize(16f);
+            btnWeight.setContentDescription(getString(R.string.weight_chart_button_desc));
+            btnWeight.setOnClickListener(v -> showWeightChartDialog(p));
+            row.addView(btnWeight);
+
             // Delete button
             Button btnDel = new Button(requireContext());
             btnDel.setText(R.string.delete);
@@ -1643,6 +1652,188 @@ public class CalendarFragment extends Fragment {
         }
         iv.setBackground(gd);
     }
+
+    // ── Weight chart dialog ───────────────────────────────────────────────────
+
+    /**
+     * Shows the weight-progress diagram for the given person.
+     * Includes: BMI reference lines, healthy range band, actual data, trend line,
+     * height input, and weight entry management.
+     */
+    private void showWeightChartDialog(final Person person) {
+        if (!isAdded() || getContext() == null) return;
+
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_weight_chart, null);
+
+        TextView tvTitle = dialogView.findViewById(R.id.tv_weight_chart_person);
+        tvTitle.setText(getString(R.string.weight_chart_title, person.getName()));
+
+        // Height input
+        final EditText etHeight = dialogView.findViewById(R.id.et_height_cm);
+        if (person.getHeightCm() > 0) etHeight.setText(String.valueOf(person.getHeightCm()));
+
+        // Chart view
+        final WeightChartView chartView = dialogView.findViewById(R.id.weight_chart_view);
+        final int personColor;
+        try {
+            personColor = Color.parseColor(person.getColor());
+        } catch (IllegalArgumentException e) {
+            // fallback handled below; use default blue
+            showWeightChartDialogWithColor(dialogView, person, Color.parseColor("#1E88E5"), etHeight, chartView);
+            return;
+        }
+        showWeightChartDialogWithColor(dialogView, person, personColor, etHeight, chartView);
+    }
+
+    private void showWeightChartDialogWithColor(final View dialogView, final Person person,
+                                                final int personColor,
+                                                final EditText etHeight,
+                                                final WeightChartView chartView) {
+        // Populate chart
+        final int[] currentHeightCm = {person.getHeightCm()};
+        final List<WeightEntry> entries = db.getWeightEntries(person.getId());
+        chartView.setData(entries, currentHeightCm[0], personColor);
+
+        // Save height button
+        dialogView.findViewById(R.id.btn_save_height).setOnClickListener(v -> {
+            String raw = etHeight.getText().toString().trim();
+            if (raw.isEmpty()) {
+                Toast.makeText(requireContext(), R.string.weight_invalid_height,
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            int h;
+            try {
+                h = Integer.parseInt(raw);
+                if (h < 50 || h > 250) throw new NumberFormatException();
+            } catch (NumberFormatException ex) {
+                Toast.makeText(requireContext(), R.string.weight_invalid_height,
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            db.updatePersonHeight(person.getId(), h);
+            currentHeightCm[0] = h;
+            chartView.setData(db.getWeightEntries(person.getId()), h, personColor);
+            Toast.makeText(requireContext(), R.string.weight_height_saved,
+                    Toast.LENGTH_SHORT).show();
+        });
+
+        // Date picker for new entry
+        final EditText etDate = dialogView.findViewById(R.id.et_weight_date);
+        // Pre-fill with today's date
+        Calendar cal = Calendar.getInstance();
+        SimpleDateFormat uiFmt = new SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY);
+        etDate.setText(uiFmt.format(cal.getTime()));
+        etDate.setOnClickListener(v -> {
+            int year  = cal.get(Calendar.YEAR);
+            int month = cal.get(Calendar.MONTH);
+            int day   = cal.get(Calendar.DAY_OF_MONTH);
+            new android.app.DatePickerDialog(requireContext(), (picker, y, m, d) -> {
+                cal.set(y, m, d);
+                etDate.setText(uiFmt.format(cal.getTime()));
+            }, year, month, day).show();
+        });
+
+        // Add weight entry button
+        final EditText etKg = dialogView.findViewById(R.id.et_weight_kg);
+        final LinearLayout llEntries = dialogView.findViewById(R.id.ll_weight_entries);
+
+        Runnable rebuildEntries = () -> rebuildWeightEntryList(
+                llEntries, person, personColor, currentHeightCm, chartView);
+        rebuildEntries.run();
+
+        dialogView.findViewById(R.id.btn_add_weight).setOnClickListener(v -> {
+            String dateStr = etDate.getText().toString().trim();
+            String kgStr   = etKg.getText().toString().trim().replace(',', '.');
+            if (dateStr.isEmpty() || kgStr.isEmpty()) {
+                Toast.makeText(requireContext(), R.string.weight_invalid_input,
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            float kg;
+            try {
+                kg = Float.parseFloat(kgStr);
+                if (kg <= 0 || kg > 500) throw new NumberFormatException();
+            } catch (NumberFormatException ex) {
+                Toast.makeText(requireContext(), R.string.weight_invalid_kg,
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            // Convert display date to storage format
+            String storageDate;
+            try {
+                SimpleDateFormat storageFmt = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+                storageDate = storageFmt.format(uiFmt.parse(dateStr));
+            } catch (Exception ex) {
+                Toast.makeText(requireContext(), R.string.weight_invalid_date,
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            db.addWeightEntry(person.getId(), storageDate, kg);
+            etKg.setText("");
+            chartView.setData(db.getWeightEntries(person.getId()), currentHeightCm[0], personColor);
+            rebuildWeightEntryList(llEntries, person, personColor, currentHeightCm, chartView);
+        });
+
+        new AlertDialog.Builder(requireContext())
+                .setView(dialogView)
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    /** Rebuilds the list of weight entries inside the weight-chart dialog. */
+    private void rebuildWeightEntryList(LinearLayout container, Person person,
+                                        int personColor, int[] currentHeightCm,
+                                        WeightChartView chartView) {
+        container.removeAllViews();
+        List<WeightEntry> list = db.getWeightEntries(person.getId());
+        SimpleDateFormat storageFmt = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+        SimpleDateFormat uiFmt = new SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY);
+
+        for (final WeightEntry entry : list) {
+            LinearLayout row = new LinearLayout(requireContext());
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            rowLp.setMargins(0, dpToPx(2), 0, dpToPx(2));
+            row.setLayoutParams(rowLp);
+
+            // Display date + weight
+            String displayDate = entry.getDate();
+            try {
+                displayDate = uiFmt.format(storageFmt.parse(entry.getDate()));
+            } catch (Exception ignored) { /* keep raw date */ }
+
+            TextView tv = new TextView(requireContext());
+            tv.setText(getString(R.string.weight_entry_format, displayDate, entry.getWeightKg()));
+            tv.setTextSize(15f);
+            tv.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_primary));
+            LinearLayout.LayoutParams tvLp = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            tv.setLayoutParams(tvLp);
+            row.addView(tv);
+
+            // Delete button
+            Button btnDel = new Button(requireContext());
+            btnDel.setText(R.string.delete);
+            btnDel.setAllCaps(false);
+            btnDel.setTextSize(12f);
+            btnDel.setOnClickListener(v -> {
+                db.deleteWeightEntry(entry.getId());
+                chartView.setData(db.getWeightEntries(person.getId()),
+                        currentHeightCm[0], personColor);
+                rebuildWeightEntryList(container, person, personColor,
+                        currentHeightCm, chartView);
+            });
+            row.addView(btnDel);
+
+            container.addView(row);
+        }
+    }
+
 
     /**
      * Copies the image at the given URI into internal storage and saves the path for the person.

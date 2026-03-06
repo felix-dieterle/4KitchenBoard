@@ -265,4 +265,27 @@
     <string name="feature_request_submitted">Danke! Dein Feature-Wunsch wurde eingereicht.</string>
     <string name="feature_request_error">Fehler beim Einreichen. Bitte Internetverbindung prüfen.</string>
     <string name="feature_request_no_token">Feature-Wunsch-Funktion ist nicht konfiguriert.</string>
+
+    <!-- Weight chart / Gewichtsdiagramm -->
+    <string name="weight_chart_title">⚖️ Gewicht: %s</string>
+    <string name="weight_chart_button">⚖️</string>
+    <string name="weight_chart_button_desc">Gewichtsdiagramm</string>
+    <string name="weight_height_label">Körpergröße:</string>
+    <string name="weight_height_hint">z. B. 175</string>
+    <string name="weight_unit_cm">cm</string>
+    <string name="weight_unit_kg">kg</string>
+    <string name="weight_save_height">Speichern</string>
+    <string name="weight_add_entry_title">Eintrag hinzufügen</string>
+    <string name="weight_date_hint">Datum (TT.MM.JJJJ)</string>
+    <string name="weight_kg_hint">z. B. 72,5</string>
+    <string name="weight_add_button">+</string>
+    <string name="weight_legend_actual">Gemessen</string>
+    <string name="weight_legend_trend">Trend</string>
+    <string name="weight_legend_healthy">Gesunder BMI-Bereich</string>
+    <string name="weight_entry_format">%s – %.1f kg</string>
+    <string name="weight_invalid_input">Bitte Datum und Gewicht eingeben.</string>
+    <string name="weight_invalid_kg">Ungültiges Gewicht.</string>
+    <string name="weight_invalid_date">Ungültiges Datum (TT.MM.JJJJ).</string>
+    <string name="weight_invalid_height">Ungültige Körpergröße.</string>
+    <string name="weight_height_saved">Körpergröße gespeichert.</string>
 </resources>

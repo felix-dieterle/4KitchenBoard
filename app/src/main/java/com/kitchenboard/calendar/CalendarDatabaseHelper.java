@@ -18,13 +18,14 @@ import java.util.Set;
 public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "calendar.db";
-    private static final int    DB_VERSION = 7;
+    private static final int    DB_VERSION = 8;
 
     static final String TABLE_APPOINTMENTS  = "appointments";
     static final String TABLE_TEMPLATES     = "standard_templates";
     static final String TABLE_PERSONS       = "persons";
     static final String TABLE_PERSON_GROUPS = "person_groups";
     static final String TABLE_GROUP_MEMBERS = "group_members";
+    static final String TABLE_WEIGHT_ENTRIES = "weight_entries";
 
     static final String COL_ID         = "_id";
     static final String COL_DATE       = "date";       // YYYY-MM-DD
@@ -36,6 +37,8 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
     static final String COL_GROUP_ID   = "group_id";
     static final String COL_IMAGE_PATH = "image_path"; // absolute path to person photo, nullable
     static final String COL_DURATION   = "duration";   // INTEGER, reminder minutes before appointment (0 = no reminder)
+    static final String COL_HEIGHT     = "height";     // INTEGER, body height in cm (0 = not set)
+    static final String COL_WEIGHT     = "weight";     // REAL, body weight in kg
 
     /** Predefined colors cycled through when auto-assigning to new persons. */
     static final String[] PERSON_COLORS = {
@@ -72,7 +75,8 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 COL_ID         + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COL_TITLE      + " TEXT NOT NULL UNIQUE, " +
                 COL_COLOR      + " TEXT NOT NULL, " +
-                COL_IMAGE_PATH + " TEXT)");
+                COL_IMAGE_PATH + " TEXT, " +
+                COL_HEIGHT     + " INTEGER NOT NULL DEFAULT 0)");
 
         db.execSQL("CREATE TABLE " + TABLE_PERSON_GROUPS + " (" +
                 COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -82,6 +86,12 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 COL_GROUP_ID  + " INTEGER NOT NULL, " +
                 COL_PERSON_ID + " INTEGER NOT NULL, " +
                 "PRIMARY KEY(" + COL_GROUP_ID + ", " + COL_PERSON_ID + "))");
+
+        db.execSQL("CREATE TABLE " + TABLE_WEIGHT_ENTRIES + " (" +
+                COL_ID        + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COL_PERSON_ID + " INTEGER NOT NULL, " +
+                COL_DATE      + " TEXT NOT NULL, " +
+                COL_WEIGHT    + " REAL NOT NULL)");
 
         // Pre-populate with example standard templates
         ContentValues cv = new ContentValues();
@@ -123,6 +133,15 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
         if (oldVersion < 7) {
             db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN "
                     + COL_DURATION + " INTEGER NOT NULL DEFAULT 0");
+        }
+        if (oldVersion < 8) {
+            db.execSQL("ALTER TABLE " + TABLE_PERSONS + " ADD COLUMN "
+                    + COL_HEIGHT + " INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_WEIGHT_ENTRIES + " (" +
+                    COL_ID        + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    COL_PERSON_ID + " INTEGER NOT NULL, " +
+                    COL_DATE      + " TEXT NOT NULL, " +
+                    COL_WEIGHT    + " REAL NOT NULL)");
         }
     }
 
@@ -488,11 +507,12 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
     public List<Person> getPersons() {
         List<Person> list = new ArrayList<>();
         Cursor c = getReadableDatabase().query(TABLE_PERSONS,
-                new String[]{COL_ID, COL_TITLE, COL_COLOR, COL_IMAGE_PATH},
+                new String[]{COL_ID, COL_TITLE, COL_COLOR, COL_IMAGE_PATH, COL_HEIGHT},
                 null, null, null, null, COL_TITLE + " ASC");
         while (c.moveToNext()) {
             String imagePath = c.isNull(3) ? null : c.getString(3);
-            list.add(new Person(c.getLong(0), c.getString(1), c.getString(2), imagePath));
+            int heightCm = c.isNull(4) ? 0 : c.getInt(4);
+            list.add(new Person(c.getLong(0), c.getString(1), c.getString(2), imagePath, heightCm));
         }
         c.close();
         return list;
@@ -507,10 +527,11 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 TABLE_PERSONS, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
     }
 
-    /** Permanently deletes a person and removes them from all groups. */
+    /** Permanently deletes a person, removes them from all groups, and deletes their weight data. */
     public void deletePerson(long id) {
         SQLiteDatabase db = getWritableDatabase();
         db.delete(TABLE_GROUP_MEMBERS, COL_PERSON_ID + "=?", new String[]{String.valueOf(id)});
+        db.delete(TABLE_WEIGHT_ENTRIES, COL_PERSON_ID + "=?", new String[]{String.valueOf(id)});
         db.delete(TABLE_PERSONS, COL_ID + "=?", new String[]{String.valueOf(id)});
     }
 
@@ -524,6 +545,60 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
         }
         getWritableDatabase().update(TABLE_PERSONS, cv,
                 COL_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    /** Stores the body height (in cm) for a person. Pass 0 to clear. */
+    public void updatePersonHeight(long id, int heightCm) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_HEIGHT, heightCm);
+        getWritableDatabase().update(TABLE_PERSONS, cv,
+                COL_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    // ── Weight entries ────────────────────────────────────────────────────────
+
+    /** Adds a weight entry for a person on a given date. Returns the new row id. */
+    public long addWeightEntry(long personId, String date, float weightKg) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_PERSON_ID, personId);
+        cv.put(COL_DATE, date);
+        cv.put(COL_WEIGHT, weightKg);
+        return getWritableDatabase().insert(TABLE_WEIGHT_ENTRIES, null, cv);
+    }
+
+    /** Updates the weight and/or date of an existing weight entry. */
+    public void updateWeightEntry(long id, String date, float weightKg) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_DATE, date);
+        cv.put(COL_WEIGHT, weightKg);
+        getWritableDatabase().update(TABLE_WEIGHT_ENTRIES, cv,
+                COL_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    /** Deletes a weight entry by its id. */
+    public void deleteWeightEntry(long id) {
+        getWritableDatabase().delete(TABLE_WEIGHT_ENTRIES,
+                COL_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    /** Deletes all weight entries for a person. */
+    public void deleteWeightEntriesForPerson(long personId) {
+        getWritableDatabase().delete(TABLE_WEIGHT_ENTRIES,
+                COL_PERSON_ID + "=?", new String[]{String.valueOf(personId)});
+    }
+
+    /** Returns all weight entries for a person, ordered by date ascending. */
+    public List<WeightEntry> getWeightEntries(long personId) {
+        List<WeightEntry> list = new ArrayList<>();
+        Cursor c = getReadableDatabase().query(TABLE_WEIGHT_ENTRIES,
+                new String[]{COL_ID, COL_PERSON_ID, COL_DATE, COL_WEIGHT},
+                COL_PERSON_ID + "=?", new String[]{String.valueOf(personId)},
+                null, null, COL_DATE + " ASC");
+        while (c.moveToNext()) {
+            list.add(new WeightEntry(c.getLong(0), c.getLong(1), c.getString(2), c.getFloat(3)));
+        }
+        c.close();
+        return list;
     }
 
     // ── Person groups ─────────────────────────────────────────────────────────
