@@ -2,6 +2,10 @@
 /**
  * 4KitchenBoard – Shopping List Sync API
  *
+ * Authentication: when config.php defines a non-empty API_TOKEN constant every
+ * request must include an X-Api-Token HTTP header whose value matches that token.
+ * Run generate_token.php once to create config.php with a secure random token.
+ *
  * All endpoints accept an optional `board_token` parameter (GET or POST).
  * Passing the same token on multiple devices lets them share a board.
  * Existing installations without a token continue to work unchanged.
@@ -37,12 +41,47 @@
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, X-Api-Token');
 
 // Handle pre-flight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
     exit;
+}
+
+// ── Token authentication ───────────────────────────────────────────────────────
+
+// Load the optional token configuration (defines API_TOKEN constant).
+// If the file is absent the constant defaults to '' (no auth required).
+$configFile = __DIR__ . '/config.php';
+if (file_exists($configFile)) {
+    require_once $configFile;
+}
+if (!defined('API_TOKEN')) {
+    define('API_TOKEN', '');
+}
+
+// When a token is configured, every request must supply it in the
+// X-Api-Token header.  An empty token means the server is open (e.g. a
+// trusted local network that does not need extra protection).
+if (API_TOKEN !== '') {
+    // $_SERVER['HTTP_X_API_TOKEN'] is set by Apache/mod_php and most PHP-FPM
+    // setups.  As a fallback, try getallheaders() which works on all SAPI
+    // environments and preserves the original header name capitalisation.
+    $requestToken = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if ($requestToken === '' && function_exists('getallheaders')) {
+        foreach (getallheaders() as $headerName => $headerValue) {
+            if (strtolower($headerName) === 'x-api-token') {
+                $requestToken = $headerValue;
+                break;
+            }
+        }
+    }
+    if (!hash_equals(API_TOKEN, $requestToken)) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized: invalid or missing API token']);
+        exit;
+    }
 }
 
 // ── Database setup ────────────────────────────────────────────────────────────

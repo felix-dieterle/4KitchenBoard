@@ -27,24 +27,53 @@ A minimal PHP/SQLite3 REST API that lets multiple 4KitchenBoard devices share an
    </Directory>
    ```
 
-4. **Point the app** to the API by opening the shopping list in 4KitchenBoard, long-pressing the sync button (⟳ in the title bar) and entering the full URL, e.g.:
+4. **Generate an API token** (recommended) so that only your devices can use the API:
+   ```bash
+   php /var/www/html/kitchenboard/generate_token.php
    ```
-   http://192.168.1.100/kitchenboard/api.php
-   ```
+   The script creates `config.php` with a 64-character random hex token and prints it to the console.  Copy the token into the app's sync settings on every device (see step 5).
+
+5. **Point the app** to the API by opening the shopping list in 4KitchenBoard, long-pressing the sync button (⟳ in the title bar) and entering:
+   * **Server URL** – e.g. `http://192.168.1.100/kitchenboard/api.php`
+   * **API Token** – the token printed by `generate_token.php` (leave empty if you skipped step 4)
+
    Use the LAN IP address so all devices on the same network can reach it.
 
 ## Nginx
 
 If you use Nginx instead of Apache, add this `location` block (the `.htaccess` is ignored by Nginx):
 ```nginx
+location ~* \.(db|php)$ {
+    # Allow api.php only
+    location = /kitchenboard/api.php {
+        fastcgi_pass ...;
+    }
+    deny all;
+}
+```
+
+Or more precisely, block the sensitive files explicitly:
+```nginx
+location ~* ^/kitchenboard/(config|generate_token)\.php$ {
+    deny all;
+}
 location ~* \.db$ {
     deny all;
 }
 ```
 
+## Token management
+
+| Scenario | Action |
+|---|---|
+| First-time setup | Run `php generate_token.php`, copy token into every device |
+| Add a new device | Open sync settings on the new device and enter the same token |
+| Revoke all access | Run `php generate_token.php` again and update every device |
+| Disable auth | Edit `config.php` and set `API_TOKEN` to `''` |
+
 ## API Reference
 
-All responses are JSON.
+All responses are JSON.  When a token is configured every request must include the `X-Api-Token` HTTP header with the correct value; otherwise the server returns `401 Unauthorized`.
 
 ### `GET ?action=list`
 Returns all unchecked items sorted by category, then name.
@@ -81,7 +110,8 @@ Body parameters: `id`
 
 ## Security Notes
 
-* The `.htaccess` file prevents the `shopping.db` SQLite file from being downloaded via HTTP.
+* The `.htaccess` file prevents `shopping.db`, `config.php` and `generate_token.php` from being downloaded via HTTP.
 * All SQL queries use prepared statements to prevent injection.
+* The `X-Api-Token` header is compared with `hash_equals()` to prevent timing attacks.
 * CORS is set to `*` by default; tighten it for production by replacing the wildcard with your device's IP/hostname.
-* There is no authentication. The API is designed for a **trusted local network** only.  Do **not** expose it to the public internet.
+* Even with a token, **do not expose this API to the public internet** – it is designed for a trusted local network.

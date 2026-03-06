@@ -151,9 +151,10 @@ public class MainActivity extends AppCompatActivity {
 
     // ── Centralized account / family-board setup ──────────────────────────────
 
-    private static final String PREFS_NAME      = "shopping_prefs";
+    private static final String PREFS_NAME       = "shopping_prefs";
     private static final String PREF_SERVER_URL  = "server_url";
     private static final String PREF_BOARD_TOKEN = "board_token";
+    private static final String PREF_API_TOKEN   = "api_token";
 
     private void showAccountSetupDialog() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -175,23 +176,37 @@ public class MainActivity extends AppCompatActivity {
         etToken.setSingleLine(true);
         etToken.setText(prefs.getString(PREF_BOARD_TOKEN, ""));
 
+        final TextView tvApiTokenDesc = new TextView(this);
+        tvApiTokenDesc.setText(R.string.api_token_description);
+        tvApiTokenDesc.setTextSize(12f);
+        tvApiTokenDesc.setPadding(0, padPx / 2, 0, 0);
+
+        final EditText etApiToken = new EditText(this);
+        etApiToken.setHint(R.string.api_token_hint);
+        etApiToken.setSingleLine(true);
+        etApiToken.setText(prefs.getString(PREF_API_TOKEN, ""));
+
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(padPx, padPx, padPx, padPx);
         layout.addView(etUrl);
         layout.addView(tvTokenDesc);
         layout.addView(etToken);
+        layout.addView(tvApiTokenDesc);
+        layout.addView(etApiToken);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.account_setup_title)
                 .setMessage(R.string.account_setup_message)
                 .setView(layout)
                 .setPositiveButton(R.string.account_setup_save, (d, which) -> {
-                    String url   = etUrl.getText().toString().trim();
-                    String token = etToken.getText().toString().trim();
+                    String url      = etUrl.getText().toString().trim();
+                    String token    = etToken.getText().toString().trim();
+                    String apiToken = etApiToken.getText().toString().trim();
                     prefs.edit()
                             .putString(PREF_SERVER_URL, url)
                             .putString(PREF_BOARD_TOKEN, token)
+                            .putString(PREF_API_TOKEN, apiToken)
                             .apply();
                 })
                 .setNeutralButton(R.string.account_setup_copy, null)
@@ -199,9 +214,12 @@ public class MainActivity extends AppCompatActivity {
                 .create();
         dialog.show();
         dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> {
-            String url   = etUrl.getText().toString().trim();
-            String token = etToken.getText().toString().trim();
-            String config = url + (token.isEmpty() ? "" : "\nToken: " + token);
+            String url      = etUrl.getText().toString().trim();
+            String token    = etToken.getText().toString().trim();
+            String apiToken = etApiToken.getText().toString().trim();
+            String config = url
+                    + (token.isEmpty()    ? "" : "\nToken: "     + token)
+                    + (apiToken.isEmpty() ? "" : "\nAPI-Token: " + apiToken);
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             if (cm != null) {
                 cm.setPrimaryClip(ClipData.newPlainText("KitchenBoard Config", config));
