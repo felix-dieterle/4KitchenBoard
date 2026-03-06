@@ -381,14 +381,15 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onUpdateAvailable(final UpdateChecker.UpdateResult result) {
                 if (isFinishing()) return;
-                // For auto-update releases the background scheduler handles the download.
-                // Only show the interactive prompt for releases that are NOT flagged.
                 if (result.isAutoUpdate) {
-                    // Background scheduler will handle the download automatically.
-                    // Show a brief hint so the user knows an update was detected.
-                    Toast.makeText(MainActivity.this,
-                            R.string.auto_update_pending_toast,
-                            Toast.LENGTH_SHORT).show();
+                    // Trigger the download immediately instead of waiting for the background
+                    // scheduler, so updates are applied as soon as the app is opened.
+                    if (result.downloadUrl != null && result.downloadUrl.endsWith(".apk")) {
+                        downloadAndInstallApk(result.downloadUrl, result.tagName);
+                    } else if (result.downloadUrl != null && !result.downloadUrl.isEmpty()) {
+                        startActivity(new Intent(Intent.ACTION_VIEW,
+                                Uri.parse(result.downloadUrl)));
+                    }
                     return;
                 }
                 new AlertDialog.Builder(MainActivity.this)
