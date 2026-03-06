@@ -266,6 +266,7 @@
     <string name="auto_update_install_title">Update bereit</string>
     <string name="auto_update_install_text">Das Update wurde heruntergeladen. Tippe hier, um es zu installieren.</string>
     <string name="auto_update_pending_toast">Update gefunden – wird automatisch heruntergeladen…</string>
+    <string name="update_up_to_date">App ist aktuell – kein Update verfügbar.</string>
 
     <!-- Feature request -->
     <string name="feature_request_title">Feature-Wunsch: %s</string>
