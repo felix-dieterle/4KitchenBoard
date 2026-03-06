@@ -79,6 +79,7 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
         final PendingResult pendingResult = goAsync();
 
         UpdateChecker.checkForUpdateWithFlag(
+                context,
                 com.kitchenboard.BuildConfig.VERSION_CODE,
                 new UpdateChecker.UpdateResultCallback() {
                     @Override

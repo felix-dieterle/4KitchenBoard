@@ -319,7 +319,7 @@ public class MainActivity extends AppCompatActivity {
     // ── Update checker ────────────────────────────────────────────────────────
 
     private void checkForUpdates() {
-        UpdateChecker.checkForUpdateWithFlag(BuildConfig.VERSION_CODE,
+        UpdateChecker.checkForUpdateWithFlag(this, BuildConfig.VERSION_CODE,
                 new UpdateChecker.UpdateResultCallback() {
             @Override
             public void onUpdateAvailable(final UpdateChecker.UpdateResult result) {
