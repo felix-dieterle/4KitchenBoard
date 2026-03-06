@@ -22,6 +22,7 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -242,10 +243,13 @@ public class MainActivity extends AppCompatActivity {
             layout.addView(cb);
         }
 
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(layout);
+
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.account_setup_title)
                 .setMessage(R.string.account_setup_message)
-                .setView(layout)
+                .setView(scrollView)
                 .setPositiveButton(R.string.account_setup_save, (d, which) -> {
                     String url      = etUrl.getText().toString().trim();
                     String token    = etToken.getText().toString().trim();
