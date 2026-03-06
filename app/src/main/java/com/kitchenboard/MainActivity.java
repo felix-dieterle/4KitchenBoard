@@ -408,7 +408,10 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onNoUpdate() {
-                // nothing to do
+                if (isFinishing() || isDestroyed()) return;
+                Toast.makeText(MainActivity.this,
+                        R.string.update_up_to_date,
+                        Toast.LENGTH_SHORT).show();
             }
 
             @Override
