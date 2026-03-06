@@ -272,6 +272,15 @@
     <string name="update_up_to_date">App ist aktuell – kein Update verfügbar.</string>
     <string name="update_check_error">Update-Prüfung fehlgeschlagen – bitte Internetverbindung prüfen.</string>
 
+    <!-- Update log view (settings dialog) -->
+    <string name="update_logs_section">Update-Protokoll:</string>
+    <string name="update_logs_view_button">Protokoll anzeigen</string>
+    <string name="update_logs_title">Update-Protokoll</string>
+    <string name="update_logs_empty">Keine Protokolleinträge vorhanden.</string>
+    <string name="update_logs_share">Protokoll teilen</string>
+    <string name="update_logs_clear">Protokoll löschen</string>
+    <string name="update_logs_cleared">Protokoll gelöscht.</string>
+
     <!-- Feature request -->
     <string name="feature_request_title">Feature-Wunsch: %s</string>
     <string name="feature_request_hint">Was würdest du dir für dieses Modul wünschen?</string>
