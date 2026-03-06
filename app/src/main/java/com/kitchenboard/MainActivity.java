@@ -1,6 +1,5 @@
 package com.kitchenboard;
 
-import android.animation.ObjectAnimator;
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
@@ -16,6 +15,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.CheckBox;
@@ -43,6 +43,7 @@ import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final String TAG = "MainActivity";
     private static final int AUTO_ADVANCE_DELAY_MS = 20_000;
 
     private long downloadId = -1;
@@ -150,22 +151,28 @@ public class MainActivity extends AppCompatActivity {
     private Runnable versionOverlayRunnable;
 
     private void showVersionOverlay() {
-        TextView overlay = findViewById(R.id.version_overlay);
-        if (overlay == null) return;
-        overlay.setText(getString(R.string.version_display,
-                BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
-        versionOverlayRunnable = () -> {
-            ObjectAnimator fade = ObjectAnimator.ofFloat(overlay, "alpha", 1f, 0f);
-            fade.setDuration(VERSION_OVERLAY_FADE_MS);
-            fade.addListener(new android.animation.AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(android.animation.Animator animation) {
+        try {
+            TextView overlay = findViewById(R.id.version_overlay);
+            if (overlay == null) return;
+            overlay.setText(getString(R.string.version_display,
+                    BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
+            versionOverlayRunnable = () -> {
+                if (overlay.isAttachedToWindow()) {
+                    overlay.animate()
+                            .alpha(0f)
+                            .setDuration(VERSION_OVERLAY_FADE_MS)
+                            .withEndAction(() -> overlay.setVisibility(View.GONE))
+                            .start();
+                } else {
                     overlay.setVisibility(View.GONE);
                 }
-            });
-            fade.start();
-        };
-        versionOverlayHandler.postDelayed(versionOverlayRunnable, VERSION_OVERLAY_DISPLAY_MS);
+            };
+            versionOverlayHandler.postDelayed(versionOverlayRunnable, VERSION_OVERLAY_DISPLAY_MS);
+        } catch (Exception e) {
+            // Version overlay is non-critical; log and swallow any unexpected exception
+            // so it cannot prevent the app from starting.
+            Log.w(TAG, "Failed to show version overlay", e);
+        }
     }
 
     // ── Centralized account / family-board setup ──────────────────────────────
