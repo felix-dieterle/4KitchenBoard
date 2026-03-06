@@ -1679,8 +1679,8 @@ public class CalendarFragment extends Fragment {
         try {
             personColor = Color.parseColor(person.getColor());
         } catch (IllegalArgumentException e) {
-            // fallback handled below; use default blue
-            showWeightChartDialogWithColor(dialogView, person, Color.parseColor("#1E88E5"), etHeight, chartView);
+            // fallback: use the view's own default color
+            showWeightChartDialogWithColor(dialogView, person, WeightChartView.DEFAULT_DATA_COLOR, etHeight, chartView);
             return;
         }
         showWeightChartDialogWithColor(dialogView, person, personColor, etHeight, chartView);
@@ -1739,9 +1739,7 @@ public class CalendarFragment extends Fragment {
         final EditText etKg = dialogView.findViewById(R.id.et_weight_kg);
         final LinearLayout llEntries = dialogView.findViewById(R.id.ll_weight_entries);
 
-        Runnable rebuildEntries = () -> rebuildWeightEntryList(
-                llEntries, person, personColor, currentHeightCm, chartView);
-        rebuildEntries.run();
+        rebuildWeightEntryList(llEntries, person, personColor, currentHeightCm, chartView);
 
         dialogView.findViewById(R.id.btn_add_weight).setOnClickListener(v -> {
             String dateStr = etDate.getText().toString().trim();

@@ -34,6 +34,9 @@ public class WeightChartView extends View {
     private static final float BMI_NORMAL_UPPER   = 25.0f;
     private static final float BMI_OVERWEIGHT     = 30.0f;
 
+    /** Default data color used when no person color is supplied. */
+    static final int DEFAULT_DATA_COLOR = Color.parseColor("#1E88E5");
+
     private float marginLeft;
     private float marginRight;
     private float marginTop;
@@ -54,7 +57,7 @@ public class WeightChartView extends View {
     /** Height in cm – 0 means BMI lines are not drawn. */
     private int heightCm = 0;
     /** Color used for the actual-weight line/dots (taken from the person's color). */
-    private int dataColor = Color.parseColor("#1E88E5");
+    private int dataColor = DEFAULT_DATA_COLOR;
 
     private static final SimpleDateFormat DATE_FMT =
             new SimpleDateFormat("yyyy-MM-dd", Locale.US);
