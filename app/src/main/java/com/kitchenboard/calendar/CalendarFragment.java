@@ -237,6 +237,13 @@ public class CalendarFragment extends Fragment {
             }
         });
 
+        adapter.setOnTimerListener(new AppointmentAdapter.OnTimerListener() {
+            @Override
+            public void onTimer(Appointment appointment) {
+                showTimerDialog(appointment);
+            }
+        });
+
         // ── Full-month CalendarView (month mode only) ─────────────────────────
         calendarView.setOnDateChangeListener(new CalendarView.OnDateChangeListener() {
             @Override
@@ -1124,6 +1131,62 @@ public class CalendarFragment extends Fragment {
                 }
                 refreshAppointments();
                 refreshDayStrip();
+            });
+        }
+
+        AlertDialog dialog = builder.create();
+        dialog.setOnDismissListener(d -> resumeAutoAdvance());
+        dialog.show();
+    }
+
+    // ── Timer / duration dialog ───────────────────────────────────────────────
+
+    private void showTimerDialog(final Appointment appointment) {
+        if (!isAdded() || getContext() == null) return;
+        pauseAutoAdvance();
+
+        // Default to existing duration, or 30 if not yet set
+        final int[] currentMinutes = {appointment.getDuration() > 0 ? appointment.getDuration() : 30};
+        final int step = 15;
+        final int minMinutes = 15;
+
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_timer, null);
+        final TextView tvValue  = dialogView.findViewById(R.id.tv_timer_value);
+        final Button btnMinus = dialogView.findViewById(R.id.btn_timer_minus);
+        final Button btnPlus  = dialogView.findViewById(R.id.btn_timer_plus);
+
+        tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+
+        btnMinus.setOnClickListener(v -> {
+            if (currentMinutes[0] - step >= minMinutes) {
+                currentMinutes[0] -= step;
+                tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+            }
+        });
+        btnPlus.setOnClickListener(v -> {
+            currentMinutes[0] += step;
+            tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+        });
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext())
+                .setView(dialogView)
+                .setNegativeButton(R.string.cancel, null);
+
+        if (appointment.getSeriesId() != null) {
+            // Part of a series: offer per-entry or full-series save
+            builder.setPositiveButton(R.string.calendar_timer_this_only, (d, which) -> {
+                db.setDurationForAppointment(appointment.getId(), currentMinutes[0]);
+                refreshAppointments();
+            });
+            builder.setNeutralButton(R.string.calendar_timer_whole_series, (d, which) -> {
+                db.setDurationForSeries(appointment.getSeriesId(), currentMinutes[0]);
+                refreshAppointments();
+            });
+        } else {
+            builder.setPositiveButton(R.string.ok, (d, which) -> {
+                db.setDurationForAppointment(appointment.getId(), currentMinutes[0]);
+                refreshAppointments();
             });
         }
 

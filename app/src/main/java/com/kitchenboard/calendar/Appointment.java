@@ -8,8 +8,13 @@ public class Appointment {
     private final Long seriesId;    // nullable; shared by all entries of a recurring series
     private final Long personId;    // nullable; person this appointment belongs to
     private final Long groupId;     // nullable; group this appointment belongs to
+    private final int duration;     // duration in minutes, 0 means not set
 
     public Appointment(long id, String date, String time, String title, Long seriesId, Long personId, Long groupId) {
+        this(id, date, time, title, seriesId, personId, groupId, 0);
+    }
+
+    public Appointment(long id, String date, String time, String title, Long seriesId, Long personId, Long groupId, int duration) {
         this.id = id;
         this.date = date;
         this.time = time;
@@ -17,6 +22,7 @@ public class Appointment {
         this.seriesId = seriesId;
         this.personId = personId;
         this.groupId  = groupId;
+        this.duration = duration;
     }
 
     public long getId()          { return id; }
@@ -26,4 +32,5 @@ public class Appointment {
     public Long getSeriesId()    { return seriesId; }
     public Long getPersonId()    { return personId; }
     public Long getGroupId()     { return groupId; }
+    public int getDuration()     { return duration; }
 }

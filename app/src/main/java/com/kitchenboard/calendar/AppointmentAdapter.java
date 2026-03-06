@@ -34,13 +34,22 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
         void onDelete(Appointment appointment);
     }
 
+    public interface OnTimerListener {
+        void onTimer(Appointment appointment);
+    }
+
     private final List<Appointment> items = new ArrayList<>();
     private final Map<Long, Person> personMap = new HashMap<>();
     private final Map<Long, PersonGroup> groupMap = new HashMap<>();
     private OnDeleteListener deleteListener;
+    private OnTimerListener timerListener;
 
     public void setOnDeleteListener(OnDeleteListener listener) {
         this.deleteListener = listener;
+    }
+
+    public void setOnTimerListener(OnTimerListener listener) {
+        this.timerListener = listener;
     }
 
     public void setItems(List<Appointment> newItems) {
@@ -88,6 +97,13 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
             @Override
             public void onClick(View v) {
                 if (deleteListener != null) deleteListener.onDelete(item);
+            }
+        });
+
+        holder.btnTimer.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (timerListener != null) timerListener.onTimer(item);
             }
         });
 
@@ -162,6 +178,7 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
         final TextView tvTitle;
         final TextView tvTime;
         final ImageButton btnDelete;
+        final ImageButton btnTimer;
         final ImageView ivPersonDot;
         final ImageView ivSeriesIndicator;
 
@@ -170,6 +187,7 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
             tvTitle           = itemView.findViewById(R.id.tv_appointment_title);
             tvTime            = itemView.findViewById(R.id.tv_appointment_time);
             btnDelete         = itemView.findViewById(R.id.btn_delete_appointment);
+            btnTimer          = itemView.findViewById(R.id.btn_timer_appointment);
             ivPersonDot       = itemView.findViewById(R.id.view_person_dot);
             ivSeriesIndicator = itemView.findViewById(R.id.iv_series_indicator);
         }

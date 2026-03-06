@@ -106,6 +106,15 @@
     <string name="calendar_delete_series">Ganze Serie löschen</string>
     <string name="calendar_series_indicator">Serientermin</string>
 
+    <!-- Timer / duration popup -->
+    <string name="calendar_timer_button_desc">Dauer festlegen</string>
+    <string name="calendar_timer_title">Dauer (Minuten)</string>
+    <string name="calendar_timer_value">%d min</string>
+    <string name="calendar_timer_apply_series">Für ganze Serie übernehmen</string>
+    <string name="calendar_timer_apply_series_message">Soll die Dauer für alle Termine dieser Serie übernommen werden?</string>
+    <string name="calendar_timer_this_only">Nur diesen</string>
+    <string name="calendar_timer_whole_series">Ganze Serie</string>
+
     <!-- Persons and groups -->
     <string name="calendar_manage_persons">Personen verwalten</string>
     <string name="calendar_persons_section">Personen:</string>
