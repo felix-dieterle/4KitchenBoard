@@ -416,7 +416,10 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onError(String message) {
-                // silently ignore update check errors
+                if (isFinishing() || isDestroyed()) return;
+                Toast.makeText(MainActivity.this,
+                        R.string.update_check_error,
+                        Toast.LENGTH_SHORT).show();
             }
         });
     }
