@@ -34,6 +34,9 @@
  *   POST ?action=tasks_upsert  → body: id, title, sort_order → {"success":true}
  *   POST ?action=tasks_delete  → body: id                    → {"success":true}
  *
+ * Update check:
+ *   GET  ?action=check_update  → proxies GitHub releases; returns {tag_name, body, download_url}
+ *
  * Storage: SQLite3 file (shopping.db) placed beside this script.
  * The database file is protected by .htaccess so it cannot be downloaded.
  */
@@ -282,6 +285,10 @@ switch ($action) {
     case 'tasks_delete':
         tasksDelete($db, $boardId);
         break;
+    case 'check_update':
+        $db->close();
+        checkUpdate();
+        exit;
     default:
         http_response_code(400);
         echo json_encode(['error' => 'Unknown or missing action']);
@@ -695,4 +702,59 @@ function tasksDelete(SQLite3 $db, string $boardId): void
     $stmt->execute();
 
     echo json_encode(['success' => true]);
+}
+
+// ── Update check ──────────────────────────────────────────────────────────────
+
+/**
+ * Proxies the GitHub Releases API to expose the latest release info.
+ * Returns {"tag_name": "v1.0-5", "body": "...", "download_url": "https://..."}.
+ * Protected by the same X-Api-Token auth as all other endpoints.
+ */
+function checkUpdate(): void
+{
+    $githubUrl = 'https://api.github.com/repos/felix-dieterle/4KitchenBoard/releases/latest';
+    $ctx = stream_context_create([
+        'http' => [
+            'method'  => 'GET',
+            'header'  => "User-Agent: 4KitchenBoard-Server\r\nAccept: application/json\r\n",
+            'timeout' => 10,
+        ],
+    ]);
+
+    $raw = @file_get_contents($githubUrl, false, $ctx);
+    if ($raw === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Failed to fetch release information from GitHub']);
+        return;
+    }
+
+    $data = json_decode($raw, true);
+    if (!is_array($data) || !isset($data['tag_name'])) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Invalid release data returned by GitHub']);
+        return;
+    }
+
+    // Resolve the direct APK download URL from the release assets
+    $downloadUrl = '';
+    if (!empty($data['assets']) && is_array($data['assets'])) {
+        foreach ($data['assets'] as $asset) {
+            $name = $asset['name'] ?? '';
+            if (substr($name, -4) === '.apk') {
+                $downloadUrl = $asset['browser_download_url'];
+                break;
+            }
+        }
+    }
+    // Fall back to the release HTML page when no APK asset is attached
+    if ($downloadUrl === '') {
+        $downloadUrl = $data['html_url'] ?? '';
+    }
+
+    echo json_encode([
+        'tag_name'     => $data['tag_name'],
+        'body'         => $data['body'] ?? '',
+        'download_url' => $downloadUrl,
+    ]);
 }

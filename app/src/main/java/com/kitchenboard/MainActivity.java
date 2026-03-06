@@ -32,6 +32,8 @@ import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.kitchenboard.shopping.ShoppingFragment;
+import com.kitchenboard.update.AutoUpdateReceiver;
+import com.kitchenboard.update.AutoUpdateScheduler;
 import com.kitchenboard.update.UpdateChecker;
 
 import java.io.File;
@@ -88,6 +90,10 @@ public class MainActivity extends AppCompatActivity {
         checkForUpdates();
         handleDeepLinkIntent(getIntent());
         showVersionOverlay();
+
+        // Schedule the twice-daily background auto-update check
+        AutoUpdateReceiver.createNotificationChannel(this);
+        AutoUpdateScheduler.schedule(this);
 
         ImageButton btnAccountSetup = findViewById(R.id.btn_account_setup);
         if (btnAccountSetup != null) {
@@ -313,20 +319,30 @@ public class MainActivity extends AppCompatActivity {
     // ── Update checker ────────────────────────────────────────────────────────
 
     private void checkForUpdates() {
-        UpdateChecker.checkForUpdate(BuildConfig.VERSION_CODE, new UpdateChecker.UpdateCallback() {
+        UpdateChecker.checkForUpdateWithFlag(this, BuildConfig.VERSION_CODE,
+                new UpdateChecker.UpdateResultCallback() {
             @Override
-            public void onUpdateAvailable(final String tagName, final String downloadUrl) {
+            public void onUpdateAvailable(final UpdateChecker.UpdateResult result) {
                 if (isFinishing()) return;
+                // For auto-update releases the background scheduler handles the download.
+                // Only show the interactive prompt for releases that are NOT flagged.
+                if (result.isAutoUpdate) {
+                    // Background scheduler will handle the download automatically.
+                    // Show a brief hint so the user knows an update was detected.
+                    Toast.makeText(MainActivity.this,
+                            R.string.auto_update_pending_toast,
+                            Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 new AlertDialog.Builder(MainActivity.this)
                         .setTitle(R.string.update_available_title)
-                        .setMessage(getString(R.string.update_available_message, tagName))
+                        .setMessage(getString(R.string.update_available_message, result.tagName))
                         .setPositiveButton(R.string.update_download, (dialog, which) -> {
-                            if (downloadUrl.endsWith(".apk")) {
-                                downloadAndInstallApk(downloadUrl, tagName);
+                            if (result.downloadUrl.endsWith(".apk")) {
+                                downloadAndInstallApk(result.downloadUrl, result.tagName);
                             } else {
-                                // Fallback: open releases page in browser
                                 startActivity(new Intent(Intent.ACTION_VIEW,
-                                        Uri.parse(downloadUrl)));
+                                        Uri.parse(result.downloadUrl)));
                             }
                         })
                         .setNegativeButton(R.string.cancel, null)

@@ -63,5 +63,6 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.version_name }}-${{ github.run_number }}
           name: Kitchen Board v${{ steps.version.outputs.version_name }} (build ${{ github.run_number }})
+          body: "[auto_update]"
           prerelease: true
           files: app/build/outputs/apk/debug/kitchen-board-${{ steps.version.outputs.version_name }}-${{ github.run_number }}.apk
