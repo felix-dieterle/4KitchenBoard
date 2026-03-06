@@ -375,6 +375,7 @@ public class MainActivity extends AppCompatActivity {
     // ── Update checker ────────────────────────────────────────────────────────
 
     private void checkForUpdates() {
+        Toast.makeText(this, R.string.auto_update_checking_text, Toast.LENGTH_SHORT).show();
         UpdateChecker.checkForUpdateWithFlag(this, BuildConfig.VERSION_CODE,
                 new UpdateChecker.UpdateResultCallback() {
             @Override
