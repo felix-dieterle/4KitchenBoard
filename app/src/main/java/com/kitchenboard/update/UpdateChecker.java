@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -27,7 +28,7 @@ import java.nio.charset.StandardCharsets;
 public class UpdateChecker {
 
     private static final String RELEASES_URL =
-            "https://api.github.com/repos/felix-dieterle/4KitchenBoard/releases/latest";
+            "https://api.github.com/repos/felix-dieterle/4KitchenBoard/releases";
 
     /** Token that must appear in a release body to enable automatic installation. */
     public static final String AUTO_UPDATE_FLAG = "[auto_update]";
@@ -199,12 +200,16 @@ public class UpdateChecker {
     }
 
     /**
-     * Fetches the latest GitHub release directly.
+     * Fetches the latest GitHub release directly (including pre-releases).
      * Returns {@code null} when no newer version is available.
      */
     private static UpdateResult fetchViaGitHub(int currentVersionCode) throws Exception {
         String response = httpGet(RELEASES_URL, null);
-        JSONObject json = new JSONObject(response);
+        JSONArray releases = new JSONArray(response);
+        if (releases.length() == 0) return null;
+
+        // The list is newest-first; pick the first entry.
+        JSONObject json = releases.getJSONObject(0);
 
         String tagName = json.getString("tag_name"); // e.g. "v1.0-5"
 
@@ -214,9 +219,9 @@ public class UpdateChecker {
         // Look for an APK asset to get a direct download URL
         String apkUrl = null;
         if (json.has("assets")) {
-            org.json.JSONArray assets = json.getJSONArray("assets");
+            JSONArray assets = json.getJSONArray("assets");
             for (int i = 0; i < assets.length(); i++) {
-                org.json.JSONObject asset = assets.getJSONObject(i);
+                JSONObject asset = assets.getJSONObject(i);
                 String name = asset.optString("name", "");
                 if (name.endsWith(".apk")) {
                     apkUrl = asset.getString("browser_download_url");
