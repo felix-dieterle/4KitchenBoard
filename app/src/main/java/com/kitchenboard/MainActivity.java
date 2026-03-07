@@ -505,6 +505,11 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Exception e) {
                     com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
                             "Error handling update result for " + result.tagName, e);
+                    if (!isFinishing() && !isDestroyed()) {
+                        Toast.makeText(MainActivity.this,
+                                R.string.update_install_error,
+                                Toast.LENGTH_LONG).show();
+                    }
                 }
             }
 
@@ -582,8 +587,14 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         };
-        registerReceiver(downloadReceiver,
-                new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(downloadReceiver,
+                    new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                    Context.RECEIVER_EXPORTED);
+        } else {
+            registerReceiver(downloadReceiver,
+                    new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+        }
     }
 
     private void installApk(File apkFile) {
