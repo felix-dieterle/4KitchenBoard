@@ -2,6 +2,7 @@ package com.kitchenboard.update;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
@@ -12,6 +13,10 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -33,15 +38,21 @@ public class UpdateLogger {
     private static final String LOG_FILE     = "update_log.txt";
     private static final int    MAX_LINES    = 200;
 
+    private static final String PREFS_NAME       = "shopping_prefs";
+    private static final String PREF_SERVER_URL  = "server_url";
+    private static final String PREF_BOARD_TOKEN = "board_token";
+    private static final String PREF_API_TOKEN   = "api_token";
+
     /** Appends an INFO entry. */
     public static void logInfo(Context context, String message) {
         append(context, "INFO", message);
     }
 
-    /** Appends an ERROR entry and also forwards to {@link Log#e}. */
+    /** Appends an ERROR entry, forwards to {@link Log#e}, and attempts to send it to the backend. */
     public static void logError(Context context, String message) {
         Log.e(TAG, message);
         append(context, "ERROR", message);
+        sendErrorToBackend(context, message, "ERROR");
     }
 
     /** Returns the full log content as a single string, newest lines last. */
@@ -93,6 +104,64 @@ public class UpdateLogger {
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
+
+    /**
+     * Fire-and-forget: posts the error entry to the configured PHP backend.
+     * Silently ignored when no server URL is set or the request fails.
+     */
+    private static void sendErrorToBackend(final Context context, final String message,
+                                           final String level) {
+        final Context appCtx = context.getApplicationContext();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    SharedPreferences prefs =
+                            appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                    String serverUrl  = prefs.getString(PREF_SERVER_URL,  "").trim();
+                    String boardToken = prefs.getString(PREF_BOARD_TOKEN, "");
+                    String apiToken   = prefs.getString(PREF_API_TOKEN,   "");
+                    if (serverUrl.isEmpty()) return;
+
+                    String base = serverUrl.endsWith("/")
+                            ? serverUrl.substring(0, serverUrl.length() - 1) : serverUrl;
+
+                    String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+                            .format(new Date());
+
+                    String body = "action=log_error"
+                            + "&message=" + java.net.URLEncoder.encode(message, StandardCharsets.UTF_8.name())
+                            + "&level="   + java.net.URLEncoder.encode(level, StandardCharsets.UTF_8.name())
+                            + "&timestamp=" + java.net.URLEncoder.encode(timestamp, StandardCharsets.UTF_8.name())
+                            + "&board_token=" + java.net.URLEncoder.encode(boardToken, StandardCharsets.UTF_8.name());
+
+                    URL url = new URL(base);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setConnectTimeout(8000);
+                    conn.setReadTimeout(8000);
+                    conn.setDoOutput(true);
+                    conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+                    conn.setRequestProperty("Accept", "application/json");
+                    if (!apiToken.isEmpty()) {
+                        conn.setRequestProperty("X-Api-Token", apiToken);
+                    }
+                    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                    conn.setRequestProperty("Content-Length", String.valueOf(bytes.length));
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(bytes);
+                    }
+                    int responseCode = conn.getResponseCode();
+                    if (responseCode < 200 || responseCode >= 300) {
+                        Log.w(TAG, "Backend returned HTTP " + responseCode + " for log_error");
+                    }
+                    conn.disconnect();
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed to send error log to backend: " + e.getMessage());
+                }
+            }
+        }).start();
+    }
 
     private static synchronized void append(Context context, String level, String message) {
         try {
