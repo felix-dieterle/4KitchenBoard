@@ -339,6 +339,8 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. �
     <string name="immobilien_checking">Prüfe…</string>
     <string name="immobilien_check_success">Prüfung abgeschlossen – keine neuen Angebote.</string>
     <string name="immobilien_check_error">Fehler bei der Prüfung. Bitte Internetverbindung prüfen.</string>
+    <string name="immobilien_check_error_title">Prüfung fehlgeschlagen</string>
+    <string name="immobilien_check_error_detail">Fehler: %s\n\nDetails wurden in den Logs gespeichert.</string>
     <string name="immobilien_listings_title">Angebote: %s</string>
     <string name="immobilien_listings_empty">Noch keine Angebote gefunden.</string>
     <string name="immobilien_name_required">Bitte einen Namen eingeben.</string>
