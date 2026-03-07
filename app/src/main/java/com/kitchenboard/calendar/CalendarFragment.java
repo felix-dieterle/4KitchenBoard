@@ -131,6 +131,23 @@ public class CalendarFragment extends Fragment {
         }
     };
 
+    /** Interval for refreshing the current-time line: every 60 seconds. */
+    private static final long TIME_UPDATE_INTERVAL_MS = 60 * 1000L;
+
+    /** Overlay view drawn on today's column; null when today is not visible in the strip. */
+    private CurrentTimeOverlayView currentTimeOverlay = null;
+
+    /** Invalidates the current-time overlay every minute so the line stays accurate. */
+    private final Runnable timeUpdateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (currentTimeOverlay != null) {
+                currentTimeOverlay.invalidate();
+            }
+            syncHandler.postDelayed(this, TIME_UPDATE_INTERVAL_MS);
+        }
+    };
+
     // Multi-day strip views
     private LinearLayout llDayStrip;
     private LinearLayout llWeekNav;
@@ -353,9 +370,11 @@ public class CalendarFragment extends Fragment {
 
     private void refreshDayStrip() {
         llDayStrip.removeAllViews();
+        currentTimeOverlay = null;
         String todayStr = DATE_FMT.format(new Date());
         int accentColor      = ContextCompat.getColor(requireContext(), R.color.accent);
         int accentLightColor = ContextCompat.getColor(requireContext(), R.color.accent_light);
+        int pastDayBgColor   = ContextCompat.getColor(requireContext(), R.color.past_day_bg);
         int textPrimary      = ContextCompat.getColor(requireContext(), R.color.text_primary);
         int textSecondary    = ContextCompat.getColor(requireContext(), R.color.text_secondary);
         int padPx = dpToPx(4);
@@ -368,7 +387,8 @@ public class CalendarFragment extends Fragment {
         for (int i = 0; i < viewMode; i++) {
             final String dateStr = DATE_FMT.format(cal.getTime());
             final boolean isSelected = dateStr.equals(selectedDate);
-            boolean isToday = dateStr.equals(todayStr);
+            boolean isToday   = dateStr.equals(todayStr);
+            boolean isPastDay = !isToday && dateStr.compareTo(todayStr) < 0;
 
             // Outer FrameLayout cell (the "column")
             FrameLayout cell = new FrameLayout(requireContext());
@@ -377,7 +397,12 @@ public class CalendarFragment extends Fragment {
             cell.setLayoutParams(lp);
             if (isSelected) {
                 cell.setBackgroundColor(accentLightColor);
+            } else if (isPastDay) {
+                cell.setBackgroundColor(pastDayBgColor);
             }
+
+            // Background color to restore when a drag operation leaves or ends on this cell
+            final int dragRestoredBgColor = isPastDay ? pastDayBgColor : Color.TRANSPARENT;
 
             // Inner content LinearLayout
             LinearLayout content = new LinearLayout(requireContext());
@@ -497,6 +522,16 @@ public class CalendarFragment extends Fragment {
 
             cell.addView(content);
 
+            // Current-time overlay: grey past-time area + accent line at current time
+            if (isToday) {
+                CurrentTimeOverlayView timeOverlay = new CurrentTimeOverlayView(requireContext());
+                timeOverlay.setLayoutParams(new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT));
+                cell.addView(timeOverlay);
+                currentTimeOverlay = timeOverlay;
+            }
+
             // Drag-and-drop time-slot overlay
             TextView tvDragSlot = new TextView(requireContext());
             tvDragSlot.setGravity(Gravity.CENTER);
@@ -537,12 +572,12 @@ public class CalendarFragment extends Fragment {
                     }
                     case DragEvent.ACTION_DRAG_EXITED: {
                         tvDragSlot.setVisibility(View.GONE);
-                        if (!isSelected) v.setBackgroundColor(Color.TRANSPARENT);
+                        if (!isSelected) v.setBackgroundColor(dragRestoredBgColor);
                         return true;
                     }
                     case DragEvent.ACTION_DROP: {
                         tvDragSlot.setVisibility(View.GONE);
-                        if (!isSelected) v.setBackgroundColor(Color.TRANSPARENT);
+                        if (!isSelected) v.setBackgroundColor(dragRestoredBgColor);
                         ClipData clipData = event.getClipData();
                         if (clipData != null && clipData.getItemCount() > 0) {
                             String clipLabel = clipData.getDescription().getLabel().toString();
@@ -579,7 +614,7 @@ public class CalendarFragment extends Fragment {
                     }
                     case DragEvent.ACTION_DRAG_ENDED: {
                         tvDragSlot.setVisibility(View.GONE);
-                        if (!isSelected) v.setBackgroundColor(Color.TRANSPARENT);
+                        if (!isSelected) v.setBackgroundColor(dragRestoredBgColor);
                         return false;
                     }
                 }
@@ -1476,18 +1511,23 @@ public class CalendarFragment extends Fragment {
             syncHandler.removeCallbacks(syncRunnable);
             syncHandler.postDelayed(syncRunnable, SYNC_INTERVAL_MS);
         }
+        // Start per-minute time-line refresh
+        syncHandler.removeCallbacks(timeUpdateRunnable);
+        syncHandler.postDelayed(timeUpdateRunnable, TIME_UPDATE_INTERVAL_MS);
     }
 
     @Override
     public void onPause() {
         super.onPause();
         syncHandler.removeCallbacks(syncRunnable);
+        syncHandler.removeCallbacks(timeUpdateRunnable);
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
         syncHandler.removeCallbacks(syncRunnable);
+        syncHandler.removeCallbacks(timeUpdateRunnable);
         if (db != null) db.close();
     }
 
