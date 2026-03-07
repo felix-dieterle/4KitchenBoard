@@ -250,6 +250,35 @@
     <string name="account_setup_copy">Konfiguration kopieren</string>
     <string name="account_setup_copied">Konfiguration in die Zwischenablage kopiert</string>
 
+    <!-- Settings info dialog -->
+    <string name="settings_info_button">ℹ️ Info &amp; Einrichtungshilfe</string>
+    <string name="settings_info_title">Einrichtung &amp; technischer Hintergrund</string>
+    <string name="settings_info_message"><![CDATA[
+<b>Was ist 4KitchenBoard?</b><br>
+4KitchenBoard ist ein digitales Küchen-Dashboard für Android-Tablets. Es zeigt Einkaufsliste, Wetter, Kalender, Gerichte und Aufgaben in übersichtlichen Seiten an, die automatisch wechseln.<br><br>
+
+<b>Standalone-Betrieb (ohne Server)</b><br>
+Alle Daten werden lokal auf dem Gerät gespeichert. Kein Server, kein Internet nötig – einfach App starten und nutzen. Server-URL und Tokens leer lassen.<br><br>
+
+<b>Familien-/Shared-Modus (mit eigenem Server)</b><br>
+Mehrere Geräte teilen sich dieselben Daten über einen selbst gehosteten PHP/MySQL-Server:<br>
+1. Server einrichten: api.php und generate_token.php auf einem Webserver (z. B. Raspberry Pi, NAS oder Heimserver) ablegen.<br>
+2. API-Token generieren: generate_token.php einmalig im Browser aufrufen – der Token wird angezeigt.<br>
+3. Auf allen Geräten dieselbe Server-URL, denselben Board-Token und denselben API-Token eintragen.<br>
+Gleicher Board-Token = geteilte Datenbasis. Verschiedene Board-Tokens = vollständig getrennte Boards.<br><br>
+
+<b>Automatischer Seitenwechsel</b><br>
+Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. Über die Checkboxen kannst du festlegen, welche Seiten im Wechsel erscheinen sollen.<br><br>
+
+<b>Technischer Hintergrund</b><br>
+&#8226; Lokale Datenbank: SQLite (je Modul eine eigene Datenbank)<br>
+&#8226; Sync: REST-API (HTTP POST/GET gegen api.php), JSON-Format<br>
+&#8226; Authentifizierung: Bearer-Token im Authorization-Header<br>
+&#8226; Auto-Update: Die App prüft zweimal täglich auf neue Versionen und lädt APK-Updates automatisch herunter.<br>
+&#8226; Deep-Link: kitchenboard://add?name=…&amp;category=… fügt Artikel direkt zur Einkaufsliste hinzu<br>
+&#8226; QR-Codes: Artikel per QR-Code scannen oder Einkaufslisten als QR-Code teilen
+    ]]></string>
+
     <!-- Page rotation settings -->
     <string name="page_rotation_section">Seiten im automatischen Wechsel:</string>
     <string name="page_name_shopping">Einkaufen &amp; Wetter</string>
