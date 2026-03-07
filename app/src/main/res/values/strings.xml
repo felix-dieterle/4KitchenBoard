@@ -301,6 +301,7 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. �
 
     <string name="update_up_to_date">App ist aktuell – kein Update verfügbar.</string>
     <string name="update_check_error">Update-Prüfung fehlgeschlagen – bitte Internetverbindung prüfen.</string>
+    <string name="update_install_error">Update konnte nicht gestartet werden. Bitte erneut versuchen.</string>
 
     <!-- Update log view (settings dialog) -->
     <string name="update_logs_section">Update-Protokoll:</string>
