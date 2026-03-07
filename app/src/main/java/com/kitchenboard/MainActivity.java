@@ -467,30 +467,45 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onUpdateAvailable(final UpdateChecker.UpdateResult result) {
                 if (isFinishing()) return;
-                if (result.isAutoUpdate) {
-                    // Trigger the download immediately instead of waiting for the background
-                    // scheduler, so updates are applied as soon as the app is opened.
-                    if (result.downloadUrl != null && result.downloadUrl.endsWith(".apk")) {
-                        downloadAndInstallApk(result.downloadUrl, result.tagName);
-                    } else if (result.downloadUrl != null && !result.downloadUrl.isEmpty()) {
-                        startActivity(new Intent(Intent.ACTION_VIEW,
-                                Uri.parse(result.downloadUrl)));
-                    }
-                    return;
-                }
-                new AlertDialog.Builder(MainActivity.this)
-                        .setTitle(R.string.update_available_title)
-                        .setMessage(getString(R.string.update_available_message, result.tagName))
-                        .setPositiveButton(R.string.update_download, (dialog, which) -> {
-                            if (result.downloadUrl.endsWith(".apk")) {
-                                downloadAndInstallApk(result.downloadUrl, result.tagName);
-                            } else {
+                try {
+                    if (result.isAutoUpdate) {
+                        // Trigger the download immediately instead of waiting for the background
+                        // scheduler, so updates are applied as soon as the app is opened.
+                        if (result.downloadUrl != null && result.downloadUrl.endsWith(".apk")) {
+                            downloadAndInstallApk(result.downloadUrl, result.tagName);
+                        } else if (result.downloadUrl != null && !result.downloadUrl.isEmpty()) {
+                            try {
                                 startActivity(new Intent(Intent.ACTION_VIEW,
                                         Uri.parse(result.downloadUrl)));
+                            } catch (android.content.ActivityNotFoundException e) {
+                                com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
+                                        "No browser available to open update URL", e);
                             }
-                        })
-                        .setNegativeButton(R.string.cancel, null)
-                        .show();
+                        }
+                        return;
+                    }
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setTitle(R.string.update_available_title)
+                            .setMessage(getString(R.string.update_available_message, result.tagName))
+                            .setPositiveButton(R.string.update_download, (dialog, which) -> {
+                                try {
+                                    if (result.downloadUrl.endsWith(".apk")) {
+                                        downloadAndInstallApk(result.downloadUrl, result.tagName);
+                                    } else {
+                                        startActivity(new Intent(Intent.ACTION_VIEW,
+                                                Uri.parse(result.downloadUrl)));
+                                    }
+                                } catch (Exception e) {
+                                    com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
+                                            "Failed to open update URL", e);
+                                }
+                            })
+                            .setNegativeButton(R.string.cancel, null)
+                            .show();
+                } catch (Exception e) {
+                    com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
+                            "Error handling update result for " + result.tagName, e);
+                }
             }
 
             @Override
@@ -504,9 +519,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onError(String message) {
                 if (isFinishing() || isDestroyed()) return;
-                com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
-                        "Manual update check failed: "
-                                + (message != null ? message : "unknown error"));
+                // The full stack trace was already logged in UpdateChecker; just note context here.
+                Log.e(TAG, "Update check error reported to UI: "
+                        + (message != null ? message : "unknown error"));
                 Toast.makeText(MainActivity.this,
                         R.string.update_check_error,
                         Toast.LENGTH_SHORT).show();
@@ -518,7 +533,26 @@ public class MainActivity extends AppCompatActivity {
         File downloadDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
         if (downloadDir == null) {
             // External storage unavailable; fall back to browser
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            } catch (android.content.ActivityNotFoundException e) {
+                com.kitchenboard.update.UpdateLogger.logError(this,
+                        "No browser available to open update URL (no external storage)", e);
+            }
+            return;
+        }
+
+        DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+        if (dm == null) {
+            com.kitchenboard.update.UpdateLogger.logError(this,
+                    "Cannot download APK: DownloadManager service unavailable for " + tagName);
+            // Fall back to browser
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            } catch (android.content.ActivityNotFoundException e) {
+                com.kitchenboard.update.UpdateLogger.logError(this,
+                        "No browser available to open update URL (no DownloadManager)", e);
+            }
             return;
         }
 
@@ -535,7 +569,6 @@ public class MainActivity extends AppCompatActivity {
                         DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 .setMimeType("application/vnd.android.package-archive");
 
-        DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
         downloadId = dm.enqueue(request);
 
         downloadReceiver = new BroadcastReceiver() {

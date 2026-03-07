@@ -14,6 +14,8 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -53,6 +55,46 @@ public class UpdateLogger {
         Log.e(TAG, message);
         append(context, "ERROR", message);
         sendErrorToBackend(context, message, "ERROR");
+    }
+
+    /**
+     * Appends an ERROR entry that includes the full stack trace of {@code t}.
+     * Also forwards to {@link Log#e} and attempts to send the entry to the backend.
+     */
+    public static void logError(Context context, String message, Throwable t) {
+        String full = buildErrorMessage(message, t);
+        Log.e(TAG, full, t);
+        append(context, "ERROR", full);
+        sendErrorToBackend(context, full, "ERROR");
+    }
+
+    /**
+     * Builds a descriptive error string that includes the exception type, message,
+     * full stack trace, and basic device/build information.
+     */
+    private static String buildErrorMessage(String message, Throwable t) {
+        StringBuilder sb = new StringBuilder(message);
+        if (t != null) {
+            sb.append('\n')
+              .append("Exception: ").append(t.getClass().getName()).append(": ")
+              .append(t.getMessage()).append('\n');
+            // Cause chain
+            Throwable cause = t.getCause();
+            while (cause != null) {
+                sb.append("Caused by: ").append(cause.getClass().getName())
+                  .append(": ").append(cause.getMessage()).append('\n');
+                cause = cause.getCause();
+            }
+            // Stack trace
+            StringWriter sw = new StringWriter();
+            t.printStackTrace(new PrintWriter(sw));
+            sb.append(sw.toString());
+        }
+        sb.append('\n')
+          .append("Device: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
+          .append(" (Android ").append(Build.VERSION.RELEASE)
+          .append(", API ").append(Build.VERSION.SDK_INT).append(')');
+        return sb.toString();
     }
 
     /** Returns the full log content as a single string, newest lines last. */

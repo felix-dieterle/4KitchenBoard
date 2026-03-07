@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -160,10 +161,18 @@ public class UpdateChecker {
                         });
                     }
                 } catch (final Exception e) {
+                    final String errorMsg = e.getClass().getSimpleName()
+                            + (e.getMessage() != null ? ": " + e.getMessage() : "");
+                    // Log the full exception with stack trace immediately on the bg thread.
+                    if (context != null) {
+                        UpdateLogger.logError(context, "Update check failed", e);
+                    } else {
+                        Log.e("UpdateChecker", "Update check failed: " + errorMsg, e);
+                    }
                     mainHandler.post(new Runnable() {
                         @Override
                         public void run() {
-                            callback.onError(e.getMessage());
+                            callback.onError(errorMsg);
                         }
                     });
                 }
