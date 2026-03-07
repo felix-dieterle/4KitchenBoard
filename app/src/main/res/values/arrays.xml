@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Immobilien check interval options (matches ImmobilienFragment.INTERVAL_VALUES) -->
+    <string-array name="immobilien_intervals">
+        <item>30 Minuten</item>
+        <item>1 Stunde</item>
+        <item>2 Stunden</item>
+        <item>6 Stunden</item>
+        <item>12 Stunden</item>
+        <item>24 Stunden</item>
+    </string-array>
+</resources>

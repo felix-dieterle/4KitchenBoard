@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
+import com.kitchenboard.immobilien.ImmobilienCheckScheduler;
 import com.kitchenboard.update.AutoUpdateScheduler;
 
 import java.util.List;
@@ -26,5 +27,8 @@ public class BootReceiver extends BroadcastReceiver {
 
         // Reschedule the twice-daily auto-update check
         AutoUpdateScheduler.schedule(context);
+
+        // Reschedule the periodic real-estate alert check
+        ImmobilienCheckScheduler.schedule(context);
     }
 }
