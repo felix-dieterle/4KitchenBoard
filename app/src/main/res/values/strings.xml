@@ -319,6 +319,37 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. �
     <string name="crash_notif_text">Die App ist abgestürzt. Protokoll teilen, um die Ursache zu senden.</string>
     <string name="crash_notif_summary">Letzte Protokolleinträge</string>
 
+    <!-- Immobilien Alerts module -->
+    <string name="immobilien_title">Immobilien Alerts</string>
+    <string name="immobilien_empty">Noch keine Suchen konfiguriert.\nTippe + um eine neue Suche hinzuzufügen.</string>
+    <string name="immobilien_add_alert">Neue Suche</string>
+    <string name="immobilien_edit_alert">Suche bearbeiten</string>
+    <string name="immobilien_delete_alert">Suche löschen</string>
+    <string name="immobilien_delete_confirm">Suche \"%s\" und alle gefundenen Angebote löschen?</string>
+    <string name="immobilien_alert_name_hint">Name (z. B. Wohnung München)</string>
+    <string name="immobilien_url_hint">Such-URL (aus Browser kopieren)</string>
+    <string name="immobilien_url_description">Konfiguriere deine Suche im Browser, kopiere die URL der Suchergebnisseite und füge sie hier ein.</string>
+    <string name="immobilien_interval_label">Prüf-Intervall</string>
+    <string name="immobilien_active_label">Aktiv</string>
+    <string name="immobilien_last_check">Letzte Prüfung: %s</string>
+    <string name="immobilien_never_checked">Noch nie geprüft</string>
+    <string name="immobilien_new_count">%d neu</string>
+    <string name="immobilien_total_count">%d gesamt</string>
+    <string name="immobilien_check_now">Jetzt prüfen</string>
+    <string name="immobilien_checking">Prüfe…</string>
+    <string name="immobilien_check_success">Prüfung abgeschlossen – keine neuen Angebote.</string>
+    <string name="immobilien_check_error">Fehler bei der Prüfung. Bitte Internetverbindung prüfen.</string>
+    <string name="immobilien_listings_title">Angebote: %s</string>
+    <string name="immobilien_listings_empty">Noch keine Angebote gefunden.</string>
+    <string name="immobilien_name_required">Bitte einen Namen eingeben.</string>
+    <string name="immobilien_url_invalid">Bitte eine gültige URL eingeben (beginnt mit http/https).</string>
+    <string name="immobilien_notif_channel_name">Immobilien Alerts</string>
+    <string name="immobilien_notif_channel_desc">Benachrichtigungen über neue Immobilien-Angebote</string>
+    <string name="immobilien_notif_title">Neue Immobilien-Angebote</string>
+    <string name="immobilien_notif_text">%1$d neue Angebote bei \"%2$s\"</string>
+    <string name="immobilien_notif_text_multi">Neue Angebote bei mehreren Suchen gefunden</string>
+    <string name="page_name_immobilien">Immobilien</string>
+
     <!-- Feature request -->
     <string name="feature_request_title">Feature-Wunsch: %s</string>
     <string name="feature_request_hint">Was würdest du dir für dieses Modul wünschen?</string>

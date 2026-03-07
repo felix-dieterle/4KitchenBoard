@@ -25,6 +25,8 @@
     <color name="module_shopping_light">#E8F5E9</color>
     <color name="module_weather">#0097A7</color>
     <color name="module_weather_light">#E0F7FA</color>
+    <color name="module_immobilien">#00695C</color>
+    <color name="module_immobilien_light">#E0F2F1</color>
 
     <!-- Calendar time indicators -->
     <color name="past_day_bg">#E8E8E8</color>

@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:minHeight="@dimen/item_height"
+    android:background="@color/panel_bg"
+    android:paddingStart="@dimen/panel_padding"
+    android:paddingEnd="8dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
+
+    <!-- Active indicator dot -->
+    <TextView
+        android:id="@+id/tv_alert_active"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:gravity="center"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginEnd="12dp"/>
+
+    <!-- Main info block -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- Alert name -->
+        <TextView
+            android:id="@+id/tv_alert_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="@dimen/body_text_size"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"/>
+
+        <!-- URL preview -->
+        <TextView
+            android:id="@+id/tv_alert_url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="@dimen/small_text_size"
+            android:textColor="@color/text_secondary"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:paddingTop="2dp"/>
+
+        <!-- Last check time -->
+        <TextView
+            android:id="@+id/tv_alert_last_check"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="@dimen/small_text_size"
+            android:textColor="@color/text_secondary"
+            android:paddingTop="2dp"/>
+
+        <!-- Counts row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="4dp">
+
+            <!-- New listings badge (shown only when > 0) -->
+            <TextView
+                android:id="@+id/tv_alert_new_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@color/module_immobilien"
+                android:textColor="#FFFFFF"
+                android:textSize="@dimen/small_text_size"
+                android:textStyle="bold"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:layout_marginEnd="8dp"
+                android:visibility="gone"/>
+
+            <!-- Total listings count -->
+            <TextView
+                android:id="@+id/tv_alert_total"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="@dimen/small_text_size"
+                android:textColor="@color/text_secondary"/>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Edit button -->
+    <ImageButton
+        android:id="@+id/btn_alert_edit"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:src="@android:drawable/ic_menu_edit"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:padding="8dp"
+        android:contentDescription="@string/immobilien_edit_alert"/>
+
+</LinearLayout>

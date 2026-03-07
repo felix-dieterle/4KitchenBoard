@@ -106,6 +106,7 @@ public class MainActivity extends AppCompatActivity {
                 "MainActivity.onCreate: calling checkForUpdates");
         checkForUpdates();
         handleDeepLinkIntent(getIntent());
+        handleNavigateToPageIntent(getIntent());
         showVersionOverlay();
 
         // Schedule the twice-daily background auto-update check
@@ -124,6 +125,7 @@ public class MainActivity extends AppCompatActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleDeepLinkIntent(intent);
+        handleNavigateToPageIntent(intent);
     }
 
     /**
@@ -143,6 +145,19 @@ public class MainActivity extends AppCompatActivity {
                     viewPager.setCurrentItem(0, true);
                 }
             }
+        }
+    }
+
+    /**
+     * Navigates to a specific page when the app is opened from a notification.
+     * The page index is passed as an integer extra with key {@code "navigate_to_page"}.
+     */
+    private void handleNavigateToPageIntent(Intent intent) {
+        if (intent == null) return;
+        int page = intent.getIntExtra("navigate_to_page", -1);
+        if (page >= 0 && viewPager != null && pagerAdapter != null
+                && page < pagerAdapter.getItemCount()) {
+            viewPager.setCurrentItem(page, true);
         }
     }
 
@@ -232,7 +247,8 @@ public class MainActivity extends AppCompatActivity {
             R.string.page_name_shopping,
             R.string.page_name_calendar,
             R.string.page_name_cooking,
-            R.string.page_name_tasks
+            R.string.page_name_tasks,
+            R.string.page_name_immobilien
         };
         final CheckBox[] cbPages = new CheckBox[pageNameResIds.length];
         for (int i = 0; i < pageNameResIds.length; i++) {
@@ -384,10 +400,11 @@ public class MainActivity extends AppCompatActivity {
 
     /** Module accent color resources, ordered by page index (matches ScreenPagerAdapter). */
     private static final int[] MODULE_COLORS = {
-        R.color.module_shopping,   // page 0: CombinedFragment – shopping (right) + weather (left)
-        R.color.module_calendar,   // page 1: CalendarFragment
-        R.color.module_cooking,    // page 2: CookingFragment
-        R.color.module_tasks       // page 3: TaskFragment
+        R.color.module_shopping,    // page 0: CombinedFragment – shopping (right) + weather (left)
+        R.color.module_calendar,    // page 1: CalendarFragment
+        R.color.module_cooking,     // page 2: CookingFragment
+        R.color.module_tasks,       // page 3: TaskFragment
+        R.color.module_immobilien   // page 4: ImmobilienFragment
     };
 
     private void setupDots(int count) {

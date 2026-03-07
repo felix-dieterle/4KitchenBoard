@@ -64,6 +64,14 @@
         </receiver>
 
         <receiver
+            android:name=".immobilien.ImmobilienCheckReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.kitchenboard.action.IMMOBILIEN_CHECK" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".update.AutoUpdateReceiver"
             android:exported="false">
             <intent-filter>
