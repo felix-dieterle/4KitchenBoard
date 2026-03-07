@@ -22,16 +22,18 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Decode debug keystore
+      - name: Set up debug keystore
         env:
           DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
         run: |
-          if [ -z "$DEBUG_KEYSTORE" ]; then
-            echo "::error::The DEBUG_KEYSTORE secret is not set. A consistent signing keystore is required so that app updates can be installed without uninstalling first. Generate a keystore (or export ~/.android/debug.keystore), base64-encode it, and store it as the DEBUG_KEYSTORE repository secret."
-            exit 1
-          fi
           mkdir -p ~/.android
-          echo "$DEBUG_KEYSTORE" | base64 --decode > ~/.android/debug.keystore
+          if [ -n "$DEBUG_KEYSTORE" ]; then
+            echo "$DEBUG_KEYSTORE" | base64 --decode > ~/.android/debug.keystore
+            keytool -list -keystore ~/.android/debug.keystore -storepass android -noprompt 2>/dev/null || \
+              { echo "::error::DEBUG_KEYSTORE secret contains invalid keystore data."; exit 1; }
+          else
+            cp app/debug.keystore ~/.android/debug.keystore
+          fi
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
