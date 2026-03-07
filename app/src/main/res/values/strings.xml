@@ -4,6 +4,7 @@
     <string name="weather_title">Weather</string>
     <string name="shopping_title">Shopping List</string>
     <string name="city_hint">Enter city…</string>
+    <string name="city_edit_title">Stadt ändern</string>
     <string name="refresh">Update</string>
     <string name="shopping_empty">No items yet.\nTap + to add your first item.</string>
     <string name="add_item">Add Item</string>

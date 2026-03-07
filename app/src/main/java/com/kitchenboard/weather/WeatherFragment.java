@@ -1,7 +1,9 @@
 package com.kitchenboard.weather;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Address;
@@ -11,7 +13,7 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.view.KeyEvent;
+import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -47,7 +49,7 @@ public class WeatherFragment extends Fragment {
     private static final int LOCATION_PERMISSION_REQUEST = 100;
     private static final long SUB_PAGE_ADVANCE_MS = 5_000;
 
-    private EditText etCity;
+    private TextView tvCityLabel;
     private ProgressBar progressBar;
 
     private final FeatureRequestHelper featureRequestHelper =
@@ -99,7 +101,7 @@ public class WeatherFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        etCity = view.findViewById(R.id.et_city);
+        tvCityLabel = view.findViewById(R.id.tv_city_label);
         progressBar = view.findViewById(R.id.progress_weather);
         weatherViewPager = view.findViewById(R.id.weather_view_pager);
         LinearLayout dotContainer = view.findViewById(R.id.weather_dot_container);
@@ -153,7 +155,7 @@ public class WeatherFragment extends Fragment {
         }
 
         String savedCity = getSavedCity();
-        etCity.setText(savedCity);
+        tvCityLabel.setText(savedCity);
 
         btnRefresh.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -169,15 +171,10 @@ public class WeatherFragment extends Fragment {
             }
         });
 
-        etCity.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+        tvCityLabel.setOnClickListener(new View.OnClickListener() {
             @Override
-            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-                if (actionId == EditorInfo.IME_ACTION_SEARCH
-                        || actionId == EditorInfo.IME_ACTION_DONE) {
-                    loadWeather();
-                    return true;
-                }
-                return false;
+            public void onClick(View v) {
+                showCityEditDialog();
             }
         });
 
@@ -322,7 +319,7 @@ public class WeatherFragment extends Fragment {
                                     showLoading(false);
                                     displayWeather(data);
                                     saveCity(data.getCityName());
-                                    etCity.setText(data.getCityName());
+                                    tvCityLabel.setText(data.getCityName());
                                 }
                             }
 
@@ -340,10 +337,10 @@ public class WeatherFragment extends Fragment {
     }
 
     private void loadWeather() {
-        String city = etCity.getText().toString().trim();
+        String city = tvCityLabel.getText().toString().trim();
         if (city.isEmpty()) {
             city = DEFAULT_CITY;
-            etCity.setText(city);
+            tvCityLabel.setText(city);
         }
         saveCity(city);
         hideKeyboard();
@@ -384,7 +381,7 @@ public class WeatherFragment extends Fragment {
         tvDate.setVisibility(View.VISIBLE);
 
         tvStatus.setVisibility(View.GONE);
-        etCity.setText(data.getCityName());
+        tvCityLabel.setText(data.getCityName());
 
         displayWeekendWeather(data);
     }
@@ -427,6 +424,33 @@ public class WeatherFragment extends Fragment {
     }
 
     // ── Prefs / keyboard helpers ──────────────────────────────────────────────
+
+    private void showCityEditDialog() {
+        EditText input = new EditText(requireContext());
+        input.setText(tvCityLabel.getText());
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setSingleLine(true);
+        input.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        int pad = dpToPx(16);
+        input.setPadding(pad, pad, pad, pad);
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.city_edit_title)
+                .setView(input)
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        String city = input.getText().toString().trim();
+                        if (!city.isEmpty()) {
+                            tvCityLabel.setText(city);
+                            saveCity(city);
+                            loadWeather();
+                        }
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
 
     private String getSavedCity() {
         SharedPreferences prefs = requireActivity()
