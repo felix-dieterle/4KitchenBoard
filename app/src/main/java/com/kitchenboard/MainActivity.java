@@ -237,9 +237,14 @@ public class MainActivity extends AppCompatActivity {
             cbPages[i].setChecked(isPageInRotation(i));
         }
 
+        android.widget.Button btnInfo = new android.widget.Button(this);
+        btnInfo.setText(R.string.settings_info_button);
+        btnInfo.setOnClickListener(v -> showSettingsInfoDialog());
+
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(padPx, padPx, padPx, padPx);
+        layout.addView(btnInfo);
         layout.addView(etUrl);
         layout.addView(tvTokenDesc);
         layout.addView(etToken);
@@ -301,6 +306,31 @@ public class MainActivity extends AppCompatActivity {
             }
             Toast.makeText(this, R.string.account_setup_copied, Toast.LENGTH_SHORT).show();
         });
+    }
+
+    // ── Settings info dialog ──────────────────────────────────────────────────
+
+    private void showSettingsInfoDialog() {
+        int padPx = Math.round(12 * getResources().getDisplayMetrics().density);
+
+        final TextView tvInfo = new TextView(this);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            tvInfo.setText(android.text.Html.fromHtml(getString(R.string.settings_info_message),
+                    android.text.Html.FROM_HTML_MODE_COMPACT));
+        } else {
+            tvInfo.setText(android.text.Html.fromHtml(getString(R.string.settings_info_message)));
+        }
+        tvInfo.setTextSize(13f);
+        tvInfo.setPadding(padPx, padPx, padPx, padPx);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(tvInfo);
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.settings_info_title)
+                .setView(scrollView)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
     }
 
     // ── Update-Protokoll dialog ───────────────────────────────────────────────
