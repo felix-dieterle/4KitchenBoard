@@ -15,6 +15,7 @@ import androidx.core.app.NotificationManagerCompat;
 
 import com.kitchenboard.MainActivity;
 import com.kitchenboard.R;
+import com.kitchenboard.update.UpdateLogger;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -91,6 +92,9 @@ public class ImmobilienCheckReceiver extends BroadcastReceiver {
                 }
             } catch (Exception e) {
                 Log.w(TAG, "Error checking alert '" + alert.name + "': " + e.getMessage());
+                UpdateLogger.logError(context,
+                        "Immobilien check failed for alert '" + alert.name
+                                + "' [" + alert.searchUrl + "]", e);
             }
         }
 

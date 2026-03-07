@@ -31,6 +31,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.kitchenboard.R;
 import com.kitchenboard.feedback.FeatureRequestHelper;
+import com.kitchenboard.update.UpdateLogger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -362,6 +363,7 @@ public class ImmobilienFragment extends Fragment {
 
     private void triggerManualCheck(ImmobilienAlert alert) {
         Toast.makeText(requireContext(), R.string.immobilien_checking, Toast.LENGTH_SHORT).show();
+        final Context appCtx = requireContext().getApplicationContext();
         executor.execute(() -> {
             ImmobilienCheckReceiver receiver = new ImmobilienCheckReceiver();
             try {
@@ -385,8 +387,19 @@ public class ImmobilienFragment extends Fragment {
                     Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show();
                 });
             } catch (Exception e) {
-                uiHandler.post(() -> Toast.makeText(requireContext(),
-                        R.string.immobilien_check_error, Toast.LENGTH_LONG).show());
+                String errorDetail = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                UpdateLogger.logError(appCtx,
+                        "Immobilien manual check failed for alert '" + alert.name
+                                + "' [" + alert.searchUrl + "]", e);
+                uiHandler.post(() -> {
+                    Context ctx = getContext();
+                    if (ctx == null) return;
+                    new android.app.AlertDialog.Builder(ctx)
+                            .setTitle(R.string.immobilien_check_error_title)
+                            .setMessage(ctx.getString(R.string.immobilien_check_error_detail, errorDetail))
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show();
+                });
             }
         });
     }
