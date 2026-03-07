@@ -461,12 +461,18 @@ public class MainActivity extends AppCompatActivity {
     // ── Update checker ────────────────────────────────────────────────────────
 
     private void checkForUpdates() {
+        com.kitchenboard.update.UpdateLogger.logInfo(this,
+                "checkForUpdates: starting check (versionCode=" + BuildConfig.VERSION_CODE + ")");
         Toast.makeText(this, R.string.auto_update_checking_text, Toast.LENGTH_SHORT).show();
         UpdateChecker.checkForUpdateWithFlag(this, BuildConfig.VERSION_CODE,
                 new UpdateChecker.UpdateResultCallback() {
             @Override
             public void onUpdateAvailable(final UpdateChecker.UpdateResult result) {
                 if (isFinishing()) return;
+                com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
+                        "checkForUpdates: update available tag=" + result.tagName
+                                + " autoUpdate=" + result.isAutoUpdate
+                                + " url=" + result.downloadUrl);
                 try {
                     if (result.isAutoUpdate) {
                         // Trigger the download immediately instead of waiting for the background
@@ -489,11 +495,16 @@ public class MainActivity extends AppCompatActivity {
                             .setMessage(getString(R.string.update_available_message, result.tagName))
                             .setPositiveButton(R.string.update_download, (dialog, which) -> {
                                 try {
-                                    if (result.downloadUrl.endsWith(".apk")) {
+                                    if (result.downloadUrl != null && result.downloadUrl.endsWith(".apk")) {
                                         downloadAndInstallApk(result.downloadUrl, result.tagName);
-                                    } else {
+                                    } else if (result.downloadUrl != null) {
                                         startActivity(new Intent(Intent.ACTION_VIEW,
                                                 Uri.parse(result.downloadUrl)));
+                                    } else {
+                                        com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
+                                                "Download URL is null for " + result.tagName);
+                                        Toast.makeText(MainActivity.this,
+                                                R.string.update_check_error, Toast.LENGTH_SHORT).show();
                                     }
                                 } catch (Exception e) {
                                     com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
@@ -516,6 +527,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onNoUpdate() {
                 if (isFinishing() || isDestroyed()) return;
+                com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
+                        "checkForUpdates: app is up to date");
                 Toast.makeText(MainActivity.this,
                         R.string.update_up_to_date,
                         Toast.LENGTH_SHORT).show();
@@ -535,9 +548,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void downloadAndInstallApk(String url, String tagName) {
+        com.kitchenboard.update.UpdateLogger.logInfo(this,
+                "downloadAndInstallApk: starting download for " + tagName + " from " + url);
         File downloadDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
         if (downloadDir == null) {
             // External storage unavailable; fall back to browser
+            com.kitchenboard.update.UpdateLogger.logError(this,
+                    "downloadAndInstallApk: external storage unavailable for " + tagName);
             try {
                 startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
             } catch (android.content.ActivityNotFoundException e) {
@@ -575,15 +592,28 @@ public class MainActivity extends AppCompatActivity {
                 .setMimeType("application/vnd.android.package-archive");
 
         downloadId = dm.enqueue(request);
+        com.kitchenboard.update.UpdateLogger.logInfo(this,
+                "downloadAndInstallApk: enqueued download id=" + downloadId + " for " + tagName);
 
         downloadReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-                if (id == downloadId) {
-                    unregisterReceiver(downloadReceiver);
-                    downloadReceiver = null;
-                    installApk(apkFile);
+                try {
+                    long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+                    if (id == downloadId) {
+                        try {
+                            unregisterReceiver(downloadReceiver);
+                        } catch (IllegalArgumentException ignored) {
+                            // Receiver was already unregistered (e.g. activity restarted)
+                        }
+                        downloadReceiver = null;
+                        com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
+                                "Download complete (id=" + id + "), launching installer");
+                        installApk(apkFile);
+                    }
+                } catch (Exception e) {
+                    com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
+                            "Error in download completion receiver", e);
                 }
             }
         };
@@ -598,19 +628,33 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void installApk(File apkFile) {
-        if (!apkFile.exists()) return;
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        Uri apkUri;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            apkUri = FileProvider.getUriForFile(this,
-                    getPackageName() + ".fileprovider", apkFile);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        } else {
-            apkUri = Uri.fromFile(apkFile);
+        if (!apkFile.exists()) {
+            com.kitchenboard.update.UpdateLogger.logError(this,
+                    "installApk: APK file not found at " + apkFile.getAbsolutePath());
+            return;
         }
-        intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(intent);
+        try {
+            com.kitchenboard.update.UpdateLogger.logInfo(this,
+                    "Launching APK installer for " + apkFile.getAbsolutePath());
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            Uri apkUri;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                apkUri = FileProvider.getUriForFile(this,
+                        getPackageName() + ".fileprovider", apkFile);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } else {
+                apkUri = Uri.fromFile(apkFile);
+            }
+            intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception e) {
+            com.kitchenboard.update.UpdateLogger.logError(this,
+                    "Failed to launch APK installer for " + apkFile.getAbsolutePath(), e);
+            if (!isFinishing() && !isDestroyed()) {
+                Toast.makeText(this, R.string.update_install_error, Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     @Override
