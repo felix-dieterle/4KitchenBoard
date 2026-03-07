@@ -37,48 +37,55 @@
 
     </RelativeLayout>
 
-    <!-- City search row -->
+    <!-- Compact location bar: city label (tap to edit) + icon buttons -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:paddingStart="@dimen/panel_padding"
-        android:paddingEnd="@dimen/panel_padding"
-        android:paddingTop="@dimen/spacing_normal"
-        android:paddingBottom="@dimen/spacing_normal">
+        android:paddingEnd="4dp"
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp"
+        android:gravity="center_vertical">
 
-        <EditText
-            android:id="@+id/et_city"
+        <TextView
+            android:id="@+id/tv_city_label"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:hint="@string/city_hint"
-            android:imeOptions="actionSearch"
-            android:inputType="text"
             android:singleLine="true"
-            android:textSize="@dimen/body_text_size"
-            android:textColor="@color/text_primary"
-            android:background="@drawable/bg_input"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="6dp"
-            android:paddingBottom="6dp"/>
+            android:ellipsize="end"
+            android:textSize="@dimen/small_text_size"
+            android:textColor="@color/text_secondary"
+            android:background="?attr/selectableItemBackground"
+            android:paddingStart="0dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"/>
 
         <Button
             android:id="@+id/btn_locate"
+            style="?android:attr/borderlessButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:text="@string/locate_me"
-            android:textSize="@dimen/small_text_size"/>
+            android:minWidth="0dp"
+            android:text="📍"
+            android:textSize="18sp"
+            android:padding="6dp"
+            android:contentDescription="@string/locate_me"/>
 
         <Button
             android:id="@+id/btn_refresh"
+            style="?android:attr/borderlessButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:text="@string/refresh"
-            android:textSize="@dimen/small_text_size"/>
+            android:minWidth="0dp"
+            android:text="🔄"
+            android:textSize="18sp"
+            android:padding="6dp"
+            android:contentDescription="@string/refresh"/>
+
     </LinearLayout>
 
     <!-- ViewPager2 for weather sub-pages, with progress bar overlay.
