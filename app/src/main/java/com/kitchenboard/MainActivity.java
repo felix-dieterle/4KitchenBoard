@@ -80,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        com.kitchenboard.update.UpdateLogger.logInfo(this, "MainActivity.onCreate: start");
         setContentView(R.layout.activity_main);
 
         viewPager = findViewById(R.id.view_pager);
@@ -101,6 +102,8 @@ public class MainActivity extends AppCompatActivity {
         };
         viewPager.registerOnPageChangeCallback(pageChangeCallback);
 
+        com.kitchenboard.update.UpdateLogger.logInfo(this,
+                "MainActivity.onCreate: calling checkForUpdates");
         checkForUpdates();
         handleDeepLinkIntent(getIntent());
         showVersionOverlay();
@@ -113,6 +116,7 @@ public class MainActivity extends AppCompatActivity {
         if (btnAccountSetup != null) {
             btnAccountSetup.setOnClickListener(v -> showAccountSetupDialog());
         }
+        com.kitchenboard.update.UpdateLogger.logInfo(this, "MainActivity.onCreate: complete");
     }
 
     @Override
@@ -468,7 +472,7 @@ public class MainActivity extends AppCompatActivity {
                 new UpdateChecker.UpdateResultCallback() {
             @Override
             public void onUpdateAvailable(final UpdateChecker.UpdateResult result) {
-                if (isFinishing()) return;
+                if (isFinishing() || isDestroyed()) return;
                 com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
                         "checkForUpdates: update available tag=" + result.tagName
                                 + " autoUpdate=" + result.isAutoUpdate

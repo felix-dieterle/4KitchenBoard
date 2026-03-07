@@ -312,6 +312,13 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. �
     <string name="update_logs_clear">Protokoll löschen</string>
     <string name="update_logs_cleared">Protokoll gelöscht.</string>
 
+    <!-- Crash-report notification -->
+    <string name="crash_channel_name">Absturz-Bericht</string>
+    <string name="crash_channel_desc">Benachrichtigungen bei erkannten App-Abstürzen</string>
+    <string name="crash_notif_title">Absturz beim letzten Start erkannt</string>
+    <string name="crash_notif_text">Die App ist abgestürzt. Protokoll teilen, um die Ursache zu senden.</string>
+    <string name="crash_notif_summary">Letzte Protokolleinträge</string>
+
     <!-- Feature request -->
     <string name="feature_request_title">Feature-Wunsch: %s</string>
     <string name="feature_request_hint">Was würdest du dir für dieses Modul wünschen?</string>
