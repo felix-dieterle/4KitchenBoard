@@ -121,6 +121,80 @@ public class UpdateLogger {
         }
     }
 
+    // ── Crash sentinel ────────────────────────────────────────────────────────
+
+    private static final String CRASH_SENTINEL_FILE = "crash_sentinel.txt";
+
+    /**
+     * Writes a sentinel file marking that an uncaught exception was caught in this session.
+     * The sentinel persists across restarts so that the next startup can alert the user.
+     * Call this from the global {@link Thread.UncaughtExceptionHandler}.
+     */
+    public static synchronized void markCrashOccurred(Context context) {
+        try {
+            File dir = new File(context.getApplicationContext().getFilesDir(), LOG_DIR);
+            if (!dir.exists()) dir.mkdirs();
+            File sentinel = new File(dir, CRASH_SENTINEL_FILE);
+            try (FileWriter fw = new FileWriter(sentinel, false)) {
+                fw.write(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date()));
+                fw.write('\n');
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to write crash sentinel", e);
+        }
+    }
+
+    /**
+     * Returns {@code true} when a crash sentinel file was left by a previous session,
+     * i.e. the app crashed before being able to clean up the sentinel.
+     */
+    public static boolean hasCrashSentinel(Context context) {
+        File dir = new File(context.getApplicationContext().getFilesDir(), LOG_DIR);
+        return new File(dir, CRASH_SENTINEL_FILE).exists();
+    }
+
+    /**
+     * Removes the crash sentinel file.
+     * Call this after the user has been notified (e.g. after showing the crash notification).
+     */
+    public static synchronized void clearCrashSentinel(Context context) {
+        File dir = new File(context.getApplicationContext().getFilesDir(), LOG_DIR);
+        File sentinel = new File(dir, CRASH_SENTINEL_FILE);
+        if (sentinel.exists() && !sentinel.delete()) {
+            Log.w(TAG, "Failed to delete crash sentinel");
+        }
+    }
+
+    /**
+     * Returns the last {@code maxLines} lines of the log as a single string,
+     * or an empty string when the log file does not exist or is empty.
+     *
+     * <p>Uses a fixed-size circular buffer so only {@code maxLines} entries are
+     * kept in memory at any time, regardless of the total file size.
+     */
+    public static String readRecentLogs(Context context, int maxLines) {
+        File logFile = getLogFile(context);
+        if (!logFile.exists()) return "";
+        // Circular buffer: keep only the last maxLines entries in memory.
+        java.util.Deque<String> buffer = new java.util.ArrayDeque<>(maxLines + 1);
+        try (BufferedReader reader = new BufferedReader(new FileReader(logFile))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                buffer.addLast(line);
+                if (buffer.size() > maxLines) buffer.removeFirst();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to read update log", e);
+            return "";
+        }
+        if (buffer.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (String line : buffer) {
+            sb.append(line).append('\n');
+        }
+        return sb.toString().trim();
+    }
+
     /**
      * Creates an {@link Intent#ACTION_SEND} intent that shares the log file as
      * plain text. Returns {@code null} when the log file does not exist or is
