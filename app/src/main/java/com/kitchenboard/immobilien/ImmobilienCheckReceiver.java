@@ -214,7 +214,62 @@ public class ImmobilienCheckReceiver extends BroadcastReceiver {
     // ── Listing URL extraction ────────────────────────────────────────────────
 
     /**
-     * Extracts unique listing URLs from the HTML of a search-results page.
+     * Regex patterns that mark the beginning of the "extended / approximate
+     * results" section on German real-estate portals.  Listings that appear
+     * after this boundary do NOT fully match the configured search criteria
+     * and must be excluded to avoid spurious new-listing notifications.
+     *
+     * <p>Ordered from most precise (portal-specific data attributes / JSON
+     * keys) to least precise (natural-language headings).  The first pattern
+     * matched in the HTML wins.
+     */
+    private static final Pattern[] EXTENDED_RESULTS_PATTERNS = {
+        // Immowelt – data-testid on the extended-results container;
+        // covers both "extended-result" (kebab) and "extendedResult" (camelCase)
+        Pattern.compile("data-testid=[\"']extended-?result",  Pattern.CASE_INSENSITIVE),
+        // ImmobilienScout24 – sectionType marker embedded in page JSON
+        Pattern.compile("\"sectionType\"\\s*:\\s*\"EXTENDED", Pattern.CASE_INSENSITIVE),
+        // Generic JSON properties indicating extended / non-exact results
+        Pattern.compile("\"isExtended\"\\s*:\\s*true",                   Pattern.CASE_INSENSITIVE),
+        Pattern.compile("\"extendedClassifieds\"\\s*:\\s*\\[",           Pattern.CASE_INSENSITIVE),
+        Pattern.compile("\"relatedClassifieds\"\\s*:\\s*\\[",            Pattern.CASE_INSENSITIVE),
+        // German section headings – catch-all for portals without
+        // machine-readable markers (e.g. Immonet, Kleinanzeigen)
+        Pattern.compile("Erweiterte\\s+Ergebnisse",           Pattern.CASE_INSENSITIVE),
+        Pattern.compile("Weitere\\s+passende\\s+Angebote",    Pattern.CASE_INSENSITIVE),
+        Pattern.compile("Ergebnisse\\s+au\u00DFerhalb",       Pattern.CASE_INSENSITIVE),
+        Pattern.compile("au\u00DFerhalb\\s+Ihrer\\s+Suche",   Pattern.CASE_INSENSITIVE),
+        Pattern.compile("Nicht\\s+alle\\s+Suchkriterien",     Pattern.CASE_INSENSITIVE),
+    };
+
+    /**
+     * Returns the portion of {@code html} that precedes the portal's
+     * "extended / approximate results" section (Erweiterte Ergebnisse), or
+     * the full HTML unchanged if no such section is detected.
+     *
+     * <p>German real-estate portals (Immowelt, ImmobilienScout24, …)
+     * typically show exact-match listings first and then append an
+     * "Erweiterte Ergebnisse" section when the exact result set is small.
+     * By truncating at that boundary only genuine exact-match listings are
+     * extracted and stored, preventing spurious new-listing notifications for
+     * properties that do not actually satisfy the configured search criteria.
+     */
+    static String truncateAtExtendedResults(String html) {
+        for (int i = 0; i < EXTENDED_RESULTS_PATTERNS.length; i++) {
+            Matcher m = EXTENDED_RESULTS_PATTERNS[i].matcher(html);
+            if (m.find()) {
+                Log.d(TAG, "Extended-results boundary detected (pattern #" + i
+                        + "), ignoring HTML after position " + m.start());
+                return html.substring(0, m.start());
+            }
+        }
+        return html;
+    }
+
+    /**
+     * Extracts unique listing URLs from the HTML of a search-results page,
+     * <strong>ignoring</strong> any listings that appear in the portal's
+     * "extended / approximate results" section (Erweiterte Ergebnisse).
      *
      * <p>Supports common German real-estate portals:
      * <ul>
@@ -227,8 +282,9 @@ public class ImmobilienCheckReceiver extends BroadcastReceiver {
      * </ul>
      */
     Set<String> extractListingUrls(String html, String baseUrl) {
+        String exactHtml = truncateAtExtendedResults(html);
         Set<String> urls = new HashSet<>();
-        Matcher m = HREF_PATTERN.matcher(html);
+        Matcher m = HREF_PATTERN.matcher(exactHtml);
         while (m.find()) {
             String href = m.group(1).trim();
             if (isListingUrl(href)) {
