@@ -24,6 +24,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -33,6 +34,10 @@ import com.kitchenboard.R;
 import com.kitchenboard.feedback.FeatureRequestHelper;
 import com.kitchenboard.update.UpdateLogger;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -356,6 +361,7 @@ public class ImmobilienFragment extends Fragment {
                 .setView(sv)
                 .setPositiveButton(android.R.string.ok, null)
                 .setNeutralButton(R.string.immobilien_check_now, (d, w) -> triggerManualCheck(alert))
+                .setNegativeButton(R.string.immobilien_export_html, (d, w) -> exportHtml(alert))
                 .show();
     }
 
@@ -395,6 +401,67 @@ public class ImmobilienFragment extends Fragment {
                             .setMessage(ctx.getString(R.string.immobilien_check_error_detail, errorDetail))
                             .setPositiveButton(android.R.string.ok, null)
                             .show();
+                });
+            }
+        });
+    }
+
+    // ── HTML export ───────────────────────────────────────────────────────────
+
+    /**
+     * Fetches the raw HTML for {@code alert}'s search URL, writes it to a
+     * temporary cache file and opens the Android share sheet so the user can
+     * send it to a PC/email for analysis.
+     */
+    private void exportHtml(ImmobilienAlert alert) {
+        Toast.makeText(requireContext(), R.string.immobilien_exporting, Toast.LENGTH_SHORT).show();
+        final Context appCtx = requireContext().getApplicationContext();
+        executor.execute(() -> {
+            ImmobilienCheckReceiver receiver = new ImmobilienCheckReceiver();
+            try {
+                String html = receiver.fetchUrl(alert.searchUrl);
+
+                // Build a safe filename from the alert ID and name
+                String safeName = alert.name.replaceAll("[^a-zA-Z0-9_\\-]", "_");
+                File dir = new File(appCtx.getCacheDir(), "immobilien_html");
+                if (!dir.exists() && !dir.mkdirs()) {
+                    throw new Exception("Could not create cache directory: " + dir.getAbsolutePath());
+                }
+                File htmlFile = new File(dir, alert.id + "_" + safeName + ".html");
+
+                try (OutputStreamWriter writer = new OutputStreamWriter(
+                        new FileOutputStream(htmlFile), StandardCharsets.UTF_8)) {
+                    writer.write(html);
+                }
+
+                Uri fileUri = FileProvider.getUriForFile(
+                        appCtx,
+                        appCtx.getPackageName() + ".fileprovider",
+                        htmlFile);
+
+                Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                shareIntent.setType("text/html");
+                shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
+                shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                uiHandler.post(() -> {
+                    Context ctx = getContext();
+                    if (ctx == null) return;
+                    startActivity(Intent.createChooser(shareIntent,
+                            ctx.getString(R.string.immobilien_export_share_title)));
+                });
+            } catch (Exception e) {
+                UpdateLogger.logError(appCtx,
+                        "Immobilien HTML export failed for alert '" + alert.name
+                                + "' [" + alert.searchUrl + "]", e);
+                uiHandler.post(() -> {
+                    Context ctx = getContext();
+                    if (ctx == null) return;
+                    String detail = e.getMessage() != null ? e.getMessage()
+                            : ctx.getString(R.string.immobilien_export_error_unknown);
+                    Toast.makeText(ctx,
+                            ctx.getString(R.string.immobilien_export_error, detail),
+                            Toast.LENGTH_LONG).show();
                 });
             }
         });

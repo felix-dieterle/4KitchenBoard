@@ -355,6 +355,11 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. Ã
     <string name="immobilien_notif_text">%1$d neue Angebote bei \"%2$s\"</string>
     <string name="immobilien_notif_text_multi">Neue Angebote bei mehreren Suchen gefunden</string>
     <string name="page_name_immobilien">Immobilien</string>
+    <string name="immobilien_export_html">HTML exportieren</string>
+    <string name="immobilien_exporting">Exportiere HTMLâ€¦</string>
+    <string name="immobilien_export_share_title">HTML teilen</string>
+    <string name="immobilien_export_error">HTML-Export fehlgeschlagen: %s</string>
+    <string name="immobilien_export_error_unknown">Unbekannter Fehler</string>
 
     <!-- Feature request -->
     <string name="feature_request_title">Feature-Wunsch: %s</string>
