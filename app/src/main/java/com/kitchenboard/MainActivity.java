@@ -34,18 +34,29 @@ import androidx.core.content.FileProvider;
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.viewpager2.widget.ViewPager2;
 
+import com.kitchenboard.notifications.AppNotification;
+import com.kitchenboard.notifications.NotificationStore;
 import com.kitchenboard.shopping.ShoppingFragment;
 import com.kitchenboard.update.AutoUpdateReceiver;
 import com.kitchenboard.update.AutoUpdateScheduler;
 import com.kitchenboard.update.UpdateChecker;
 
+import android.view.LayoutInflater;
+import android.widget.ImageView;
+
 import java.io.File;
+import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     private static final int AUTO_ADVANCE_DELAY_MS = 20_000;
+
+    /** Fraction of screen height used as the max height of the notification list. */
+    private static final float NOTIFICATION_PANEL_HEIGHT_RATIO = 0.45f;
+    /** Maximum unread count shown in the notification badge before showing "99+". */
+    private static final int MAX_BADGE_COUNT = 99;
 
     private long downloadId = -1;
     private BroadcastReceiver downloadReceiver;
@@ -56,6 +67,19 @@ public class MainActivity extends AppCompatActivity {
     private View[] dots;
     private LinearLayout dotContainer;
     private ViewPager2.OnPageChangeCallback pageChangeCallback;
+
+    // ── In-app notification panel ─────────────────────────────────────────────
+    private View notificationPanelOverlay;
+    private LinearLayout notificationListContainer;
+    private TextView tvNotificationBadge;
+    private TextView tvNoNotifications;
+    private final NotificationStore.Observer notificationObserver = () -> {
+        refreshNotificationBadge();
+        if (notificationPanelOverlay != null
+                && notificationPanelOverlay.getVisibility() == View.VISIBLE) {
+            populateNotificationList();
+        }
+    };
 
     private final Handler autoAdvanceHandler = new Handler(Looper.getMainLooper());
     private final Runnable autoAdvanceRunnable = new Runnable() {
@@ -118,6 +142,8 @@ public class MainActivity extends AppCompatActivity {
         if (btnAccountSetup != null) {
             btnAccountSetup.setOnClickListener(v -> showAccountSetupDialog());
         }
+
+        setupNotificationPanel();
         com.kitchenboard.update.UpdateLogger.logInfo(this, "MainActivity.onCreate: complete");
     }
 
@@ -415,6 +441,156 @@ public class MainActivity extends AppCompatActivity {
         R.color.module_immobilien   // page 4: ImmobilienFragment
     };
 
+    // ── In-app notification panel ─────────────────────────────────────────────
+
+    private void setupNotificationPanel() {
+        notificationPanelOverlay   = findViewById(R.id.notification_panel_overlay);
+        notificationListContainer  = findViewById(R.id.notification_list_container);
+        tvNotificationBadge        = findViewById(R.id.tv_notification_badge);
+        tvNoNotifications          = findViewById(R.id.tv_no_notifications);
+
+        // Constrain the notification list scroll area to 45% of screen height
+        android.widget.ScrollView scrollView = findViewById(R.id.notification_scroll_view);
+        if (scrollView != null) {
+            int maxHeightPx = (int) (getResources().getDisplayMetrics().heightPixels
+                    * NOTIFICATION_PANEL_HEIGHT_RATIO);
+            android.view.ViewGroup.LayoutParams lp = scrollView.getLayoutParams();
+            lp.height = maxHeightPx;
+            scrollView.setLayoutParams(lp);
+        }
+
+        ImageButton btnBell = findViewById(R.id.btn_notification_bell);
+        if (btnBell != null) {
+            btnBell.setOnClickListener(v -> openNotificationPanel());
+        }
+
+        View btnClose = findViewById(R.id.btn_close_notification_panel);
+        if (btnClose != null) {
+            btnClose.setOnClickListener(v -> closeNotificationPanel());
+        }
+
+        View tvClearAll = findViewById(R.id.tv_notifications_clear_all);
+        if (tvClearAll != null) {
+            tvClearAll.setOnClickListener(v -> {
+                NotificationStore.getInstance(this).clearAll();
+                closeNotificationPanel();
+            });
+        }
+
+        // Tapping the dark backdrop closes the panel
+        if (notificationPanelOverlay != null) {
+            notificationPanelOverlay.setOnClickListener(v -> closeNotificationPanel());
+            // Prevent touches on the panel itself from propagating to the backdrop
+            View panel = notificationPanelOverlay.findViewById(R.id.notification_panel);
+            if (panel != null) {
+                panel.setOnClickListener(v -> { /* consume */ });
+            }
+        }
+
+        refreshNotificationBadge();
+    }
+
+    private void openNotificationPanel() {
+        if (notificationPanelOverlay == null) return;
+        NotificationStore.getInstance(this).markAllRead();
+        populateNotificationList();
+        notificationPanelOverlay.setVisibility(View.VISIBLE);
+        notificationPanelOverlay.setAlpha(0f);
+        notificationPanelOverlay.animate().alpha(1f).setDuration(180).start();
+        pauseAutoAdvance();
+    }
+
+    private void closeNotificationPanel() {
+        if (notificationPanelOverlay == null) return;
+        notificationPanelOverlay.animate()
+                .alpha(0f)
+                .setDuration(150)
+                .withEndAction(() -> {
+                    notificationPanelOverlay.setVisibility(View.GONE);
+                    notificationPanelOverlay.setAlpha(1f);
+                })
+                .start();
+        resumeAutoAdvance();
+    }
+
+    private void populateNotificationList() {
+        if (notificationListContainer == null) return;
+        notificationListContainer.removeAllViews();
+
+        List<AppNotification> notifications = NotificationStore.getInstance(this).getAll();
+
+        if (tvNoNotifications != null) {
+            tvNoNotifications.setVisibility(notifications.isEmpty() ? View.VISIBLE : View.GONE);
+        }
+
+        LayoutInflater inflater = LayoutInflater.from(this);
+        for (AppNotification n : notifications) {
+            View item = inflater.inflate(R.layout.item_notification, notificationListContainer, false);
+
+            TextView tvTitle   = item.findViewById(R.id.tv_notif_title);
+            TextView tvMessage = item.findViewById(R.id.tv_notif_message);
+            TextView tvTime    = item.findViewById(R.id.tv_notif_time);
+            ImageView ivIcon   = item.findViewById(R.id.iv_notif_icon);
+            View unreadDot     = item.findViewById(R.id.view_unread_dot);
+
+            if (tvTitle   != null) tvTitle.setText(n.title);
+            if (tvMessage != null) tvMessage.setText(n.message);
+            if (tvTime    != null) tvTime.setText(formatRelativeTime(n.timestampMs));
+            if (unreadDot != null) unreadDot.setVisibility(n.isRead ? View.GONE : View.VISIBLE);
+
+            if (ivIcon != null) {
+                if (n.type == AppNotification.TYPE_REMINDER) {
+                    ivIcon.setImageResource(R.drawable.ic_reminder_notification);
+                    ivIcon.setContentDescription(
+                            getString(R.string.calendar_reminder_notification_title));
+                    DrawableCompat.setTint(
+                            DrawableCompat.wrap(ivIcon.getDrawable()).mutate(),
+                            ContextCompat.getColor(this, R.color.module_calendar));
+                } else {
+                    ivIcon.setImageResource(android.R.drawable.ic_dialog_info);
+                    ivIcon.setContentDescription(
+                            getString(R.string.immobilien_notif_title));
+                    DrawableCompat.setTint(
+                            DrawableCompat.wrap(ivIcon.getDrawable()).mutate(),
+                            ContextCompat.getColor(this, R.color.module_immobilien));
+                }
+            }
+
+            final int page = n.navigateTo;
+            item.setOnClickListener(v -> {
+                closeNotificationPanel();
+                if (page >= 0 && viewPager != null && pagerAdapter != null
+                        && page < pagerAdapter.getItemCount()) {
+                    viewPager.setCurrentItem(page, true);
+                }
+            });
+
+            notificationListContainer.addView(item);
+        }
+    }
+
+    private void refreshNotificationBadge() {
+        if (tvNotificationBadge == null) return;
+        int unread = NotificationStore.getInstance(this).getUnreadCount();
+        if (unread > 0) {
+            tvNotificationBadge.setVisibility(View.VISIBLE);
+            tvNotificationBadge.setText(unread > MAX_BADGE_COUNT ? "99+" : String.valueOf(unread));
+        } else {
+            tvNotificationBadge.setVisibility(View.GONE);
+        }
+    }
+
+    /** Returns a human-readable relative time string for the notification panel. */
+    private String formatRelativeTime(long timestampMs) {
+        long diffMs = System.currentTimeMillis() - timestampMs;
+        long minutes = diffMs / 60_000;
+        if (minutes < 1)   return getString(R.string.notification_just_now);
+        if (minutes < 60)  return getString(R.string.notification_minutes_ago, (int) minutes);
+        long hours = minutes / 60;
+        if (hours < 24)    return getString(R.string.notification_hours_ago, (int) hours);
+        return getString(R.string.notification_days_ago, (int) (hours / 24));
+    }
+
     private void setupDots(int count) {
         dotContainer.removeAllViews();
         dots = new View[count];
@@ -479,12 +655,15 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         autoAdvanceHandler.postDelayed(autoAdvanceRunnable, AUTO_ADVANCE_DELAY_MS);
+        NotificationStore.getInstance(this).addObserver(notificationObserver);
+        refreshNotificationBadge();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
+        NotificationStore.getInstance(this).removeObserver(notificationObserver);
     }
 
     // ── Update checker ────────────────────────────────────────────────────────

@@ -15,6 +15,8 @@ import androidx.core.app.NotificationManagerCompat;
 
 import com.kitchenboard.MainActivity;
 import com.kitchenboard.R;
+import com.kitchenboard.notifications.AppNotification;
+import com.kitchenboard.notifications.NotificationStore;
 import com.kitchenboard.update.UpdateLogger;
 
 import java.io.BufferedReader;
@@ -105,6 +107,7 @@ public class ImmobilienCheckReceiver extends BroadcastReceiver {
 
         if (totalNew > 0) {
             sendNotification(context, totalNew, alertsWithNew);
+            postInAppNotification(context, totalNew, alertsWithNew);
         }
     }
 
@@ -334,6 +337,19 @@ public class ImmobilienCheckReceiver extends BroadcastReceiver {
     }
 
     // ── Notifications ─────────────────────────────────────────────────────────
+
+    private void postInAppNotification(Context context, int totalNew,
+                                       List<String> alertNames) {
+        String title = context.getString(R.string.immobilien_notif_title);
+        String text;
+        if (alertNames.size() == 1) {
+            text = context.getString(R.string.immobilien_notif_text, totalNew, alertNames.get(0));
+        } else {
+            text = context.getString(R.string.immobilien_notif_text_multi);
+        }
+        NotificationStore.getInstance(context).addNotification(
+                AppNotification.TYPE_PROPERTY, title, text, 4 /* ImmobilienFragment */);
+    }
 
     private void sendNotification(Context context, int totalNew,
                                   List<String> alertNames) {

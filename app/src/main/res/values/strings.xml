@@ -372,4 +372,14 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. �
     <string name="feature_request_submitted">Danke! Dein Feature-Wunsch wurde eingereicht.</string>
     <string name="feature_request_error">Fehler beim Einreichen. Bitte Internetverbindung prüfen.</string>
     <string name="feature_request_no_token">Feature-Wunsch-Funktion ist nicht konfiguriert.</string>
+
+    <!-- Global in-app notifications panel -->
+    <string name="notifications_title">Benachrichtigungen</string>
+    <string name="notifications_clear_all">Alle löschen</string>
+    <string name="notifications_empty">Keine Benachrichtigungen</string>
+    <string name="close">Schließen</string>
+    <string name="notification_just_now">Gerade eben</string>
+    <string name="notification_minutes_ago">Vor %d Min.</string>
+    <string name="notification_hours_ago">Vor %d Std.</string>
+    <string name="notification_days_ago">Vor %d Tagen</string>
 </resources>

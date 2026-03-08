@@ -13,6 +13,8 @@ import androidx.core.app.NotificationManagerCompat;
 
 import com.kitchenboard.MainActivity;
 import com.kitchenboard.R;
+import com.kitchenboard.notifications.AppNotification;
+import com.kitchenboard.notifications.NotificationStore;
 
 /**
  * Receives an alarm broadcast and displays a reminder notification for an upcoming appointment.
@@ -54,6 +56,13 @@ public class ReminderReceiver extends BroadcastReceiver {
 
         NotificationManagerCompat nm = NotificationManagerCompat.from(context);
         nm.notify((int) (appointmentId & 0x7FFFFFFF), builder.build());
+
+        // Also post to the in-app notification panel so it is globally visible while the app runs
+        NotificationStore.getInstance(context).addNotification(
+                AppNotification.TYPE_REMINDER,
+                context.getString(R.string.calendar_reminder_notification_title),
+                text,
+                1 /* CalendarFragment is page 1 */);
     }
 
     /** Creates the notification channel (no-op on API < 26). */
