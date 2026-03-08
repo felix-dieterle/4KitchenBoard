@@ -302,6 +302,10 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. �
     <string name="update_up_to_date">App ist aktuell – kein Update verfügbar.</string>
     <string name="update_check_error">Update-Prüfung fehlgeschlagen – bitte Internetverbindung prüfen.</string>
     <string name="update_install_error">Update konnte nicht gestartet werden. Bitte erneut versuchen.</string>
+    <string name="update_install_failed_title">Installation fehlgeschlagen</string>
+    <string name="update_install_failed_message">Die Installation ist fehlgeschlagen. Dies tritt häufig auf, wenn eine ältere Version mit einem anderen Signaturschlüssel installiert ist.\n\nBitte deinstalliere die aktuelle App-Version und öffne anschließend die heruntergeladene APK-Datei erneut, um die neue Version zu installieren.\n\nMöchtest du die aktuelle Version jetzt deinstallieren?</string>
+    <string name="update_uninstall_button">Deinstallieren</string>
+    <string name="install_permission_needed">Bitte erlaube die Installation unbekannter Apps unter Einstellungen → Apps → Spezielle App-Zugriffe.</string>
 
     <!-- Update log view (settings dialog) -->
     <string name="update_logs_section">Update-Protokoll:</string>
