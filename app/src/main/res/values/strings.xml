@@ -32,7 +32,7 @@
     <string name="sync_configure">Configure sync</string>
     <string name="sync_url_title">Sync Server URL</string>
     <string name="sync_url_message">Enter the full URL of api.php on your server (leave empty to disable sync):</string>
-    <string name="sync_url_hint">http://192.168.1.x/kitchenboard/api.php</string>
+    <string name="sync_url_hint">http://192.168.1.x/apps/kitchenboard/api.php</string>
     <string name="sync_save">Save</string>
     <string name="sync_status_ok">✓ Synced</string>
     <string name="sync_status_error">Sync failed</string>
@@ -246,7 +246,7 @@
 
     <!-- Centralized account / family-board setup -->
     <string name="account_setup_title">Geteiltes Board einrichten</string>
-    <string name="account_setup_message">Lege denselben Server und denselben Board-Token auf allen Geräten fest – dann teilen sie automatisch eine gemeinsame Liste (Familienkonto).\n\nServer-URL: Adresse deiner api.php (leer lassen = kein Sync).\nBoard-Token: Beliebiges Kennwort – gleicher Token = gleiche Daten.\nAPI-Token: Sicherheits-Token aus generate_token.php (leer lassen, falls nicht konfiguriert).</string>
+    <string name="account_setup_message">Lege denselben Server und denselben Board-Token auf allen Geräten fest – dann teilen sie automatisch eine gemeinsame Liste (Familienkonto).\n\nServer-URL: Adresse deiner api.php, z. B. http://192.168.1.x/apps/kitchenboard/api.php (leer lassen = kein Sync).\nBoard-Token: Beliebiges Kennwort – gleicher Token = gleiche Daten.\nAPI-Token: Sicherheits-Token aus generate_token.php (leer lassen, falls nicht konfiguriert).</string>
     <string name="account_setup_save">Speichern</string>
     <string name="account_setup_copy">Konfiguration kopieren</string>
     <string name="account_setup_copied">Konfiguration in die Zwischenablage kopiert</string>
@@ -263,9 +263,10 @@ Alle Daten werden lokal auf dem Gerät gespeichert. Kein Server, kein Internet n
 
 <b>Familien-/Shared-Modus (mit eigenem Server)</b><br>
 Mehrere Geräte teilen sich dieselben Daten über einen selbst gehosteten PHP/MySQL-Server:<br>
-1. Server einrichten: api.php und generate_token.php auf einem Webserver (z. B. Raspberry Pi, NAS oder Heimserver) ablegen.<br>
-2. API-Token generieren: generate_token.php einmalig im Browser aufrufen – der Token wird angezeigt.<br>
-3. Auf allen Geräten dieselbe Server-URL, denselben Board-Token und denselben API-Token eintragen.<br>
+1. Server einrichten: api.php und generate_token.php unter <tt>/apps/kitchenboard/</tt> auf dem Webserver ablegen.<br>
+2. MySQL-Datenbank anlegen und generate_token.php einmalig auf der Kommandozeile ausführen – Token und Datenbankzugangsdaten werden dabei in config.php gespeichert.<br>
+3. Server-URL in der App eintragen: <tt>http://&lt;Server-IP&gt;/apps/kitchenboard/api.php</tt><br>
+4. Auf allen Geräten dieselbe Server-URL, denselben Board-Token und denselben API-Token eintragen.<br>
 Gleicher Board-Token = geteilte Datenbasis. Verschiedene Board-Tokens = vollständig getrennte Boards.<br><br>
 
 <b>Automatischer Seitenwechsel</b><br>
@@ -273,8 +274,10 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. �
 
 <b>Technischer Hintergrund</b><br>
 &#8226; Lokale Datenbank: SQLite (je Modul eine eigene Datenbank)<br>
+&#8226; Server-Datenbank: MySQL/MariaDB (Verbindung über PDO)<br>
+&#8226; Backend-URL-Prefix: <tt>/apps/kitchenboard/</tt><br>
 &#8226; Sync: REST-API (HTTP POST/GET gegen api.php), JSON-Format<br>
-&#8226; Authentifizierung: Bearer-Token im Authorization-Header<br>
+&#8226; Authentifizierung: X-Api-Token Header (Token aus generate_token.php)<br>
 &#8226; Auto-Update: Die App prüft zweimal täglich auf neue Versionen und lädt APK-Updates automatisch herunter.<br>
 &#8226; Deep-Link: kitchenboard://add?name=…&amp;category=… fügt Artikel direkt zur Einkaufsliste hinzu<br>
 &#8226; QR-Codes: Artikel per QR-Code scannen oder Einkaufslisten als QR-Code teilen

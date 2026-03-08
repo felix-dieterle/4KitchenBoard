@@ -1,40 +1,58 @@
 # 4KitchenBoard – Shopping List Sync Backend
 
-A minimal PHP/SQLite3 REST API that lets multiple 4KitchenBoard devices share and synchronise the same shopping list in real time.
+A minimal PHP/MySQL REST API that lets multiple 4KitchenBoard devices share and synchronise the same shopping list in real time.
 
 ## Requirements
 
 | Requirement | Version |
 |---|---|
 | PHP | ≥ 7.4 |
-| PHP extension | `sqlite3` (enabled by default in most distros) |
+| PHP extension | `pdo_mysql` (enabled by default in most distros) |
+| MySQL / MariaDB | ≥ 5.7 / ≥ 10.3 |
 | Web server | Apache 2.4+ with `mod_rewrite` (or Nginx – see below) |
 
 ## Installation
 
-1. **Copy the `backend/` folder** to a directory that is served by your web server (e.g. `/var/www/html/kitchenboard/`).
+1. **Create a MySQL database** for 4KitchenBoard:
+   ```sql
+   CREATE DATABASE kitchenboard CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   CREATE USER 'kitchenboard'@'localhost' IDENTIFIED BY 'strong-random-password';
+   GRANT ALL PRIVILEGES ON kitchenboard.* TO 'kitchenboard'@'localhost';
+   FLUSH PRIVILEGES;
+   ```
+   Use a strong, unique password. The tables are created automatically by `api.php` on the first request.
 
-2. **Make the directory writable** so that PHP can create the SQLite database file:
+2. **Copy the `backend/` folder** to a directory that is served by your web server.
+   The recommended deployment path is `/var/www/html/apps/kitchenboard/`:
    ```bash
-   chmod 750 /var/www/html/kitchenboard/
-   chown www-data:www-data /var/www/html/kitchenboard/
+   cp -r backend/ /var/www/html/apps/kitchenboard/
    ```
 
-3. **Enable `AllowOverride All`** in your Apache virtual host so that the `.htaccess` rules that protect the database file take effect:
+3. **Enable `AllowOverride All`** in your Apache virtual host so that the `.htaccess` rules take effect:
    ```apache
-   <Directory /var/www/html/kitchenboard/>
+   <Directory /var/www/html/apps/kitchenboard/>
        AllowOverride All
    </Directory>
    ```
 
-4. **Generate an API token** (recommended) so that only your devices can use the API:
+4. **Generate an API token** (recommended) so that only your devices can use the API.
+   The script also asks for MySQL credentials and writes them to `config.php`:
    ```bash
-   php /var/www/html/kitchenboard/generate_token.php
+   php /var/www/html/apps/kitchenboard/generate_token.php
    ```
-   The script creates `config.php` with a 64-character random hex token and prints it to the console.  Copy the token into the app's sync settings on every device (see step 5).
+   Answer the prompts for MySQL host, database, user, and password.
+   The script creates `config.php` with a 64-character random hex token and prints
+   it to the console.  Copy the token into the app's sync settings on every device.
 
-5. **Point the app** to the API by opening the shopping list in 4KitchenBoard, long-pressing the sync button (⟳ in the title bar) and entering:
-   * **Server URL** – e.g. `http://192.168.1.100/kitchenboard/api.php`
+   Alternatively, set the credentials via environment variables to skip the prompts:
+   ```bash
+   KB_DB_HOST=localhost KB_DB_NAME=kitchenboard KB_DB_USER=kitchenboard KB_DB_PASS=secret \
+       php /var/www/html/apps/kitchenboard/generate_token.php
+   ```
+
+5. **Point the app** to the API by opening the shopping list in 4KitchenBoard,
+   long-pressing the sync button (⟳ in the title bar) and entering:
+   * **Server URL** – `http://<server-ip>/apps/kitchenboard/api.php`
    * **API Token** – the token printed by `generate_token.php` (leave empty if you skipped step 4)
 
    Use the LAN IP address so all devices on the same network can reach it.
@@ -43,21 +61,17 @@ A minimal PHP/SQLite3 REST API that lets multiple 4KitchenBoard devices share an
 
 If you use Nginx instead of Apache, add this `location` block (the `.htaccess` is ignored by Nginx):
 ```nginx
-location ~* \.(db|php)$ {
-    # Allow api.php only
-    location = /kitchenboard/api.php {
-        fastcgi_pass ...;
-    }
+location ~* ^/apps/kitchenboard/(config|generate_token)\.php$ {
     deny all;
 }
 ```
 
-Or more precisely, block the sensitive files explicitly:
+Or more broadly:
 ```nginx
-location ~* ^/kitchenboard/(config|generate_token)\.php$ {
-    deny all;
+location = /apps/kitchenboard/api.php {
+    fastcgi_pass ...;
 }
-location ~* \.db$ {
+location /apps/kitchenboard/ {
     deny all;
 }
 ```
@@ -74,6 +88,8 @@ location ~* \.db$ {
 ## API Reference
 
 All responses are JSON.  When a token is configured every request must include the `X-Api-Token` HTTP header with the correct value; otherwise the server returns `401 Unauthorized`.
+
+Base URL: `http://<server-ip>/apps/kitchenboard/api.php`
 
 ### `GET ?action=list`
 Returns all unchecked items sorted by category, then name.
@@ -110,8 +126,9 @@ Body parameters: `id`
 
 ## Security Notes
 
-* The `.htaccess` file prevents `shopping.db`, `config.php` and `generate_token.php` from being downloaded via HTTP.
-* All SQL queries use prepared statements to prevent injection.
+* The `.htaccess` file prevents `config.php` and `generate_token.php` from being accessed via HTTP.
+* All SQL queries use PDO prepared statements to prevent injection.
 * The `X-Api-Token` header is compared with `hash_equals()` to prevent timing attacks.
 * CORS is set to `*` by default; tighten it for production by replacing the wildcard with your device's IP/hostname.
 * Even with a token, **do not expose this API to the public internet** – it is designed for a trusted local network.
+* Never commit `config.php` to version control – it contains your database password and API token.
