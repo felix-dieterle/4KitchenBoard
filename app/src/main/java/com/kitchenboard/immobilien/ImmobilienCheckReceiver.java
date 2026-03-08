@@ -57,6 +57,11 @@ public class ImmobilienCheckReceiver extends BroadcastReceiver {
 
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
 
+    /** Maximum number of HTTP fetch attempts before giving up. */
+    private static final int  MAX_RETRIES    = 3;
+    /** Base delay between retries in milliseconds (multiplied by attempt number). */
+    private static final long RETRY_DELAY_MS = 2_000L;
+
     @Override
     public void onReceive(final Context context, Intent intent) {
         if (!ImmobilienCheckScheduler.ACTION_IMMOBILIEN_CHECK.equals(intent.getAction())) return;
@@ -123,16 +128,69 @@ public class ImmobilienCheckReceiver extends BroadcastReceiver {
 
     // ── HTML fetching ─────────────────────────────────────────────────────────
 
-    private String fetchUrl(String urlStr) throws Exception {
+    /**
+     * Fetches the given URL with up to {@link #MAX_RETRIES} attempts.
+     *
+     * <p>Transient failures (socket timeouts, connection resets, HTTP 5xx) trigger
+     * a retry after a short back-off delay.  Non-transient errors (e.g. HTTP 403,
+     * HTTP 404) are re-thrown immediately without retrying.
+     *
+     * <p>Package-visible so that {@link ImmobilienFragment} can reuse the same
+     * logic for its manual-check path.
+     */
+    String fetchUrl(String urlStr) throws Exception {
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                return fetchUrlOnce(urlStr);
+            } catch (Exception e) {
+                lastException = e;
+                if (!isTransientError(e) || attempt == MAX_RETRIES) {
+                    throw e;
+                }
+                Log.w(TAG, "Fetch attempt " + attempt + " failed for " + urlStr
+                        + ": " + e.getMessage() + " – retrying");
+                try {
+                    Thread.sleep(RETRY_DELAY_MS * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
+        }
+        throw lastException != null ? lastException
+                : new Exception("Fetch failed after " + MAX_RETRIES + " attempts for: " + urlStr);
+    }
+
+    /** Returns true if the exception represents a transient network or server error. */
+    private static boolean isTransientError(Exception e) {
+        if (e instanceof java.net.SocketTimeoutException) return true;
+        if (e instanceof java.net.SocketException)        return true;
+        if (e instanceof java.net.UnknownHostException)   return true;
+        // HTTP 5xx responses
+        String msg = e.getMessage();
+        if (msg != null && msg.startsWith("HTTP 5"))      return true;
+        return false;
+    }
+
+    private String fetchUrlOnce(String urlStr) throws Exception {
         URL url = new URL(urlStr);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
         conn.setConnectTimeout(15_000);
         conn.setReadTimeout(20_000);
+        conn.setInstanceFollowRedirects(true);
+        // Use a realistic browser User-Agent to avoid HTTP 403 responses from
+        // portals that block obvious bot user-agents.
         conn.setRequestProperty("User-Agent",
-                "Mozilla/5.0 (compatible; 4KitchenBoard/1.0)");
+                "Mozilla/5.0 (Linux; Android 10; Mobile) "
+                        + "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        + "Chrome/124.0.0.0 Mobile Safari/537.36");
         conn.setRequestProperty("Accept",
-                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
+        conn.setRequestProperty("Accept-Language", "de-DE,de;q=0.9,en;q=0.8");
+        conn.setRequestProperty("Accept-Encoding", "identity");
+        conn.setRequestProperty("Connection", "close");
 
         int responseCode = conn.getResponseCode();
         if (responseCode < 200 || responseCode >= 300) {

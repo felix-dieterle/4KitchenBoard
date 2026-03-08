@@ -367,12 +367,8 @@ public class ImmobilienFragment extends Fragment {
         executor.execute(() -> {
             ImmobilienCheckReceiver receiver = new ImmobilienCheckReceiver();
             try {
-                // Temporarily set lastCheckMs=0 so isDue() returns true, then run
-                ImmobilienAlert tmp = new ImmobilienAlert(
-                        alert.id, alert.name, alert.searchUrl,
-                        alert.checkIntervalMinutes, true, 0L);
-                String html = fetchForManualCheck(tmp.searchUrl);
-                java.util.Set<String> found = receiver.extractListingUrls(html, tmp.searchUrl);
+                String html = receiver.fetchUrl(alert.searchUrl);
+                java.util.Set<String> found = receiver.extractListingUrls(html, alert.searchUrl);
                 int newCount = 0;
                 for (String u : found) {
                     if (db.addListingIfNew(alert.id, u)) newCount++;
@@ -402,27 +398,6 @@ public class ImmobilienFragment extends Fragment {
                 });
             }
         });
-    }
-
-    private String fetchForManualCheck(String urlStr) throws Exception {
-        java.net.URL url = new java.net.URL(urlStr);
-        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("GET");
-        conn.setConnectTimeout(15_000);
-        conn.setReadTimeout(20_000);
-        conn.setRequestProperty("User-Agent",
-                "Mozilla/5.0 (compatible; 4KitchenBoard/1.0)");
-        int code = conn.getResponseCode();
-        if (code < 200 || code >= 300) throw new Exception("HTTP " + code);
-        java.io.BufferedReader reader = new java.io.BufferedReader(
-                new java.io.InputStreamReader(conn.getInputStream(),
-                        java.nio.charset.StandardCharsets.UTF_8));
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) sb.append(line).append('\n');
-        reader.close();
-        conn.disconnect();
-        return sb.toString();
     }
 
     // ── Rotation toggle (standard pattern) ────────────────────────────────────
