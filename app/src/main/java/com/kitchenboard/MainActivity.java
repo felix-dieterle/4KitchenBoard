@@ -15,6 +15,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -201,6 +202,13 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREF_BOARD_TOKEN = "board_token";
     private static final String PREF_API_TOKEN   = "api_token";
     private static final String PREF_PAGE_IN_ROTATION = "page_%d_in_rotation";
+
+    /** Request code for the system package-installer activity launched via startActivityForResult. */
+    private static final int REQUEST_INSTALL_APK         = 1001;
+    /** Request code for the "Install unknown apps" settings page (Android 8+). */
+    private static final int REQUEST_UNKNOWN_APP_SOURCES = 1002;
+    /** SharedPreferences key: path of the APK file waiting to be installed. */
+    private static final String PREF_INSTALL_APK_PATH = "install_apk_path";
 
     private boolean isPageInRotation(int pageIndex) {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -654,6 +662,30 @@ public class MainActivity extends AppCompatActivity {
                     "installApk: APK file not found at " + apkFile.getAbsolutePath());
             return;
         }
+
+        // On Android 8+ the user must explicitly allow this app to install APKs.
+        // If permission is not yet granted, send the user to the settings page and remember
+        // the APK path so we can retry after they return.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && !getPackageManager().canRequestPackageInstalls()) {
+            com.kitchenboard.update.UpdateLogger.logInfo(this,
+                    "installApk: REQUEST_INSTALL_PACKAGES not granted – opening settings");
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                    .putString(PREF_INSTALL_APK_PATH, apkFile.getAbsolutePath())
+                    .apply();
+            Toast.makeText(this, R.string.install_permission_needed, Toast.LENGTH_LONG).show();
+            try {
+                Intent settingsIntent = new Intent(
+                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + getPackageName()));
+                startActivityForResult(settingsIntent, REQUEST_UNKNOWN_APP_SOURCES);
+            } catch (Exception e) {
+                com.kitchenboard.update.UpdateLogger.logError(this,
+                        "Failed to open install-permission settings", e);
+            }
+            return;
+        }
+
         try {
             com.kitchenboard.update.UpdateLogger.logInfo(this,
                     "Launching APK installer for " + apkFile.getAbsolutePath());
@@ -667,8 +699,9 @@ public class MainActivity extends AppCompatActivity {
                 apkUri = Uri.fromFile(apkFile);
             }
             intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
+            // Do NOT add FLAG_ACTIVITY_NEW_TASK here so that startActivityForResult works
+            // and we receive the installation result in onActivityResult.
+            startActivityForResult(intent, REQUEST_INSTALL_APK);
         } catch (Exception e) {
             com.kitchenboard.update.UpdateLogger.logError(this,
                     "Failed to launch APK installer for " + apkFile.getAbsolutePath(), e);
@@ -676,6 +709,60 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, R.string.update_install_error, Toast.LENGTH_LONG).show();
             }
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_INSTALL_APK) {
+            // RESULT_OK means the package was installed successfully (the new version will have
+            // already started; this branch is only reached in edge cases).
+            if (resultCode != RESULT_OK && !isFinishing() && !isDestroyed()) {
+                com.kitchenboard.update.UpdateLogger.logError(this,
+                        "APK install returned non-OK result: " + resultCode);
+                showInstallFailedDialog();
+            }
+        } else if (requestCode == REQUEST_UNKNOWN_APP_SOURCES
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // User returned from the "Install unknown apps" settings page.
+            String apkPath = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .getString(PREF_INSTALL_APK_PATH, null);
+            if (apkPath != null) {
+                if (getPackageManager().canRequestPackageInstalls()) {
+                    com.kitchenboard.update.UpdateLogger.logInfo(this,
+                            "Install permission granted – retrying APK install");
+                    installApk(new File(apkPath));
+                } else {
+                    Toast.makeText(this, R.string.install_permission_needed,
+                            Toast.LENGTH_LONG).show();
+                }
+            }
+        }
+    }
+
+    /**
+     * Shows a dialog explaining that the APK installation failed, likely due to a signing-key
+     * mismatch with a previously installed version.  Offers an "Uninstall" action so the user
+     * can remove the old version and then install the downloaded APK fresh.
+     */
+    private void showInstallFailedDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.update_install_failed_title)
+                .setMessage(R.string.update_install_failed_message)
+                .setPositiveButton(R.string.update_uninstall_button, (d, w) -> {
+                    try {
+                        com.kitchenboard.update.UpdateLogger.logInfo(this,
+                                "User requested uninstall to resolve signature conflict");
+                        Intent uninstallIntent = new Intent(Intent.ACTION_DELETE);
+                        uninstallIntent.setData(Uri.parse("package:" + getPackageName()));
+                        startActivity(uninstallIntent);
+                    } catch (Exception e) {
+                        com.kitchenboard.update.UpdateLogger.logError(this,
+                                "Failed to launch uninstall", e);
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
     }
 
     @Override
