@@ -67,9 +67,7 @@ public class ImmobilienDatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_LISTINGS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_ALERTS);
-        onCreate(db);
+        // No schema changes since v1; all alerts and listings are preserved across updates.
     }
 
     // ── Alert CRUD ────────────────────────────────────────────────────────────

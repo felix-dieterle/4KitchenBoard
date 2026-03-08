@@ -23,17 +23,9 @@ jobs:
           cache: gradle
 
       - name: Set up debug keystore
-        env:
-          DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
         run: |
           mkdir -p ~/.android
-          if [ -n "$DEBUG_KEYSTORE" ]; then
-            echo "$DEBUG_KEYSTORE" | base64 --decode > ~/.android/debug.keystore
-            keytool -list -keystore ~/.android/debug.keystore -storepass android -noprompt 2>/dev/null || \
-              { echo "::error::DEBUG_KEYSTORE secret contains invalid keystore data."; exit 1; }
-          else
-            cp app/debug.keystore ~/.android/debug.keystore
-          fi
+          cp app/debug.keystore ~/.android/debug.keystore
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
