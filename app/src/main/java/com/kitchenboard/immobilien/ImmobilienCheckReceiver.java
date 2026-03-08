@@ -224,7 +224,10 @@ public class ImmobilienCheckReceiver extends BroadcastReceiver {
      * matched in the HTML wins.
      */
     private static final Pattern[] EXTENDED_RESULTS_PATTERNS = {
-        // Immowelt – data-testid on the extended-results container;
+        // Immowelt – data-testid on the "Weitere Ergebnisse in der Nähe"
+        // enlargement-list container (current portal markup)
+        Pattern.compile("data-testid=[\"']serp-enlargementlist", Pattern.CASE_INSENSITIVE),
+        // Immowelt – older data-testid variants on the extended-results container;
         // covers both "extended-result" (kebab) and "extendedResult" (camelCase)
         Pattern.compile("data-testid=[\"']extended-?result",  Pattern.CASE_INSENSITIVE),
         // ImmobilienScout24 – sectionType marker embedded in page JSON
@@ -235,6 +238,8 @@ public class ImmobilienCheckReceiver extends BroadcastReceiver {
         Pattern.compile("\"relatedClassifieds\"\\s*:\\s*\\[",            Pattern.CASE_INSENSITIVE),
         // German section headings – catch-all for portals without
         // machine-readable markers (e.g. Immonet, Kleinanzeigen)
+        Pattern.compile("Weitere\\s+Ergebnisse\\s+in\\s+der\\s+N\u00E4he", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("Ergebnisse\\s+in\\s+der\\s+Umgebung",          Pattern.CASE_INSENSITIVE),
         Pattern.compile("Erweiterte\\s+Ergebnisse",           Pattern.CASE_INSENSITIVE),
         Pattern.compile("Weitere\\s+passende\\s+Angebote",    Pattern.CASE_INSENSITIVE),
         Pattern.compile("Ergebnisse\\s+au\u00DFerhalb",       Pattern.CASE_INSENSITIVE),
