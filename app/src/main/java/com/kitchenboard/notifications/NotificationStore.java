@@ -101,13 +101,14 @@ public class NotificationStore {
      */
     public synchronized void addNotification(int type, String title, String message,
                                              int navigateTo) {
-        long id = System.currentTimeMillis();
+        long timestampMs = System.currentTimeMillis();
+        long id = timestampMs;
         // Ensure uniqueness if two notifications arrive within the same millisecond
         while (findById(id) != null) {
             id++;
         }
         AppNotification n = new AppNotification(id, type, title, message,
-                id, navigateTo, false);
+                timestampMs, navigateTo, false);
         cache.add(0, n); // newest-first
         pruneIfNeeded();
         persist();

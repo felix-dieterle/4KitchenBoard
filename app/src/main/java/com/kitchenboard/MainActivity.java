@@ -53,6 +53,11 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private static final int AUTO_ADVANCE_DELAY_MS = 20_000;
 
+    /** Fraction of screen height used as the max height of the notification list. */
+    private static final float NOTIFICATION_PANEL_HEIGHT_RATIO = 0.45f;
+    /** Maximum unread count shown in the notification badge before showing "99+". */
+    private static final int MAX_BADGE_COUNT = 99;
+
     private long downloadId = -1;
     private BroadcastReceiver downloadReceiver;
     private boolean isAutoAdvancePaused = false;
@@ -447,7 +452,8 @@ public class MainActivity extends AppCompatActivity {
         // Constrain the notification list scroll area to 45% of screen height
         android.widget.ScrollView scrollView = findViewById(R.id.notification_scroll_view);
         if (scrollView != null) {
-            int maxHeightPx = (int) (getResources().getDisplayMetrics().heightPixels * 0.45f);
+            int maxHeightPx = (int) (getResources().getDisplayMetrics().heightPixels
+                    * NOTIFICATION_PANEL_HEIGHT_RATIO);
             android.view.ViewGroup.LayoutParams lp = scrollView.getLayoutParams();
             lp.height = maxHeightPx;
             scrollView.setLayoutParams(lp);
@@ -535,11 +541,15 @@ public class MainActivity extends AppCompatActivity {
             if (ivIcon != null) {
                 if (n.type == AppNotification.TYPE_REMINDER) {
                     ivIcon.setImageResource(R.drawable.ic_reminder_notification);
+                    ivIcon.setContentDescription(
+                            getString(R.string.calendar_reminder_notification_title));
                     DrawableCompat.setTint(
                             DrawableCompat.wrap(ivIcon.getDrawable()).mutate(),
                             ContextCompat.getColor(this, R.color.module_calendar));
                 } else {
                     ivIcon.setImageResource(android.R.drawable.ic_dialog_info);
+                    ivIcon.setContentDescription(
+                            getString(R.string.immobilien_notif_title));
                     DrawableCompat.setTint(
                             DrawableCompat.wrap(ivIcon.getDrawable()).mutate(),
                             ContextCompat.getColor(this, R.color.module_immobilien));
@@ -564,7 +574,7 @@ public class MainActivity extends AppCompatActivity {
         int unread = NotificationStore.getInstance(this).getUnreadCount();
         if (unread > 0) {
             tvNotificationBadge.setVisibility(View.VISIBLE);
-            tvNotificationBadge.setText(unread > 99 ? "99+" : String.valueOf(unread));
+            tvNotificationBadge.setText(unread > MAX_BADGE_COUNT ? "99+" : String.valueOf(unread));
         } else {
             tvNotificationBadge.setVisibility(View.GONE);
         }
