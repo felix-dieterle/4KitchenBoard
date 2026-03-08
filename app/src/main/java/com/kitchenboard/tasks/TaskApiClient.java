@@ -11,7 +11,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -144,7 +144,7 @@ public class TaskApiClient {
             conn.setRequestProperty("X-Api-Token", apiToken);
         }
 
-        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = body.getBytes(Charset.forName("UTF-8"));
         conn.setRequestProperty("Content-Length", String.valueOf(bytes.length));
         try (OutputStream os = conn.getOutputStream()) {
             os.write(bytes);
@@ -160,7 +160,7 @@ public class TaskApiClient {
         }
         StringBuilder sb = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                new InputStreamReader(conn.getInputStream(), Charset.forName("UTF-8")))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 sb.append(line);

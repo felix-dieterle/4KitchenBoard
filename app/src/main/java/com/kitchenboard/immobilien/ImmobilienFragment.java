@@ -37,7 +37,7 @@ import com.kitchenboard.update.UpdateLogger;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -430,7 +430,7 @@ public class ImmobilienFragment extends Fragment {
                 File htmlFile = new File(dir, alert.id + "_" + safeName + ".html");
 
                 try (OutputStreamWriter writer = new OutputStreamWriter(
-                        new FileOutputStream(htmlFile), StandardCharsets.UTF_8)) {
+                        new FileOutputStream(htmlFile), Charset.forName("UTF-8"))) {
                     writer.write(html);
                 }
 

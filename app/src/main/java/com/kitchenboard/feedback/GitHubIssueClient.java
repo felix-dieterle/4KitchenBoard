@@ -10,7 +10,7 @@ import java.io.BufferedWriter;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 
 /**
  * Creates GitHub issues via the REST API.
@@ -53,7 +53,7 @@ public class GitHubIssueClient {
                     labels.put("feature request");
                     payload.put("labels", labels);
 
-                    byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
+                    byte[] bytes = payload.toString().getBytes(Charset.forName("UTF-8"));
 
                     URL url = new URL(API_URL);
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -69,7 +69,7 @@ public class GitHubIssueClient {
 
                     try (BufferedWriter writer = new BufferedWriter(
                             new OutputStreamWriter(conn.getOutputStream(),
-                                    StandardCharsets.UTF_8))) {
+                                    Charset.forName("UTF-8")))) {
                         writer.write(payload.toString());
                     }
 

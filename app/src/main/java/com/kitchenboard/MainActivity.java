@@ -676,7 +676,7 @@ public class MainActivity extends AppCompatActivity {
                 new UpdateChecker.UpdateResultCallback() {
             @Override
             public void onUpdateAvailable(final UpdateChecker.UpdateResult result) {
-                if (isFinishing() || isDestroyed()) return;
+                if (isFinishing() || isActivityDestroyed()) return;
                 com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
                         "checkForUpdates: update available tag=" + result.tagName
                                 + " autoUpdate=" + result.isAutoUpdate
@@ -724,7 +724,7 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Exception e) {
                     com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
                             "Error handling update result for " + result.tagName, e);
-                    if (!isFinishing() && !isDestroyed()) {
+                    if (!isFinishing() && !isActivityDestroyed()) {
                         Toast.makeText(MainActivity.this,
                                 R.string.update_install_error,
                                 Toast.LENGTH_LONG).show();
@@ -734,7 +734,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onNoUpdate() {
-                if (isFinishing() || isDestroyed()) return;
+                if (isFinishing() || isActivityDestroyed()) return;
                 com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
                         "checkForUpdates: app is up to date");
                 Toast.makeText(MainActivity.this,
@@ -744,7 +744,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onError(String message) {
-                if (isFinishing() || isDestroyed()) return;
+                if (isFinishing() || isActivityDestroyed()) return;
                 // The full stack trace was already logged in UpdateChecker; just note context here.
                 Log.e(TAG, "Update check error reported to UI: "
                         + (message != null ? message : "unknown error"));
@@ -884,7 +884,7 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             com.kitchenboard.update.UpdateLogger.logError(this,
                     "Failed to launch APK installer for " + apkFile.getAbsolutePath(), e);
-            if (!isFinishing() && !isDestroyed()) {
+            if (!isFinishing() && !isActivityDestroyed()) {
                 Toast.makeText(this, R.string.update_install_error, Toast.LENGTH_LONG).show();
             }
         }
@@ -896,7 +896,7 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_INSTALL_APK) {
             // RESULT_OK means the package was installed successfully (the new version will have
             // already started; this branch is only reached in edge cases).
-            if (resultCode != RESULT_OK && !isFinishing() && !isDestroyed()) {
+            if (resultCode != RESULT_OK && !isFinishing() && !isActivityDestroyed()) {
                 com.kitchenboard.update.UpdateLogger.logError(this,
                         "APK install returned non-OK result: " + resultCode);
                 showInstallFailedDialog();
@@ -942,6 +942,11 @@ public class MainActivity extends AppCompatActivity {
                 })
                 .setNegativeButton(R.string.cancel, null)
                 .show();
+    }
+
+    /** Returns true if the activity has been destroyed (API 17+), false on older devices. */
+    private boolean isActivityDestroyed() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && isDestroyed();
     }
 
     @Override

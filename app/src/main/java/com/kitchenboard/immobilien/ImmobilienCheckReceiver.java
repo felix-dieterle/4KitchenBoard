@@ -203,7 +203,7 @@ public class ImmobilienCheckReceiver extends BroadcastReceiver {
         StringBuilder sb = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(conn.getInputStream(),
-                        java.nio.charset.StandardCharsets.UTF_8))) {
+                        java.nio.charset.Charset.forName("UTF-8")))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 sb.append(line).append('\n');

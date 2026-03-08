@@ -13,7 +13,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 
 /**
  * Checks for a newer version of the app.
@@ -192,7 +192,7 @@ public class UpdateChecker {
         String base = serverUrl.endsWith("/") ? serverUrl.substring(0, serverUrl.length() - 1)
                                               : serverUrl;
         String url = base + "?action=check_update&board_token="
-                + java.net.URLEncoder.encode(boardToken, StandardCharsets.UTF_8.name());
+                + java.net.URLEncoder.encode(boardToken, "UTF-8");
 
         String response = httpGet(url, apiToken);
         JSONObject json = new JSONObject(response);
@@ -285,7 +285,7 @@ public class UpdateChecker {
 
         StringBuilder sb = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                new InputStreamReader(conn.getInputStream(), Charset.forName("UTF-8")))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 sb.append(line);
