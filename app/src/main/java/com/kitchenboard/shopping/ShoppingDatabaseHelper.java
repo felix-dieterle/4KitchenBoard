@@ -54,6 +54,13 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        if (oldVersion < 2) {
+            // categories table was introduced in v2; create it if upgrading from v1
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_CATEGORIES + " (" +
+                    COL_CAT_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    COL_CAT_NAME + " TEXT NOT NULL UNIQUE, " +
+                    COL_CAT_ICON + " TEXT DEFAULT '')");
+        }
         if (oldVersion < 3) {
             try {
                 db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " + COL_QUANTITY + " INTEGER DEFAULT 1");
