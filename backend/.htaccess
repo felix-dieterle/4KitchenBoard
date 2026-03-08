@@ -1,8 +1,3 @@
-# Deny direct HTTP access to the SQLite database file
-<Files "*.db">
-    Require all denied
-</Files>
-
 # Deny direct HTTP access to the configuration and generator scripts
 <FilesMatch "^(config|generate_token)\.php$">
     Require all denied
