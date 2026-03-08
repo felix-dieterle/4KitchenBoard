@@ -22,11 +22,6 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Set up debug keystore
-        run: |
-          mkdir -p ~/.android
-          cp app/debug.keystore ~/.android/debug.keystore
-
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
