@@ -11,7 +11,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -177,7 +177,7 @@ public class CookingApiClient {
             conn.setRequestProperty("X-Api-Token", apiToken);
         }
 
-        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = body.getBytes(Charset.forName("UTF-8"));
         conn.setRequestProperty("Content-Length", String.valueOf(bytes.length));
         try (OutputStream os = conn.getOutputStream()) {
             os.write(bytes);
@@ -193,7 +193,7 @@ public class CookingApiClient {
         }
         StringBuilder sb = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                new InputStreamReader(conn.getInputStream(), Charset.forName("UTF-8")))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 sb.append(line);
@@ -207,7 +207,11 @@ public class CookingApiClient {
     /** URL-encode a string value for an application/x-www-form-urlencoded body. */
     private static String encode(String value) {
         if (value == null) return "";
-        return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8);
+        try {
+            return java.net.URLEncoder.encode(value, "UTF-8");
+        } catch (java.io.UnsupportedEncodingException e) {
+            throw new RuntimeException(e); // UTF-8 is always supported
+        }
     }
 
     // ── Thread helpers ────────────────────────────────────────────────────────

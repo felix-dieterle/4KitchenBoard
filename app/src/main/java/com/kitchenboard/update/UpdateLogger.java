@@ -18,7 +18,6 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -246,10 +245,10 @@ public class UpdateLogger {
                             .format(new Date());
 
                     String body = "action=log_error"
-                            + "&message=" + java.net.URLEncoder.encode(message, StandardCharsets.UTF_8.name())
-                            + "&level="   + java.net.URLEncoder.encode(level, StandardCharsets.UTF_8.name())
-                            + "&timestamp=" + java.net.URLEncoder.encode(timestamp, StandardCharsets.UTF_8.name())
-                            + "&board_token=" + java.net.URLEncoder.encode(boardToken, StandardCharsets.UTF_8.name());
+                            + "&message=" + java.net.URLEncoder.encode(message, "UTF-8")
+                            + "&level="   + java.net.URLEncoder.encode(level, "UTF-8")
+                            + "&timestamp=" + java.net.URLEncoder.encode(timestamp, "UTF-8")
+                            + "&board_token=" + java.net.URLEncoder.encode(boardToken, "UTF-8");
 
                     URL url = new URL(base);
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -262,7 +261,7 @@ public class UpdateLogger {
                     if (!apiToken.isEmpty()) {
                         conn.setRequestProperty("X-Api-Token", apiToken);
                     }
-                    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                    byte[] bytes = body.getBytes("UTF-8");
                     conn.setRequestProperty("Content-Length", String.valueOf(bytes.length));
                     try (OutputStream os = conn.getOutputStream()) {
                         os.write(bytes);
