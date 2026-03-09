@@ -30,7 +30,6 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
@@ -41,8 +40,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.zxing.BarcodeFormat;
 import com.journeyapps.barcodescanner.BarcodeEncoder;
-import com.journeyapps.barcodescanner.ScanContract;
-import com.journeyapps.barcodescanner.ScanOptions;
+import com.journeyapps.barcodescanner.IntentIntegrator;
+import com.journeyapps.barcodescanner.IntentResult;
 import com.kitchenboard.R;
 import com.kitchenboard.feedback.FeatureRequestHelper;
 
@@ -81,18 +80,12 @@ public class ShoppingFragment extends Fragment {
         }
     };
 
-    private ActivityResultLauncher<ScanOptions> scanLauncher;
     private final FeatureRequestHelper featureRequestHelper =
             new FeatureRequestHelper(this, "Einkaufen");
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        scanLauncher = registerForActivityResult(new ScanContract(), result -> {
-            if (result.getContents() != null) {
-                handleScanResult(result.getContents());
-            }
-        });
     }
 
     @Nullable
@@ -651,11 +644,23 @@ public class ShoppingFragment extends Fragment {
 
     /** Launches the ZXing in-app QR/barcode scanner. */
     private void launchQrScanner() {
-        ScanOptions options = new ScanOptions();
-        options.setBeepEnabled(false);
-        options.setOrientationLocked(false);
-        options.setPrompt(getString(R.string.scan_qr));
-        scanLauncher.launch(options);
+        IntentIntegrator integrator = IntentIntegrator.forSupportFragment(this);
+        integrator.setBeepEnabled(false);
+        integrator.setOrientationLocked(false);
+        integrator.setPrompt(getString(R.string.scan_qr));
+        integrator.initiateScan();
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
+        if (result != null) {
+            if (result.getContents() != null) {
+                handleScanResult(result.getContents());
+            }
+        } else {
+            super.onActivityResult(requestCode, resultCode, data);
+        }
     }
 
     /** Handles raw text returned by the scanner. */
