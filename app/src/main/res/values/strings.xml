@@ -123,7 +123,7 @@
 
     <!-- Reminder notifications -->
     <string name="calendar_reminder_notification_title">Terminerinnerung</string>
-    <string name="calendar_reminder_text">In %d min: %s</string>
+    <string name="calendar_reminder_text" formatted="false">In %d min: %s</string>
     <string name="calendar_reminder_channel_name">Terminerinnerungen</string>
     <string name="calendar_reminder_channel_desc">Erinnerungen für bevorstehende Termine</string>
     <string name="calendar_reminder_no_time">Zeitbasierte Erinnerungen sind nur für Termine mit Uhrzeit möglich.</string>
