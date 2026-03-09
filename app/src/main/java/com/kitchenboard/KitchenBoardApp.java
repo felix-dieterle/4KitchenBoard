@@ -1,6 +1,5 @@
 package com.kitchenboard;
 
-import android.app.Application;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -10,6 +9,8 @@ import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+
+import androidx.multidex.MultiDexApplication;
 
 import com.kitchenboard.update.UpdateLogger;
 
@@ -26,7 +27,7 @@ import com.kitchenboard.update.UpdateLogger;
  * {@link NotificationCompat.BigTextStyle}. This makes crash details readable from the
  * notification shade even if the app crashes again before the user can open settings.
  */
-public class KitchenBoardApp extends Application {
+public class KitchenBoardApp extends MultiDexApplication {
 
     private static final String TAG = "KitchenBoardApp";
 
