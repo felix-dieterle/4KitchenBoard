@@ -691,8 +691,11 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         if (!prefs.getBoolean(PREF_WELLNESS_ENABLED, true)) return;
 
-        String today = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                .format(new java.util.Date());
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        String today = String.format(Locale.US, "%04d-%02d-%02d",
+                cal.get(java.util.Calendar.YEAR),
+                cal.get(java.util.Calendar.MONTH) + 1,
+                cal.get(java.util.Calendar.DAY_OF_MONTH));
         if (today.equals(prefs.getString(PREF_WELLNESS_LAST_DATE, ""))) return;
 
         // Check if we have a pending trigger from the alarm or current time >= check time
@@ -720,7 +723,11 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        WellnessCheckDialog dialog = new WellnessCheckDialog(this, persons, db, today, prefs);
+        // Mark as shown for today before displaying so the dialog does not re-appear
+        // on the next onResume (e.g. after the user closes it via X or back button).
+        prefs.edit().putString(PREF_WELLNESS_LAST_DATE, today).apply();
+
+        WellnessCheckDialog dialog = new WellnessCheckDialog(this, persons, db, today);
         dialog.show();
     }
 

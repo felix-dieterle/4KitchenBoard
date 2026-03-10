@@ -2,7 +2,6 @@ package com.kitchenboard.wellness;
 
 import android.app.Dialog;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.BitmapShader;
@@ -55,7 +54,6 @@ public class WellnessCheckDialog extends Dialog {
     private final List<Person>           persons;
     private final CalendarDatabaseHelper db;
     private final String                 today;
-    private final SharedPreferences      prefs;
     private       OnDismissListener      dismissListener;
 
     // UI state
@@ -68,13 +66,11 @@ public class WellnessCheckDialog extends Dialog {
     private Button[][] ratingButtons = new Button[3][5];
 
     public WellnessCheckDialog(Context context, List<Person> persons,
-                               CalendarDatabaseHelper db,
-                               String today, SharedPreferences prefs) {
+                               CalendarDatabaseHelper db, String today) {
         super(context, R.style.WellnessDialogTheme);
         this.persons = persons;
         this.db      = db;
         this.today   = today;
-        this.prefs   = prefs;
     }
 
     public void setOnDismissListener(OnDismissListener listener) {
@@ -254,9 +250,18 @@ public class WellnessCheckDialog extends Dialog {
         if (person.getImagePath() != null) {
             File imgFile = new File(person.getImagePath());
             if (imgFile.exists()) {
-                Bitmap bmp = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
+                // Decode with inSampleSize to avoid OOM for large images
+                BitmapFactory.Options opts = new BitmapFactory.Options();
+                opts.inJustDecodeBounds = true;
+                BitmapFactory.decodeFile(imgFile.getAbsolutePath(), opts);
+                opts.inSampleSize = Math.max(1,
+                        Math.max(opts.outWidth / circleSize, opts.outHeight / circleSize));
+                opts.inJustDecodeBounds = false;
+                Bitmap bmp = BitmapFactory.decodeFile(imgFile.getAbsolutePath(), opts);
                 if (bmp != null) {
-                    circle.setImageBitmap(createCircularBitmap(bmp));
+                    Bitmap circular = createCircularBitmap(bmp);
+                    bmp.recycle();
+                    circle.setImageBitmap(circular);
                     photoLoaded = true;
                 }
             }
@@ -268,8 +273,9 @@ public class WellnessCheckDialog extends Dialog {
 
             // Overlay the person's initial letter
             TextView tvInitial = new TextView(ctx);
-            String initial = person.getName().isEmpty()
-                    ? "?" : String.valueOf(person.getName().charAt(0)).toUpperCase(Locale.ROOT);
+            String trimmedName = person.getName().trim();
+            String initial = trimmedName.isEmpty()
+                    ? "?" : String.valueOf(trimmedName.charAt(0)).toUpperCase(Locale.ROOT);
             tvInitial.setText(initial);
             tvInitial.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
             tvInitial.setTypeface(null, Typeface.BOLD);
@@ -354,7 +360,6 @@ public class WellnessCheckDialog extends Dialog {
 
         if (btnDone != null) {
             btnDone.setOnClickListener(v -> {
-                prefs.edit().putString("wellness_last_date", today).apply();
                 if (dismissListener != null) dismissListener.onDismiss();
                 dismiss();
             });
@@ -404,18 +409,14 @@ public class WellnessCheckDialog extends Dialog {
     }
 
     private void pauseAutoAdvance() {
-        try {
-            if (getContext() instanceof MainActivity) {
-                ((MainActivity) getContext()).pauseAutoAdvance();
-            }
-        } catch (ClassCastException ignored) { }
+        if (getContext() instanceof MainActivity) {
+            ((MainActivity) getContext()).pauseAutoAdvance();
+        }
     }
 
     private void resumeAutoAdvance() {
-        try {
-            if (getContext() instanceof MainActivity) {
-                ((MainActivity) getContext()).resumeAutoAdvance();
-            }
-        } catch (ClassCastException ignored) { }
+        if (getContext() instanceof MainActivity) {
+            ((MainActivity) getContext()).resumeAutoAdvance();
+        }
     }
 }

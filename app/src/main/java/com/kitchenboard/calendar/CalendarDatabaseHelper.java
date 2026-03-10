@@ -628,9 +628,11 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 COL_PERSON_ID + "=? AND " + COL_DATE + "=?",
                 new String[]{String.valueOf(personId), date},
                 null, null, null, "1");
-        boolean found = c.moveToFirst();
-        c.close();
-        return found;
+        try {
+            return c.moveToFirst();
+        } finally {
+            c.close();
+        }
     }
 }
 
