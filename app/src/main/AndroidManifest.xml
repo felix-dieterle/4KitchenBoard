@@ -72,6 +72,14 @@
         </receiver>
 
         <receiver
+            android:name=".wellness.WellnessCheckReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.kitchenboard.action.WELLNESS_CHECK" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".update.AutoUpdateReceiver"
             android:exported="false">
             <intent-filter>

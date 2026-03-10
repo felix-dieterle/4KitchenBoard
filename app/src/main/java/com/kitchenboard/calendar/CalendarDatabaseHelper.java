@@ -18,13 +18,14 @@ import java.util.Set;
 public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "calendar.db";
-    private static final int    DB_VERSION = 7;
+    private static final int    DB_VERSION = 8;
 
     static final String TABLE_APPOINTMENTS  = "appointments";
     static final String TABLE_TEMPLATES     = "standard_templates";
     static final String TABLE_PERSONS       = "persons";
     static final String TABLE_PERSON_GROUPS = "person_groups";
     static final String TABLE_GROUP_MEMBERS = "group_members";
+    static final String TABLE_WELLNESS      = "wellness_entries";
 
     static final String COL_ID         = "_id";
     static final String COL_DATE       = "date";       // YYYY-MM-DD
@@ -36,6 +37,9 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
     static final String COL_GROUP_ID   = "group_id";
     static final String COL_IMAGE_PATH = "image_path"; // absolute path to person photo, nullable
     static final String COL_DURATION   = "duration";   // INTEGER, reminder minutes before appointment (0 = no reminder)
+    static final String COL_TIREDNESS  = "tiredness";
+    static final String COL_HEALTH     = "health";
+    static final String COL_MOOD       = "mood";
 
     /** Predefined colors cycled through when auto-assigning to new persons. */
     static final String[] PERSON_COLORS = {
@@ -83,6 +87,14 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
                 COL_PERSON_ID + " INTEGER NOT NULL, " +
                 "PRIMARY KEY(" + COL_GROUP_ID + ", " + COL_PERSON_ID + "))");
 
+        db.execSQL("CREATE TABLE " + TABLE_WELLNESS + " (" +
+                COL_ID        + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COL_PERSON_ID + " INTEGER NOT NULL, " +
+                COL_DATE      + " TEXT NOT NULL, " +
+                COL_TIREDNESS + " INTEGER NOT NULL, " +
+                COL_HEALTH    + " INTEGER NOT NULL, " +
+                COL_MOOD      + " INTEGER NOT NULL)");
+
         // Pre-populate with example standard templates
         ContentValues cv = new ContentValues();
         String[] defaults = {"Finni Besuch", "Hebamme", "Arzttermin"};
@@ -123,6 +135,15 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
         if (oldVersion < 7) {
             db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN "
                     + COL_DURATION + " INTEGER NOT NULL DEFAULT 0");
+        }
+        if (oldVersion < 8) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_WELLNESS + " (" +
+                    COL_ID        + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    COL_PERSON_ID + " INTEGER NOT NULL, " +
+                    COL_DATE      + " TEXT NOT NULL, " +
+                    COL_TIREDNESS + " INTEGER NOT NULL, " +
+                    COL_HEALTH    + " INTEGER NOT NULL, " +
+                    COL_MOOD      + " INTEGER NOT NULL)");
         }
     }
 
@@ -585,6 +606,31 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
         getWritableDatabase().delete(TABLE_GROUP_MEMBERS,
                 COL_GROUP_ID + "=? AND " + COL_PERSON_ID + "=?",
                 new String[]{String.valueOf(groupId), String.valueOf(personId)});
+    }
+
+    // ── Wellness entries ──────────────────────────────────────────────────────
+
+    /** Inserts a wellness entry for the given person on the given date. */
+    public void addWellnessEntry(long personId, String date, int tiredness, int health, int mood) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_PERSON_ID, personId);
+        cv.put(COL_DATE, date);
+        cv.put(COL_TIREDNESS, tiredness);
+        cv.put(COL_HEALTH, health);
+        cv.put(COL_MOOD, mood);
+        getWritableDatabase().insert(TABLE_WELLNESS, null, cv);
+    }
+
+    /** Returns true if a wellness entry already exists for the given person and date. */
+    public boolean hasWellnessEntryForPerson(long personId, String date) {
+        Cursor c = getReadableDatabase().query(TABLE_WELLNESS,
+                new String[]{COL_ID},
+                COL_PERSON_ID + "=? AND " + COL_DATE + "=?",
+                new String[]{String.valueOf(personId), date},
+                null, null, null, "1");
+        boolean found = c.moveToFirst();
+        c.close();
+        return found;
     }
 }
 

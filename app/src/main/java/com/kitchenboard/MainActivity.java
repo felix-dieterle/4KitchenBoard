@@ -40,6 +40,11 @@ import com.kitchenboard.shopping.ShoppingFragment;
 import com.kitchenboard.update.AutoUpdateReceiver;
 import com.kitchenboard.update.AutoUpdateScheduler;
 import com.kitchenboard.update.UpdateChecker;
+import com.kitchenboard.wellness.WellnessCheckDialog;
+import com.kitchenboard.wellness.WellnessCheckScheduler;
+import com.kitchenboard.calendar.CalendarDatabaseHelper;
+import com.kitchenboard.calendar.Person;
+import android.app.TimePickerDialog;
 
 import android.view.LayoutInflater;
 import android.widget.ImageView;
@@ -60,6 +65,7 @@ public class MainActivity extends AppCompatActivity {
 
     private long downloadId = -1;
     private BroadcastReceiver downloadReceiver;
+    private BroadcastReceiver wellnessCheckReceiver;
     private boolean isAutoAdvancePaused = false;
 
     private ViewPager2 viewPager;
@@ -137,6 +143,9 @@ public class MainActivity extends AppCompatActivity {
         // Schedule the twice-daily background auto-update check
         AutoUpdateReceiver.createNotificationChannel(this);
         AutoUpdateScheduler.schedule(this);
+
+        // Schedule daily morning wellness check
+        WellnessCheckScheduler.schedule(this);
 
         ImageButton btnAccountSetup = findViewById(R.id.btn_account_setup);
         if (btnAccountSetup != null) {
@@ -228,6 +237,12 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREF_BOARD_TOKEN = "board_token";
     private static final String PREF_API_TOKEN   = "api_token";
     private static final String PREF_PAGE_IN_ROTATION = "page_%d_in_rotation";
+
+    private static final String PREF_WELLNESS_ENABLED   = "wellness_enabled";
+    private static final String PREF_WELLNESS_HOUR      = "wellness_hour";
+    private static final String PREF_WELLNESS_MINUTE    = "wellness_minute";
+    private static final String PREF_WELLNESS_LAST_DATE = "wellness_last_date";
+    private static final String PREF_WELLNESS_PENDING   = "wellness_check_pending";
 
     /** Request code for the system package-installer activity launched via startActivityForResult. */
     private static final int REQUEST_INSTALL_APK         = 1001;
@@ -325,6 +340,32 @@ public class MainActivity extends AppCompatActivity {
         layout.addView(tvLogsSection);
         layout.addView(btnViewLogs);
 
+        // ── Wellness-Check Einstellungen ──────────────────────────────────────
+        final TextView tvWellnessSection = new TextView(this);
+        tvWellnessSection.setText(R.string.wellness_settings_section);
+        tvWellnessSection.setTextSize(12f);
+        tvWellnessSection.setPadding(0, padPx, 0, padPx / 4);
+
+        final CheckBox cbWellnessEnabled = new CheckBox(this);
+        cbWellnessEnabled.setText(R.string.wellness_settings_enabled);
+        cbWellnessEnabled.setChecked(prefs.getBoolean(PREF_WELLNESS_ENABLED, true));
+
+        int wHour   = prefs.getInt(PREF_WELLNESS_HOUR,   WellnessCheckScheduler.DEFAULT_HOUR);
+        int wMinute = prefs.getInt(PREF_WELLNESS_MINUTE, WellnessCheckScheduler.DEFAULT_MINUTE);
+        final int[] wellnessTime = {wHour, wMinute};
+
+        android.widget.Button btnWellnessTime = new android.widget.Button(this);
+        btnWellnessTime.setText(getString(R.string.wellness_settings_time, wHour, wMinute));
+        btnWellnessTime.setOnClickListener(v -> new TimePickerDialog(this, (view1, h, m) -> {
+            wellnessTime[0] = h;
+            wellnessTime[1] = m;
+            btnWellnessTime.setText(getString(R.string.wellness_settings_time, h, m));
+        }, wellnessTime[0], wellnessTime[1], true).show());
+
+        layout.addView(tvWellnessSection);
+        layout.addView(cbWellnessEnabled);
+        layout.addView(btnWellnessTime);
+
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.account_setup_title)
                 .setMessage(R.string.account_setup_message)
@@ -341,7 +382,11 @@ public class MainActivity extends AppCompatActivity {
                         editor.putBoolean(String.format(Locale.US, PREF_PAGE_IN_ROTATION, i),
                                 cbPages[i].isChecked());
                     }
+                    editor.putBoolean(PREF_WELLNESS_ENABLED, cbWellnessEnabled.isChecked());
+                    editor.putInt(PREF_WELLNESS_HOUR,   wellnessTime[0]);
+                    editor.putInt(PREF_WELLNESS_MINUTE, wellnessTime[1]);
                     editor.apply();
+                    WellnessCheckScheduler.schedule(MainActivity.this);
                 })
                 .setNeutralButton(R.string.account_setup_copy, null)
                 .setNegativeButton(R.string.cancel, null)
@@ -640,6 +685,45 @@ public class MainActivity extends AppCompatActivity {
         autoAdvanceHandler.postDelayed(autoAdvanceRunnable, AUTO_ADVANCE_DELAY_MS);
     }
 
+    // ── Wellness check ────────────────────────────────────────────────────────
+
+    private void maybeShowWellnessCheck() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        if (!prefs.getBoolean(PREF_WELLNESS_ENABLED, true)) return;
+
+        String today = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                .format(new java.util.Date());
+        if (today.equals(prefs.getString(PREF_WELLNESS_LAST_DATE, ""))) return;
+
+        // Check if we have a pending trigger from the alarm or current time >= check time
+        boolean pending   = prefs.getBoolean(PREF_WELLNESS_PENDING, false);
+        int checkHour     = prefs.getInt(PREF_WELLNESS_HOUR,   WellnessCheckScheduler.DEFAULT_HOUR);
+        int checkMinute   = prefs.getInt(PREF_WELLNESS_MINUTE, WellnessCheckScheduler.DEFAULT_MINUTE);
+        java.util.Calendar now = java.util.Calendar.getInstance();
+        int nowHour   = now.get(java.util.Calendar.HOUR_OF_DAY);
+        int nowMinute = now.get(java.util.Calendar.MINUTE);
+        boolean timeReached = nowHour > checkHour
+                || (nowHour == checkHour && nowMinute >= checkMinute);
+
+        if (!pending && !timeReached) return;
+
+        // Clear pending flag
+        prefs.edit().putBoolean(PREF_WELLNESS_PENDING, false).apply();
+
+        CalendarDatabaseHelper db = new CalendarDatabaseHelper(this);
+        List<Person> persons = db.getPersons();
+
+        if (persons.isEmpty()) {
+            Toast.makeText(this, R.string.wellness_no_persons, Toast.LENGTH_LONG).show();
+            // Mark as done so we don't keep showing the toast
+            prefs.edit().putString(PREF_WELLNESS_LAST_DATE, today).apply();
+            return;
+        }
+
+        WellnessCheckDialog dialog = new WellnessCheckDialog(this, persons, db, today, prefs);
+        dialog.show();
+    }
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         if (ev.getAction() == MotionEvent.ACTION_DOWN && !isAutoAdvancePaused) {
@@ -657,6 +741,22 @@ public class MainActivity extends AppCompatActivity {
         autoAdvanceHandler.postDelayed(autoAdvanceRunnable, AUTO_ADVANCE_DELAY_MS);
         NotificationStore.getInstance(this).addObserver(notificationObserver);
         refreshNotificationBadge();
+
+        // Register receiver for direct wellness check trigger (e.g. from alarm)
+        wellnessCheckReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                maybeShowWellnessCheck();
+            }
+        };
+        IntentFilter wellnessFilter = new IntentFilter(
+                com.kitchenboard.wellness.WellnessCheckReceiver.ACTION_SHOW_DIALOG);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(wellnessCheckReceiver, wellnessFilter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(wellnessCheckReceiver, wellnessFilter);
+        }
+        maybeShowWellnessCheck();
     }
 
     @Override
@@ -664,6 +764,12 @@ public class MainActivity extends AppCompatActivity {
         super.onPause();
         autoAdvanceHandler.removeCallbacks(autoAdvanceRunnable);
         NotificationStore.getInstance(this).removeObserver(notificationObserver);
+        if (wellnessCheckReceiver != null) {
+            try {
+                unregisterReceiver(wellnessCheckReceiver);
+            } catch (Exception ignored) { }
+            wellnessCheckReceiver = null;
+        }
     }
 
     // ── Update checker ────────────────────────────────────────────────────────

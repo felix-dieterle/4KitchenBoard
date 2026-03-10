@@ -382,4 +382,27 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. �
     <string name="notification_minutes_ago">Vor %d Min.</string>
     <string name="notification_hours_ago">Vor %d Std.</string>
     <string name="notification_days_ago">Vor %d Tagen</string>
+
+    <!-- Wellness check -->
+    <string name="wellness_dialog_title">Morgen-Check</string>
+    <string name="wellness_greeting">Guten Morgen! 🌅</string>
+    <string name="wellness_subtitle">Wie geht es dir heute?</string>
+    <string name="wellness_tiredness">😴  Müdigkeit</string>
+    <string name="wellness_health">💪  Gesundheit</string>
+    <string name="wellness_mood">😊  Stimmung</string>
+    <string name="wellness_next">Weiter →</string>
+    <string name="wellness_person_question">Für wen ist diese Bewertung?</string>
+    <string name="wellness_no_persons">Noch keine Personen vorhanden.\nBitte zuerst im Kalender Personen anlegen.</string>
+    <string name="wellness_save">Speichern</string>
+    <string name="wellness_saved_for">Gespeichert für %s! ✓</string>
+    <string name="wellness_more_question">Noch jemanden bewerten?</string>
+    <string name="wellness_btn_more">Ja, weiter</string>
+    <string name="wellness_btn_done">Nein, fertig</string>
+    <string name="wellness_already_done">Morgen-Check für heute bereits erledigt.</string>
+    <string name="wellness_settings_section">Morgen-Check</string>
+    <string name="wellness_settings_enabled">Morgen-Check aktiviert</string>
+    <string name="wellness_settings_time">Uhrzeit: %02d:%02d</string>
+    <string name="wellness_settings_time_title">Uhrzeit für Morgen-Check</string>
+    <string name="wellness_rating_low">niedrig</string>
+    <string name="wellness_rating_high">hoch</string>
 </resources>

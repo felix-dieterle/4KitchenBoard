@@ -30,5 +30,8 @@ public class BootReceiver extends BroadcastReceiver {
 
         // Reschedule the periodic real-estate alert check
         ImmobilienCheckScheduler.schedule(context);
+
+        // Reschedule the daily morning wellness check
+        com.kitchenboard.wellness.WellnessCheckScheduler.schedule(context);
     }
 }
