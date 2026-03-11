@@ -44,12 +44,15 @@ import com.kitchenboard.wellness.WellnessCheckDialog;
 import com.kitchenboard.wellness.WellnessCheckScheduler;
 import com.kitchenboard.calendar.CalendarDatabaseHelper;
 import com.kitchenboard.calendar.Person;
+import com.kitchenboard.calendar.PersonAvatarHelper;
 import android.app.TimePickerDialog;
 
 import android.view.LayoutInflater;
 import android.widget.ImageView;
+import android.graphics.Bitmap;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -63,10 +66,19 @@ public class MainActivity extends AppCompatActivity {
     /** Maximum unread count shown in the notification badge before showing "99+". */
     private static final int MAX_BADGE_COUNT = 99;
 
+    /** SharedPreferences file for calendar / active-profile state. */
+    public static final String PREFS_CALENDAR = "calendar_prefs";
+    /** SharedPreferences key storing the active person's database ID (-1 = none). */
+    public static final String PREF_ACTIVE_PERSON_ID = "active_person_id";
+
     private long downloadId = -1;
     private BroadcastReceiver downloadReceiver;
     private BroadcastReceiver wellnessCheckReceiver;
     private boolean isAutoAdvancePaused = false;
+
+    // ── Active profile avatar ─────────────────────────────────────────────────
+    private ImageView ivActiveProfile;
+    private SharedPreferences.OnSharedPreferenceChangeListener activeProfileListener;
 
     private ViewPager2 viewPager;
     private ScreenPagerAdapter pagerAdapter;
@@ -153,6 +165,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         setupNotificationPanel();
+        setupActiveProfile();
         com.kitchenboard.update.UpdateLogger.logInfo(this, "MainActivity.onCreate: complete");
     }
 
@@ -625,6 +638,109 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // ── Active profile ────────────────────────────────────────────────────────
+
+    /** Binds the active-profile avatar view and registers a prefs change listener. */
+    private void setupActiveProfile() {
+        ivActiveProfile = findViewById(R.id.iv_active_profile);
+        if (ivActiveProfile == null) return;
+        ivActiveProfile.setOnClickListener(v -> showActiveProfileSelection());
+
+        // Listen for active-person changes triggered from CalendarFragment
+        SharedPreferences calPrefs = getSharedPreferences(PREFS_CALENDAR, MODE_PRIVATE);
+        activeProfileListener = (prefs, key) -> {
+            if (PREF_ACTIVE_PERSON_ID.equals(key)) {
+                refreshActiveProfileAvatar();
+            }
+        };
+        calPrefs.registerOnSharedPreferenceChangeListener(activeProfileListener);
+
+        refreshActiveProfileAvatar();
+    }
+
+    /** Reloads the active person from SharedPreferences and updates the avatar view. */
+    private void refreshActiveProfileAvatar() {
+        if (ivActiveProfile == null) return;
+        long activeId = getSharedPreferences(PREFS_CALENDAR, MODE_PRIVATE)
+                .getLong(PREF_ACTIVE_PERSON_ID, -1L);
+        if (activeId < 0) {
+            // No active profile – show a generic person silhouette
+            ivActiveProfile.setImageResource(R.drawable.ic_active_profile_empty);
+            ivActiveProfile.setBackgroundResource(0);
+            return;
+        }
+        CalendarDatabaseHelper db = new CalendarDatabaseHelper(this);
+        try {
+            List<Person> persons = db.getPersons();
+            Person active = null;
+            for (Person p : persons) {
+                if (p.getId() == activeId) {
+                    active = p;
+                    break;
+                }
+            }
+            if (active == null) {
+                // Person was deleted – clear stale pref
+                getSharedPreferences(PREFS_CALENDAR, MODE_PRIVATE)
+                        .edit().remove(PREF_ACTIVE_PERSON_ID).apply();
+                ivActiveProfile.setImageResource(R.drawable.ic_active_profile_empty);
+                ivActiveProfile.setBackgroundResource(0);
+                return;
+            }
+            int avatarSizeDp = (int) (getResources().getDimension(R.dimen.active_profile_avatar_size)
+                    / getResources().getDisplayMetrics().density);
+            Bitmap avatar = PersonAvatarHelper.createAvatarBitmap(this, active, avatarSizeDp);
+            ivActiveProfile.setImageBitmap(avatar);
+            ivActiveProfile.setBackgroundResource(0);
+        } finally {
+            db.close();
+        }
+    }
+
+    /** Shows a dialog to pick an active profile from all known persons. */
+    private void showActiveProfileSelection() {
+        pauseAutoAdvance();
+        CalendarDatabaseHelper db = new CalendarDatabaseHelper(this);
+        List<Person> persons;
+        try {
+            persons = db.getPersons();
+        } catch (Exception e) {
+            persons = new ArrayList<>();
+        } finally {
+            db.close();
+        }
+        final List<Person> finalPersons = persons;
+        SharedPreferences calPrefs = getSharedPreferences(PREFS_CALENDAR, MODE_PRIVATE);
+        final long currentActiveId = calPrefs.getLong(PREF_ACTIVE_PERSON_ID, -1L);
+
+        // Build display names (mark currently active one)
+        String[] names = new String[finalPersons.size() + 1];
+        names[0] = getString(R.string.active_profile_none);
+        for (int i = 0; i < finalPersons.size(); i++) {
+            Person p = finalPersons.get(i);
+            names[i + 1] = p.getId() == currentActiveId
+                    ? getString(R.string.active_profile_active) + " " + p.getName()
+                    : p.getName();
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.active_profile_select_title)
+                .setItems(names, (dialog, which) -> {
+                    SharedPreferences.Editor editor = calPrefs.edit();
+                    if (which == 0) {
+                        editor.remove(PREF_ACTIVE_PERSON_ID);
+                    } else {
+                        editor.putLong(PREF_ACTIVE_PERSON_ID, finalPersons.get(which - 1).getId());
+                    }
+                    editor.apply();
+                    refreshActiveProfileAvatar();
+                    resumeAutoAdvance();
+                })
+                .setNegativeButton(R.string.cancel, (d, w) -> resumeAutoAdvance())
+                .setOnCancelListener(d -> resumeAutoAdvance())
+                .show();
+    }
+
     /** Returns a human-readable relative time string for the notification panel. */
     private String formatRelativeTime(long timestampMs) {
         long diffMs = System.currentTimeMillis() - timestampMs;
@@ -748,6 +864,7 @@ public class MainActivity extends AppCompatActivity {
         autoAdvanceHandler.postDelayed(autoAdvanceRunnable, AUTO_ADVANCE_DELAY_MS);
         NotificationStore.getInstance(this).addObserver(notificationObserver);
         refreshNotificationBadge();
+        refreshActiveProfileAvatar();
 
         // Register receiver for direct wellness check trigger (e.g. from alarm)
         wellnessCheckReceiver = new BroadcastReceiver() {
@@ -1073,6 +1190,11 @@ public class MainActivity extends AppCompatActivity {
         if (downloadReceiver != null) {
             try { unregisterReceiver(downloadReceiver); } catch (IllegalArgumentException ignored) {}
             downloadReceiver = null;
+        }
+        if (activeProfileListener != null) {
+            getSharedPreferences(PREFS_CALENDAR, MODE_PRIVATE)
+                    .unregisterOnSharedPreferenceChangeListener(activeProfileListener);
+            activeProfileListener = null;
         }
     }
 }

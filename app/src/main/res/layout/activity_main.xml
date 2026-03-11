@@ -50,6 +50,27 @@
         android:contentDescription="@string/account_setup_title"
         android:alpha="0.45"/>
 
+    <!-- Active profile avatar button (top-start corner) -->
+    <FrameLayout
+        android:id="@+id/fl_active_profile"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_marginTop="6dp"
+        android:layout_marginStart="6dp">
+
+        <ImageView
+            android:id="@+id/iv_active_profile"
+            android:layout_width="@dimen/active_profile_avatar_size"
+            android:layout_height="@dimen/active_profile_avatar_size"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_active_profile_empty"
+            android:contentDescription="@string/active_profile_desc"
+            android:alpha="0.55"
+            android:clickable="true"
+            android:focusable="true"/>
+    </FrameLayout>
+
     <!-- Global notification bell with unread-count badge (top-end corner) -->
     <FrameLayout
         android:layout_width="wrap_content"

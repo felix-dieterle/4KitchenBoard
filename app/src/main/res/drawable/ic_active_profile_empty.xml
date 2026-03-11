@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generic person silhouette, used when no active profile is selected -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Head circle -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M12,12m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <!-- Shoulders -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M4,20 C4,16 7.6,13 12,13 C16.4,13 20,16 20,20 Z"/>
+</vector>

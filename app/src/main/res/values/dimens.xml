@@ -15,4 +15,7 @@
 
     <!-- List items -->
     <dimen name="item_height">52dp</dimen>
+
+    <!-- Active profile avatar size in the main toolbar -->
+    <dimen name="active_profile_avatar_size">36dp</dimen>
 </resources>
