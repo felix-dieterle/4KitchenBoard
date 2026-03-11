@@ -107,6 +107,16 @@ public class TaskFragment extends Fragment {
             }
 
             @Override
+            public void onMoveToTop(int position) {
+                moveTaskToTop(position);
+            }
+
+            @Override
+            public void onMoveToBottom(int position) {
+                moveTaskToBottom(position);
+            }
+
+            @Override
             public void onDone(int position) {
                 markDone(position);
             }
@@ -293,6 +303,40 @@ public class TaskFragment extends Fragment {
             apiClient.upsertTask(new Task(current.id, current.title, below.sortOrder, current.assignedTo), null);
             apiClient.upsertTask(new Task(below.id,   below.title,   current.sortOrder, below.assignedTo), null);
         }
+        loadTasks();
+    }
+
+    /** Moves a task directly to the first position (highest priority). */
+    private void moveTaskToTop(int position) {
+        List<Task> tasks = db.getAllTasks();
+        if (position <= 0 || position >= tasks.size()) return;
+        Task task  = tasks.get(position);
+        Task first = tasks.get(0);
+        int newOrder = first.sortOrder - 1;
+        db.setSortOrder(task.id, newOrder);
+        if (apiClient != null) {
+            apiClient.upsertTask(new Task(task.id, task.title, newOrder, task.assignedTo), null);
+        }
+        Toast.makeText(requireContext(),
+                getString(R.string.tasks_moved_to_top, task.title),
+                Toast.LENGTH_SHORT).show();
+        loadTasks();
+    }
+
+    /** Moves a task directly to the last position (lowest priority). */
+    private void moveTaskToBottom(int position) {
+        List<Task> tasks = db.getAllTasks();
+        if (position < 0 || position >= tasks.size() - 1) return;
+        Task task = tasks.get(position);
+        Task last = tasks.get(tasks.size() - 1);
+        int newOrder = last.sortOrder + 1;
+        db.setSortOrder(task.id, newOrder);
+        if (apiClient != null) {
+            apiClient.upsertTask(new Task(task.id, task.title, newOrder, task.assignedTo), null);
+        }
+        Toast.makeText(requireContext(),
+                getString(R.string.tasks_moved_to_bottom, task.title),
+                Toast.LENGTH_SHORT).show();
         loadTasks();
     }
 

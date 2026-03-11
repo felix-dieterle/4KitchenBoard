@@ -19,6 +19,10 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.ViewHolder> {
     public interface OnTaskActionListener {
         void onMoveUp(int position);
         void onMoveDown(int position);
+        /** Long-press on ▲: move task directly to the top of the list. */
+        void onMoveToTop(int position);
+        /** Long-press on ▼: move task directly to the bottom of the list. */
+        void onMoveToBottom(int position);
         void onDone(int position);
         void onLongClick(int position);
     }
@@ -74,11 +78,29 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.ViewHolder> {
             }
         });
 
+        holder.btnUp.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                int pos = holder.getAdapterPosition();
+                if (pos > 0 && listener != null) listener.onMoveToTop(pos);
+                return true;
+            }
+        });
+
         holder.btnDown.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 int pos = holder.getAdapterPosition();
                 if (pos >= 0 && pos < items.size() - 1 && listener != null) listener.onMoveDown(pos);
+            }
+        });
+
+        holder.btnDown.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                int pos = holder.getAdapterPosition();
+                if (pos >= 0 && pos < items.size() - 1 && listener != null) listener.onMoveToBottom(pos);
+                return true;
             }
         });
 
