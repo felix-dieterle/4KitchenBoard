@@ -56,6 +56,13 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.ViewHolder> {
         holder.tvTitle.setText(task.title);
         holder.tvPriority.setText(String.valueOf(position + 1));
 
+        if (task.assignedTo != null && !task.assignedTo.isEmpty()) {
+            holder.tvAssignee.setVisibility(View.VISIBLE);
+            holder.tvAssignee.setText("\u2192 " + task.assignedTo);
+        } else {
+            holder.tvAssignee.setVisibility(View.GONE);
+        }
+
         holder.btnUp.setVisibility(position > 0 ? View.VISIBLE : View.INVISIBLE);
         holder.btnDown.setVisibility(position < items.size() - 1 ? View.VISIBLE : View.INVISIBLE);
 
@@ -101,6 +108,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.ViewHolder> {
     static class ViewHolder extends RecyclerView.ViewHolder {
         final TextView tvPriority;
         final TextView tvTitle;
+        final TextView tvAssignee;
         final Button   btnUp;
         final Button   btnDown;
         final Button   btnDone;
@@ -109,6 +117,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.ViewHolder> {
             super(itemView);
             tvPriority = itemView.findViewById(R.id.tv_task_priority);
             tvTitle    = itemView.findViewById(R.id.tv_task_title);
+            tvAssignee = itemView.findViewById(R.id.tv_task_assignee);
             btnUp      = itemView.findViewById(R.id.btn_task_up);
             btnDown    = itemView.findViewById(R.id.btn_task_down);
             btnDone    = itemView.findViewById(R.id.btn_task_done);

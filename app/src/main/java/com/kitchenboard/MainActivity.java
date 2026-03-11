@@ -37,6 +37,7 @@ import androidx.viewpager2.widget.ViewPager2;
 import com.kitchenboard.notifications.AppNotification;
 import com.kitchenboard.notifications.NotificationStore;
 import com.kitchenboard.shopping.ShoppingFragment;
+import com.kitchenboard.tasks.TasksCheckScheduler;
 import com.kitchenboard.update.AutoUpdateReceiver;
 import com.kitchenboard.update.AutoUpdateScheduler;
 import com.kitchenboard.update.UpdateChecker;
@@ -158,6 +159,9 @@ public class MainActivity extends AppCompatActivity {
 
         // Schedule daily morning wellness check
         WellnessCheckScheduler.schedule(this);
+
+        // Schedule background check for newly assigned tasks
+        TasksCheckScheduler.schedule(this);
 
         ImageButton btnAccountSetup = findViewById(R.id.btn_account_setup);
         if (btnAccountSetup != null) {

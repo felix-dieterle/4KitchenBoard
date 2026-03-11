@@ -71,7 +71,8 @@ public class TaskApiClient {
                         list.add(new Task(
                                 obj.getLong("id"),
                                 obj.getString("title"),
-                                obj.getInt("sort_order")));
+                                obj.getInt("sort_order"),
+                                obj.optString("assigned_to", "")));
                     }
                     postSuccess(callback, list);
                 } catch (final Exception e) {
@@ -91,6 +92,7 @@ public class TaskApiClient {
                             + "&id=" + task.id
                             + "&title=" + encode(task.title)
                             + "&sort_order=" + task.sortOrder
+                            + "&assigned_to=" + encode(task.assignedTo)
                             + "&board_token=" + encode(boardToken);
                     httpPost(baseUrl, body);
                     postSuccess(callback, null);

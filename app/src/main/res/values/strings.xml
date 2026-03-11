@@ -241,6 +241,10 @@
     <string name="tasks_delete_confirm">„%s" löschen?</string>
     <string name="tasks_sync_status_ok">✓ Synced</string>
     <string name="tasks_sync_status_error">Sync failed</string>
+    <string name="tasks_assign_label">Zuständig</string>
+    <string name="tasks_assign_nobody">Niemand</string>
+    <string name="tasks_notif_new_title">Neue Aufgabe</string>
+    <string name="tasks_notif_new_message">Dir wurde eine neue Aufgabe zugewiesen: %s</string>
     <!-- Priority feature -->
     <string name="priority_label">Priorität</string>
     <string name="priority_high">Hoch</string>

@@ -32,7 +32,7 @@
  *   POST ?action=cooking_mark_cooked  → body: id, last_cooked                     → {"success":true}
  *
  *   GET  ?action=tasks_list    → JSON list of all tasks sorted by sort_order
- *   POST ?action=tasks_upsert  → body: id, title, sort_order → {"success":true}
+ *   POST ?action=tasks_upsert  → body: id, title, sort_order[, assigned_to] → {"success":true}
  *   POST ?action=tasks_delete  → body: id                    → {"success":true}
  *
  * Error log endpoint:
@@ -174,15 +174,20 @@ if (!columnExists($db, 'cooking_dishes', 'board_id')) {
 }
 
 $db->exec("CREATE TABLE IF NOT EXISTS tasks (
-    id         INT          NOT NULL,
-    board_id   VARCHAR(255) NOT NULL DEFAULT '',
-    title      VARCHAR(255) NOT NULL,
-    sort_order INT          NOT NULL DEFAULT 0,
+    id          INT          NOT NULL,
+    board_id    VARCHAR(255) NOT NULL DEFAULT '',
+    title       VARCHAR(255) NOT NULL,
+    sort_order  INT          NOT NULL DEFAULT 0,
+    assigned_to VARCHAR(255) NOT NULL DEFAULT '',
     PRIMARY KEY (id, board_id)
 )");
 
 if (!columnExists($db, 'tasks', 'board_id')) {
     $db->exec("ALTER TABLE tasks ADD COLUMN board_id VARCHAR(255) NOT NULL DEFAULT ''");
+}
+
+if (!columnExists($db, 'tasks', 'assigned_to')) {
+    $db->exec("ALTER TABLE tasks ADD COLUMN assigned_to VARCHAR(255) NOT NULL DEFAULT ''");
 }
 
 $db->exec("CREATE TABLE IF NOT EXISTS error_logs (
@@ -624,16 +629,17 @@ function cookingMarkCooked(PDO $db, string $boardId): void
 function tasksList(PDO $db, string $boardId): void
 {
     $stmt = $db->prepare(
-        'SELECT id, title, sort_order FROM tasks WHERE board_id = :board_id ORDER BY sort_order ASC'
+        'SELECT id, title, sort_order, assigned_to FROM tasks WHERE board_id = :board_id ORDER BY sort_order ASC'
     );
     $stmt->bindValue(':board_id', $boardId, PDO::PARAM_STR);
     $stmt->execute();
     $tasks = [];
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $tasks[] = [
-            'id'         => (int)$row['id'],
-            'title'      => $row['title'],
-            'sort_order' => (int)$row['sort_order'],
+            'id'          => (int)$row['id'],
+            'title'       => $row['title'],
+            'sort_order'  => (int)$row['sort_order'],
+            'assigned_to' => $row['assigned_to'],
         ];
     }
     echo json_encode(['tasks' => $tasks]);
@@ -641,9 +647,10 @@ function tasksList(PDO $db, string $boardId): void
 
 function tasksUpsert(PDO $db, string $boardId): void
 {
-    $id        = (int)($_POST['id']         ?? 0);
-    $title     = trim((string)($_POST['title']     ?? ''));
-    $sortOrder = (int)($_POST['sort_order'] ?? 0);
+    $id         = (int)($_POST['id']          ?? 0);
+    $title      = trim((string)($_POST['title']      ?? ''));
+    $sortOrder  = (int)($_POST['sort_order']  ?? 0);
+    $assignedTo = trim((string)($_POST['assigned_to'] ?? ''));
 
     if ($id <= 0 || $title === '') {
         http_response_code(400);
@@ -658,12 +665,13 @@ function tasksUpsert(PDO $db, string $boardId): void
     $del->execute();
 
     $stmt = $db->prepare(
-        'INSERT INTO tasks (id, board_id, title, sort_order) VALUES (:id, :board_id, :title, :sort_order)'
+        'INSERT INTO tasks (id, board_id, title, sort_order, assigned_to) VALUES (:id, :board_id, :title, :sort_order, :assigned_to)'
     );
-    $stmt->bindValue(':id',         $id,        PDO::PARAM_INT);
-    $stmt->bindValue(':board_id',   $boardId,   PDO::PARAM_STR);
-    $stmt->bindValue(':title',      $title,     PDO::PARAM_STR);
-    $stmt->bindValue(':sort_order', $sortOrder, PDO::PARAM_INT);
+    $stmt->bindValue(':id',          $id,         PDO::PARAM_INT);
+    $stmt->bindValue(':board_id',    $boardId,    PDO::PARAM_STR);
+    $stmt->bindValue(':title',       $title,      PDO::PARAM_STR);
+    $stmt->bindValue(':sort_order',  $sortOrder,  PDO::PARAM_INT);
+    $stmt->bindValue(':assigned_to', $assignedTo, PDO::PARAM_STR);
     $stmt->execute();
 
     echo json_encode(['success' => true]);

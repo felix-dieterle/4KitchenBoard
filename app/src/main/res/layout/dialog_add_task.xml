@@ -24,4 +24,19 @@
         android:background="@drawable/bg_input"
         android:padding="8dp"/>
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/tasks_assign_label"
+        android:textSize="@dimen/small_text_size"
+        android:textColor="@color/text_secondary"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="4dp"/>
+
+    <Spinner
+        android:id="@+id/spinner_task_assignee"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@drawable/bg_input"/>
+
 </LinearLayout>

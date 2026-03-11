@@ -16,6 +16,8 @@ public class AppNotification {
     public static final int TYPE_REMINDER = 1;
     /** Notification originates from the Immobilien (property) alert checker. */
     public static final int TYPE_PROPERTY = 2;
+    /** Notification originates from a new task being assigned to the active person. */
+    public static final int TYPE_TASK = 3;
 
     /** Unique identifier – creation timestamp in milliseconds. */
     public final long id;
