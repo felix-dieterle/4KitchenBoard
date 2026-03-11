@@ -1766,6 +1766,8 @@ public class CalendarFragment extends Fragment {
             container.addView(tvEmpty);
             return;
         }
+        final SharedPreferences calPrefs = requireContext()
+                .getSharedPreferences(MainActivity.PREFS_CALENDAR, Context.MODE_PRIVATE);
         for (final Person p : persons) {
             LinearLayout row = new LinearLayout(requireContext());
             row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1817,12 +1819,41 @@ public class CalendarFragment extends Fragment {
             });
             row.addView(btnPhoto);
 
+            // Active profile button
+            long currentActiveId = calPrefs.getLong(MainActivity.PREF_ACTIVE_PERSON_ID, -1L);
+            Button btnActive = new Button(requireContext());
+            if (p.getId() == currentActiveId) {
+                btnActive.setText(R.string.active_profile_active);
+                btnActive.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent));
+            } else {
+                btnActive.setText(R.string.active_profile_set);
+                btnActive.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
+            }
+            btnActive.setAllCaps(false);
+            btnActive.setTextSize(13f);
+            btnActive.setOnClickListener(v -> {
+                long newId = (p.getId() == calPrefs.getLong(MainActivity.PREF_ACTIVE_PERSON_ID, -1L))
+                        ? -1L  // toggle off if already active
+                        : p.getId();
+                if (newId < 0) {
+                    calPrefs.edit().remove(MainActivity.PREF_ACTIVE_PERSON_ID).apply();
+                } else {
+                    calPrefs.edit().putLong(MainActivity.PREF_ACTIVE_PERSON_ID, newId).apply();
+                }
+                rebuildPersonList(container);
+            });
+            row.addView(btnActive);
+
             // Delete button
             Button btnDel = new Button(requireContext());
             btnDel.setText(R.string.delete);
             btnDel.setAllCaps(false);
             btnDel.setTextSize(13f);
             btnDel.setOnClickListener(v -> {
+                // If the deleted person was the active profile, clear it
+                if (p.getId() == calPrefs.getLong(MainActivity.PREF_ACTIVE_PERSON_ID, -1L)) {
+                    calPrefs.edit().remove(MainActivity.PREF_ACTIVE_PERSON_ID).apply();
+                }
                 deletePersonImage(p.getId());
                 db.deletePerson(p.getId());
                 rebuildPersonList(container);

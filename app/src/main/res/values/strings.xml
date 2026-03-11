@@ -143,6 +143,12 @@
     <string name="calendar_group_add_member">+ Mitglied</string>
     <string name="calendar_person_photo">📷</string>
     <string name="calendar_person_photo_desc">Personenfoto</string>
+    <string name="active_profile_set">Als aktives Profil setzen</string>
+    <string name="active_profile_active">✓ Aktives Profil</string>
+    <string name="active_profile_select_title">Aktives Profil wählen</string>
+    <string name="active_profile_none">Kein Profil aktiv</string>
+    <string name="active_profile_desc">Aktives Profil</string>
+    <string name="active_profile_deactivate">Profil deaktivieren</string>
 
     <!-- Weather weekend forecast -->
     <string name="weekend_forecast_title">Weekend Forecast</string>
