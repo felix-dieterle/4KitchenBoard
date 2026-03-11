@@ -60,6 +60,61 @@ A minimal PHP/MySQL REST API that lets multiple 4KitchenBoard devices share and 
 
    Use the LAN IP address so all devices on the same network can reach it.
 
+## Windows Auto-Update (keeping backend files in sync automatically)
+
+The script `scripts/update_backend_windows.ps1` (in the repository root) clones the
+repository once and afterwards keeps the `backend/` files in sync with the `main` branch.
+It is designed to run unattended via **Windows Task Scheduler**.
+
+### One-time setup
+
+1. Install **Git for Windows** from <https://git-scm.com/download/win> if it is not
+   already installed.
+
+2. Open `scripts/update_backend_windows.ps1` in a text editor and adjust the three
+   variables at the top of the file:
+
+   | Variable | Default | Meaning |
+   |---|---|---|
+   | `$ApacheTargetPath` | `C:\xampp\htdocs\apps\kitchenboard` | Where Apache/XAMPP serves files |
+   | `$LocalRepoPath` | `C:\kitchenboard-repo` | Where the repo clone is stored |
+   | `$GitHubBranch` | `main` | Branch to track |
+
+3. Run the script once manually to verify it works:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File "C:\path\to\scripts\update_backend_windows.ps1"
+   ```
+   It will clone the repository, copy all backend files (except `config.php`) to your
+   Apache directory, and print a log to the console and to `update_backend.log` next to
+   the script.
+
+4. After the first copy you still need to run `generate_token.php` once to create
+   `config.php` (see step 4 of the Installation section above).
+
+### Scheduling with Windows Task Scheduler
+
+Run the following command **once** in an elevated Command Prompt to register a task that
+fires every 6 hours.  Adjust the `-File` path to wherever you saved the script.
+
+```cmd
+schtasks /create ^
+  /tn "4KitchenBoard Backend Update" ^
+  /tr "powershell -ExecutionPolicy Bypass -File \"C:\scripts\update_backend_windows.ps1\"" ^
+  /sc hourly /mo 6 ^
+  /ru SYSTEM /f
+```
+
+To change the interval edit `/mo 6` (every 6 hours) to any number of hours you prefer.
+Remove the task with:
+
+```cmd
+schtasks /delete /tn "4KitchenBoard Backend Update" /f
+```
+
+> **Note:** `config.php` is never overwritten by the update script because it contains
+> your local database credentials and API token. It is safe to run the script while
+> Apache is serving requests.
+
 ## Nginx
 
 If you use Nginx instead of Apache, add this `location` block (the `.htaccess` is ignored by Nginx):
