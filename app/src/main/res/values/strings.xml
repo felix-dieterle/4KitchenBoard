@@ -235,6 +235,8 @@
     <string name="tasks_priority_down">Priorität senken</string>
     <string name="tasks_mark_done">Erledigt</string>
     <string name="tasks_done_toast">„%s" erledigt</string>
+    <string name="tasks_moved_to_top">„%s" an erste Stelle verschoben</string>
+    <string name="tasks_moved_to_bottom">„%s" an letzte Stelle verschoben</string>
     <string name="tasks_edit_option">Bearbeiten</string>
     <string name="tasks_delete_option">Löschen</string>
     <string name="tasks_delete_title">Aufgabe löschen</string>
