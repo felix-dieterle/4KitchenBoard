@@ -6,21 +6,24 @@ A minimal PHP/MySQL REST API that lets multiple 4KitchenBoard devices share and 
 
 | Requirement | Version |
 |---|---|
-| PHP | ≥ 7.4 |
+| PHP | ≥ 7.4 (including 8.2) |
 | PHP extension | `pdo_mysql` (enabled by default in most distros) |
-| MySQL / MariaDB | ≥ 5.7 / ≥ 10.3 |
+| MySQL / MariaDB | ≥ 5.2 / ≥ 5.2 |
 | Web server | Apache 2.4+ with `mod_rewrite` (or Nginx – see below) |
 
 ## Installation
 
 1. **Create a MySQL database** for 4KitchenBoard:
    ```sql
-   CREATE DATABASE kitchenboard CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   CREATE DATABASE kitchenboard CHARACTER SET utf8 COLLATE utf8_unicode_ci;
    CREATE USER 'kitchenboard'@'localhost' IDENTIFIED BY 'strong-random-password';
    GRANT ALL PRIVILEGES ON kitchenboard.* TO 'kitchenboard'@'localhost';
    FLUSH PRIVILEGES;
    ```
    Use a strong, unique password. The tables are created automatically by `api.php` on the first request.
+   > **Note:** `utf8` is used for compatibility with MySQL ≥ 5.2 / MariaDB ≥ 5.2.
+   > If your server runs MySQL ≥ 5.5.3 or MariaDB ≥ 5.5 you may use `utf8mb4 / utf8mb4_unicode_ci`
+   > for full 4-byte Unicode support (e.g. emoji), but this is not required.
 
 2. **Copy the `backend/` folder** to a directory that is served by your web server.
    The recommended deployment path is `/var/www/html/apps/kitchenboard/`:
