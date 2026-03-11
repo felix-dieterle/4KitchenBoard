@@ -18,14 +18,14 @@ import java.util.Set;
 public class CalendarDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "calendar.db";
-    private static final int    DB_VERSION = 8;
+    private static final int    DB_VERSION = 9;
 
-    static final String TABLE_APPOINTMENTS  = "appointments";
-    static final String TABLE_TEMPLATES     = "standard_templates";
-    static final String TABLE_PERSONS       = "persons";
-    static final String TABLE_PERSON_GROUPS = "person_groups";
-    static final String TABLE_GROUP_MEMBERS = "group_members";
-    static final String TABLE_WELLNESS      = "wellness_entries";
+    static final String TABLE_APPOINTMENTS  = "appkitchen_appointments";
+    static final String TABLE_TEMPLATES     = "appkitchen_standard_templates";
+    static final String TABLE_PERSONS       = "appkitchen_persons";
+    static final String TABLE_PERSON_GROUPS = "appkitchen_person_groups";
+    static final String TABLE_GROUP_MEMBERS = "appkitchen_group_members";
+    static final String TABLE_WELLNESS      = "appkitchen_wellness_entries";
 
     static final String COL_ID         = "_id";
     static final String COL_DATE       = "date";       // YYYY-MM-DD
@@ -107,43 +107,51 @@ public class CalendarDatabaseHelper extends SQLiteOpenHelper {
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if (oldVersion < 2) {
-            db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN " + COL_TIME + " TEXT");
+            db.execSQL("ALTER TABLE appointments ADD COLUMN " + COL_TIME + " TEXT");
         }
         if (oldVersion < 3) {
-            db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN " + COL_SERIES_ID + " INTEGER");
+            db.execSQL("ALTER TABLE appointments ADD COLUMN " + COL_SERIES_ID + " INTEGER");
         }
         if (oldVersion < 4) {
-            db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN " + COL_PERSON_ID + " INTEGER");
-            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_PERSONS + " (" +
+            db.execSQL("ALTER TABLE appointments ADD COLUMN " + COL_PERSON_ID + " INTEGER");
+            db.execSQL("CREATE TABLE IF NOT EXISTS persons (" +
                     COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                     COL_TITLE + " TEXT NOT NULL UNIQUE, " +
                     COL_COLOR + " TEXT NOT NULL)");
-            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_PERSON_GROUPS + " (" +
+            db.execSQL("CREATE TABLE IF NOT EXISTS person_groups (" +
                     COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                     COL_TITLE + " TEXT NOT NULL UNIQUE)");
-            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_GROUP_MEMBERS + " (" +
+            db.execSQL("CREATE TABLE IF NOT EXISTS group_members (" +
                     COL_GROUP_ID  + " INTEGER NOT NULL, " +
                     COL_PERSON_ID + " INTEGER NOT NULL, " +
                     "PRIMARY KEY(" + COL_GROUP_ID + ", " + COL_PERSON_ID + "))");
         }
         if (oldVersion < 5) {
-            db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN " + COL_GROUP_ID + " INTEGER");
+            db.execSQL("ALTER TABLE appointments ADD COLUMN " + COL_GROUP_ID + " INTEGER");
         }
         if (oldVersion < 6) {
-            db.execSQL("ALTER TABLE " + TABLE_PERSONS + " ADD COLUMN " + COL_IMAGE_PATH + " TEXT");
+            db.execSQL("ALTER TABLE persons ADD COLUMN " + COL_IMAGE_PATH + " TEXT");
         }
         if (oldVersion < 7) {
-            db.execSQL("ALTER TABLE " + TABLE_APPOINTMENTS + " ADD COLUMN "
+            db.execSQL("ALTER TABLE appointments ADD COLUMN "
                     + COL_DURATION + " INTEGER NOT NULL DEFAULT 0");
         }
         if (oldVersion < 8) {
-            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_WELLNESS + " (" +
+            db.execSQL("CREATE TABLE IF NOT EXISTS wellness_entries (" +
                     COL_ID        + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                     COL_PERSON_ID + " INTEGER NOT NULL, " +
                     COL_DATE      + " TEXT NOT NULL, " +
                     COL_TIREDNESS + " INTEGER NOT NULL, " +
                     COL_HEALTH    + " INTEGER NOT NULL, " +
                     COL_MOOD      + " INTEGER NOT NULL)");
+        }
+        if (oldVersion < 9) {
+            db.execSQL("ALTER TABLE appointments RENAME TO "      + TABLE_APPOINTMENTS);
+            db.execSQL("ALTER TABLE standard_templates RENAME TO " + TABLE_TEMPLATES);
+            db.execSQL("ALTER TABLE persons RENAME TO "           + TABLE_PERSONS);
+            db.execSQL("ALTER TABLE person_groups RENAME TO "     + TABLE_PERSON_GROUPS);
+            db.execSQL("ALTER TABLE group_members RENAME TO "     + TABLE_GROUP_MEMBERS);
+            db.execSQL("ALTER TABLE wellness_entries RENAME TO "  + TABLE_WELLNESS);
         }
     }
 

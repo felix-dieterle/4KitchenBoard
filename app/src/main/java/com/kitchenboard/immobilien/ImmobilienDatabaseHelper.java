@@ -21,10 +21,10 @@ import java.util.List;
 public class ImmobilienDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "immobilien.db";
-    private static final int    DB_VERSION = 1;
+    private static final int    DB_VERSION = 2;
 
     // ── Table: immobilien_alerts ──────────────────────────────────────────────
-    static final String TABLE_ALERTS              = "immobilien_alerts";
+    static final String TABLE_ALERTS              = "appkitchen_immobilien_alerts";
     static final String COL_ALERT_ID              = "id";
     static final String COL_ALERT_NAME            = "name";
     static final String COL_ALERT_URL             = "search_url";
@@ -33,7 +33,7 @@ public class ImmobilienDatabaseHelper extends SQLiteOpenHelper {
     static final String COL_ALERT_LAST_CHECK      = "last_check_ms";
 
     // ── Table: immobilien_listings ────────────────────────────────────────────
-    static final String TABLE_LISTINGS            = "immobilien_listings";
+    static final String TABLE_LISTINGS            = "appkitchen_immobilien_listings";
     static final String COL_LISTING_ID            = "id";
     static final String COL_LISTING_ALERT_ID      = "alert_id";
     static final String COL_LISTING_URL           = "listing_url";
@@ -67,7 +67,10 @@ public class ImmobilienDatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // No schema changes since v1; all alerts and listings are preserved across updates.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE immobilien_alerts RENAME TO " + TABLE_ALERTS);
+            db.execSQL("ALTER TABLE immobilien_listings RENAME TO " + TABLE_LISTINGS);
+        }
     }
 
     // ── Alert CRUD ────────────────────────────────────────────────────────────

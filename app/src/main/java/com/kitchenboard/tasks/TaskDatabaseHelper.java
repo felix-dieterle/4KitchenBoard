@@ -14,9 +14,9 @@ import java.util.Set;
 public class TaskDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "tasks.db";
-    private static final int    DB_VERSION = 2;
+    private static final int    DB_VERSION = 3;
 
-    private static final String TABLE          = "tasks";
+    private static final String TABLE          = "appkitchen_tasks";
     private static final String COL_ID         = "_id";
     private static final String COL_TITLE      = "title";
     private static final String COL_ORDER      = "sort_order";
@@ -38,8 +38,11 @@ public class TaskDatabaseHelper extends SQLiteOpenHelper {
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if (oldVersion < 2) {
-            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " +
+            db.execSQL("ALTER TABLE tasks ADD COLUMN " +
                     COL_ASSIGNED + " TEXT NOT NULL DEFAULT ''");
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE tasks RENAME TO " + TABLE);
         }
     }
 
