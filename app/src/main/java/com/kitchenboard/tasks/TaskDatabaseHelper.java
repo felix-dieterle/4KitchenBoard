@@ -14,12 +14,13 @@ import java.util.Set;
 public class TaskDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "tasks.db";
-    private static final int    DB_VERSION = 1;
+    private static final int    DB_VERSION = 2;
 
-    private static final String TABLE     = "tasks";
-    private static final String COL_ID    = "_id";
-    private static final String COL_TITLE = "title";
-    private static final String COL_ORDER = "sort_order";
+    private static final String TABLE          = "tasks";
+    private static final String COL_ID         = "_id";
+    private static final String COL_TITLE      = "title";
+    private static final String COL_ORDER      = "sort_order";
+    private static final String COL_ASSIGNED   = "assigned_to";
 
     public TaskDatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -28,25 +29,29 @@ public class TaskDatabaseHelper extends SQLiteOpenHelper {
     @Override
     public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE " + TABLE + " (" +
-                COL_ID    + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                COL_TITLE + " TEXT NOT NULL, " +
-                COL_ORDER + " INTEGER NOT NULL DEFAULT 0)");
+                COL_ID       + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COL_TITLE    + " TEXT NOT NULL, " +
+                COL_ORDER    + " INTEGER NOT NULL DEFAULT 0, " +
+                COL_ASSIGNED + " TEXT NOT NULL DEFAULT '')");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // No schema changes since v1; all tasks are preserved across updates.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " +
+                    COL_ASSIGNED + " TEXT NOT NULL DEFAULT ''");
+        }
     }
 
     private Task fromCursor(Cursor c) {
-        return new Task(c.getLong(0), c.getString(1), c.getInt(2));
+        return new Task(c.getLong(0), c.getString(1), c.getInt(2), c.getString(3));
     }
 
     /** Returns all tasks ordered by sort_order ASC. */
     public List<Task> getAllTasks() {
         List<Task> list = new ArrayList<>();
         Cursor c = getReadableDatabase().query(TABLE,
-                new String[]{COL_ID, COL_TITLE, COL_ORDER},
+                new String[]{COL_ID, COL_TITLE, COL_ORDER, COL_ASSIGNED},
                 null, null, null, null, COL_ORDER + " ASC");
         try {
             while (c.moveToNext()) {
@@ -58,8 +63,8 @@ public class TaskDatabaseHelper extends SQLiteOpenHelper {
         return list;
     }
 
-    /** Inserts a new task at the end of the list. Returns the new row id. */
-    public long addTask(String title) {
+    /** Inserts a new task at the end of the list with an optional assignee. Returns the new row id. */
+    public long addTask(String title, String assignedTo) {
         SQLiteDatabase db = getWritableDatabase();
         int maxOrder = 0;
         Cursor c = db.rawQuery("SELECT MAX(" + COL_ORDER + ") FROM " + TABLE, null);
@@ -71,9 +76,15 @@ public class TaskDatabaseHelper extends SQLiteOpenHelper {
             c.close();
         }
         ContentValues cv = new ContentValues();
-        cv.put(COL_TITLE, title);
-        cv.put(COL_ORDER, maxOrder + 1);
+        cv.put(COL_TITLE,    title);
+        cv.put(COL_ORDER,    maxOrder + 1);
+        cv.put(COL_ASSIGNED, assignedTo != null ? assignedTo : "");
         return db.insert(TABLE, null, cv);
+    }
+
+    /** Inserts a new unassigned task at the end of the list. Returns the new row id. */
+    public long addTask(String title) {
+        return addTask(title, "");
     }
 
     /** Deletes a task permanently. */
@@ -81,10 +92,18 @@ public class TaskDatabaseHelper extends SQLiteOpenHelper {
         getWritableDatabase().delete(TABLE, COL_ID + "=?", new String[]{String.valueOf(id)});
     }
 
-    /** Updates the title of a task. */
+    /** Updates only the title of a task, leaving the assignee unchanged. */
     public void updateTitle(long id, String title) {
         ContentValues cv = new ContentValues();
         cv.put(COL_TITLE, title);
+        getWritableDatabase().update(TABLE, cv, COL_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    /** Updates the title and assignee of a task. */
+    public void updateTitleAndAssignee(long id, String title, String assignedTo) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_TITLE,    title);
+        cv.put(COL_ASSIGNED, assignedTo != null ? assignedTo : "");
         getWritableDatabase().update(TABLE, cv, COL_ID + "=?", new String[]{String.valueOf(id)});
     }
 
@@ -132,12 +151,26 @@ public class TaskDatabaseHelper extends SQLiteOpenHelper {
     /**
      * Inserts a task with a known id (for restoring from the remote backend).
      * Uses CONFLICT_IGNORE so existing rows are not overwritten.
+     *
+     * @return {@code true} if the row was newly inserted, {@code false} if it already existed.
      */
-    public void insertTaskWithId(long id, String title, int sortOrder) {
+    public boolean insertTaskWithId(long id, String title, int sortOrder, String assignedTo) {
         ContentValues cv = new ContentValues();
-        cv.put(COL_ID,    id);
-        cv.put(COL_TITLE, title);
-        cv.put(COL_ORDER, sortOrder);
-        getWritableDatabase().insertWithOnConflict(TABLE, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
+        cv.put(COL_ID,       id);
+        cv.put(COL_TITLE,    title);
+        cv.put(COL_ORDER,    sortOrder);
+        cv.put(COL_ASSIGNED, assignedTo != null ? assignedTo : "");
+        long result = getWritableDatabase().insertWithOnConflict(TABLE, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
+        return result != -1;
+    }
+
+    /**
+     * Inserts an unassigned task with a known id (for restoring from the remote backend).
+     * Uses CONFLICT_IGNORE so existing rows are not overwritten.
+     *
+     * @return {@code true} if the row was newly inserted, {@code false} if it already existed.
+     */
+    public boolean insertTaskWithId(long id, String title, int sortOrder) {
+        return insertTaskWithId(id, title, sortOrder, "");
     }
 }

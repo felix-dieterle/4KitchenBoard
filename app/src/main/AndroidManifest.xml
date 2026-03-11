@@ -80,6 +80,14 @@
         </receiver>
 
         <receiver
+            android:name=".tasks.TasksCheckReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.kitchenboard.action.TASKS_CHECK" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".update.AutoUpdateReceiver"
             android:exported="false">
             <intent-filter>

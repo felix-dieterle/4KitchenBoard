@@ -12,9 +12,11 @@ import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -26,9 +28,15 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.kitchenboard.MainActivity;
 import com.kitchenboard.R;
+import com.kitchenboard.calendar.CalendarDatabaseHelper;
+import com.kitchenboard.calendar.Person;
 import com.kitchenboard.feedback.FeatureRequestHelper;
+import com.kitchenboard.notifications.AppNotification;
+import com.kitchenboard.notifications.NotificationStore;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -38,6 +46,9 @@ public class TaskFragment extends Fragment {
     private static final String PREF_SERVER_URL = "server_url";
     private static final String PREF_BOARD_TOKEN = "board_token";
     private static final String PREF_API_TOKEN   = "api_token";
+
+    /** ViewPager2 page index of this fragment (used for notification navigation). */
+    static final int TASK_PAGE_INDEX = 3;
 
     /** Periodic sync interval: 5 minutes. */
     private static final long SYNC_INTERVAL_MS = 5 * 60 * 1000L;
@@ -182,10 +193,42 @@ public class TaskFragment extends Fragment {
         View dialogView = LayoutInflater.from(requireContext())
                 .inflate(R.layout.dialog_add_task, null);
         final EditText etTitle = dialogView.findViewById(R.id.et_task_title);
+        final Spinner spinnerAssignee = dialogView.findViewById(R.id.spinner_task_assignee);
+
+        // Build person list for the spinner
+        List<Person> persons = new ArrayList<>();
+        CalendarDatabaseHelper calDb = new CalendarDatabaseHelper(requireContext());
+        try {
+            persons = calDb.getPersons();
+        } finally {
+            calDb.close();
+        }
+
+        // First entry is "Niemand" (nobody / unassigned)
+        List<String> personNames = new ArrayList<>();
+        personNames.add(getString(R.string.tasks_assign_nobody));
+        for (Person p : persons) {
+            personNames.add(p.getName());
+        }
+        ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(
+                requireContext(),
+                android.R.layout.simple_spinner_item,
+                personNames);
+        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerAssignee.setAdapter(spinnerAdapter);
 
         if (existing != null) {
             etTitle.setText(existing.title);
             etTitle.setSelection(existing.title.length());
+            // Select the current assignee in the spinner
+            if (!existing.assignedTo.isEmpty()) {
+                for (int i = 1; i < personNames.size(); i++) {
+                    if (personNames.get(i).equals(existing.assignedTo)) {
+                        spinnerAssignee.setSelection(i);
+                        break;
+                    }
+                }
+            }
         }
 
         String title = existing == null
@@ -200,8 +243,10 @@ public class TaskFragment extends Fragment {
                     public void onClick(DialogInterface dialog, int which) {
                         String text = etTitle.getText().toString().trim();
                         if (text.isEmpty()) return;
+                        int sel = spinnerAssignee.getSelectedItemPosition();
+                        String assignedTo = sel > 0 ? personNames.get(sel) : "";
                         if (existing == null) {
-                            final long id = db.addTask(text);
+                            final long id = db.addTask(text, assignedTo);
                             if (apiClient != null) {
                                 List<Task> all = db.getAllTasks();
                                 for (Task t : all) {
@@ -212,10 +257,10 @@ public class TaskFragment extends Fragment {
                                 }
                             }
                         } else {
-                            db.updateTitle(existing.id, text);
+                            db.updateTitleAndAssignee(existing.id, text, assignedTo);
                             if (apiClient != null) {
                                 apiClient.upsertTask(
-                                        new Task(existing.id, text, existing.sortOrder), null);
+                                        new Task(existing.id, text, existing.sortOrder, assignedTo), null);
                             }
                         }
                         loadTasks();
@@ -232,8 +277,8 @@ public class TaskFragment extends Fragment {
         Task above   = tasks.get(position - 1);
         db.swapOrder(current.id, current.sortOrder, above.id, above.sortOrder);
         if (apiClient != null) {
-            apiClient.upsertTask(new Task(current.id, current.title, above.sortOrder),   null);
-            apiClient.upsertTask(new Task(above.id,   above.title,   current.sortOrder), null);
+            apiClient.upsertTask(new Task(current.id, current.title, above.sortOrder, current.assignedTo), null);
+            apiClient.upsertTask(new Task(above.id,   above.title,   current.sortOrder, above.assignedTo), null);
         }
         loadTasks();
     }
@@ -245,8 +290,8 @@ public class TaskFragment extends Fragment {
         Task below   = tasks.get(position + 1);
         db.swapOrder(current.id, current.sortOrder, below.id, below.sortOrder);
         if (apiClient != null) {
-            apiClient.upsertTask(new Task(current.id, current.title, below.sortOrder),   null);
-            apiClient.upsertTask(new Task(below.id,   below.title,   current.sortOrder), null);
+            apiClient.upsertTask(new Task(current.id, current.title, below.sortOrder, current.assignedTo), null);
+            apiClient.upsertTask(new Task(below.id,   below.title,   current.sortOrder, below.assignedTo), null);
         }
         loadTasks();
     }
@@ -390,8 +435,19 @@ public class TaskFragment extends Fragment {
         apiClient.fetchTasks(new TaskApiClient.Callback<List<Task>>() {
             @Override
             public void onSuccess(List<Task> result) {
+                String activePersonName = getActivePersonName();
                 for (Task remote : result) {
-                    db.insertTaskWithId(remote.id, remote.title, remote.sortOrder);
+                    boolean inserted = db.insertTaskWithId(
+                            remote.id, remote.title, remote.sortOrder, remote.assignedTo);
+                    if (inserted
+                            && !remote.assignedTo.isEmpty()
+                            && remote.assignedTo.equals(activePersonName)) {
+                        NotificationStore.getInstance(requireContext()).addNotification(
+                                AppNotification.TYPE_TASK,
+                                getString(R.string.tasks_notif_new_title),
+                                getString(R.string.tasks_notif_new_message, remote.title),
+                                TASK_PAGE_INDEX);
+                    }
                 }
                 loadTasks();
                 showSyncStatus(true);
@@ -402,6 +458,23 @@ public class TaskFragment extends Fragment {
                 showSyncStatus(false);
             }
         });
+    }
+
+    /** Returns the name of the active person, or an empty string if none is set. */
+    private String getActivePersonName() {
+        SharedPreferences calPrefs = requireContext()
+                .getSharedPreferences(MainActivity.PREFS_CALENDAR, Context.MODE_PRIVATE);
+        long activePersonId = calPrefs.getLong(MainActivity.PREF_ACTIVE_PERSON_ID, -1L);
+        if (activePersonId < 0) return "";
+        CalendarDatabaseHelper calDb = new CalendarDatabaseHelper(requireContext());
+        try {
+            for (Person p : calDb.getPersons()) {
+                if (p.getId() == activePersonId) return p.getName();
+            }
+        } finally {
+            calDb.close();
+        }
+        return "";
     }
 
     private void showSyncStatus(final boolean success) {
