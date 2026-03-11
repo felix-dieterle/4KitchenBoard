@@ -17,9 +17,9 @@ import java.util.Set;
 public class CookingDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "cooking.db";
-    private static final int    DB_VERSION = 1;
+    private static final int    DB_VERSION = 2;
 
-    private static final String TABLE           = "dishes";
+    private static final String TABLE           = "appkitchen_dishes";
     private static final String COL_ID          = "_id";
     private static final String COL_NAME        = "name";
     private static final String COL_DURATION    = "duration_minutes";
@@ -47,7 +47,9 @@ public class CookingDatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // No schema changes since v1; all dishes are preserved across updates.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE dishes RENAME TO " + TABLE);
+        }
     }
 
     private Dish fromCursor(Cursor c) {

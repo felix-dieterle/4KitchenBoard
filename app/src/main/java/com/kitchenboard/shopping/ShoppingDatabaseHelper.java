@@ -13,9 +13,9 @@ import java.util.List;
 public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "shopping.db";
-    private static final int DB_VERSION = 6;
+    private static final int DB_VERSION = 7;
 
-    static final String TABLE = "shopping_items";
+    static final String TABLE = "appkitchen_shopping_items";
     static final String COL_ID = "_id";
     static final String COL_NAME = "name";
     static final String COL_CATEGORY = "category";
@@ -25,7 +25,7 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     static final String COL_SHOP = "shop";
     static final String COL_PRIORITY = "priority";
 
-    static final String TABLE_CATEGORIES = "categories";
+    static final String TABLE_CATEGORIES = "appkitchen_categories";
     static final String COL_CAT_ID = "_id";
     static final String COL_CAT_NAME = "name";
     /** Optional user-chosen icon name (maps to a drawable via {@link IconProvider}). */
@@ -56,38 +56,42 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if (oldVersion < 2) {
             // categories table was introduced in v2; create it if upgrading from v1
-            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_CATEGORIES + " (" +
+            db.execSQL("CREATE TABLE IF NOT EXISTS categories (" +
                     COL_CAT_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                     COL_CAT_NAME + " TEXT NOT NULL UNIQUE, " +
                     COL_CAT_ICON + " TEXT DEFAULT '')");
         }
         if (oldVersion < 3) {
             try {
-                db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " + COL_QUANTITY + " INTEGER DEFAULT 1");
+                db.execSQL("ALTER TABLE shopping_items ADD COLUMN " + COL_QUANTITY + " INTEGER DEFAULT 1");
             } catch (SQLiteException ignored) {
                 // Column may already exist if upgrade runs twice; ignore.
             }
         }
         if (oldVersion < 4) {
             try {
-                db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " + COL_SHOP + " TEXT DEFAULT ''");
+                db.execSQL("ALTER TABLE shopping_items ADD COLUMN " + COL_SHOP + " TEXT DEFAULT ''");
             } catch (SQLiteException ignored) {
                 // Column may already exist if upgrade runs twice; ignore.
             }
         }
         if (oldVersion < 5) {
             try {
-                db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " + COL_PRIORITY + " INTEGER DEFAULT 2");
+                db.execSQL("ALTER TABLE shopping_items ADD COLUMN " + COL_PRIORITY + " INTEGER DEFAULT 2");
             } catch (SQLiteException ignored) {
                 // Column may already exist if upgrade runs twice; ignore.
             }
         }
         if (oldVersion < 6) {
             try {
-                db.execSQL("ALTER TABLE " + TABLE_CATEGORIES + " ADD COLUMN " + COL_CAT_ICON + " TEXT DEFAULT ''");
+                db.execSQL("ALTER TABLE categories ADD COLUMN " + COL_CAT_ICON + " TEXT DEFAULT ''");
             } catch (SQLiteException ignored) {
                 // Column may already exist if upgrade runs twice; ignore.
             }
+        }
+        if (oldVersion < 7) {
+            db.execSQL("ALTER TABLE shopping_items RENAME TO " + TABLE);
+            db.execSQL("ALTER TABLE categories RENAME TO " + TABLE_CATEGORIES);
         }
     }
 
