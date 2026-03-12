@@ -189,7 +189,7 @@ public class TaskFragment extends Fragment {
         String url      = prefs.getString(PREF_SERVER_URL, "").trim();
         String token    = prefs.getString(PREF_BOARD_TOKEN, "").trim();
         String apiToken = prefs.getString(PREF_API_TOKEN, "").trim();
-        apiClient = url.isEmpty() ? null : new TaskApiClient(url, token, apiToken);
+        apiClient = url.isEmpty() ? null : new TaskApiClient(requireContext(), url, token, apiToken);
     }
 
     private void loadTasks() {
