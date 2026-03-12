@@ -1,7 +1,10 @@
 package com.kitchenboard.cooking;
 
+import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+
+import com.kitchenboard.update.UpdateLogger;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -31,6 +34,7 @@ public class CookingApiClient {
         void onError(String message);
     }
 
+    private final Context context;
     private final String baseUrl;
     private final String boardToken;
     private final String apiToken;
@@ -38,22 +42,25 @@ public class CookingApiClient {
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
 
     /**
+     * @param context    Application context used for error logging
      * @param baseUrl    Full URL of api.php, e.g. {@code http://192.168.1.10/kitchenboard/api.php}
      * @param boardToken Shared board token that scopes all data (empty = default board)
      * @param apiToken   Server access token sent as X-Api-Token header (empty = no auth)
      */
-    public CookingApiClient(String baseUrl, String boardToken, String apiToken) {
+    public CookingApiClient(Context context, String baseUrl, String boardToken, String apiToken) {
+        this.context = context.getApplicationContext();
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.boardToken = boardToken != null ? boardToken : "";
         this.apiToken = apiToken != null ? apiToken : "";
     }
 
     /**
+     * @param context    Application context used for error logging
      * @param baseUrl    Full URL of api.php, e.g. {@code http://192.168.1.10/kitchenboard/api.php}
      * @param boardToken Shared board token that scopes all data (empty = default board)
      */
-    public CookingApiClient(String baseUrl, String boardToken) {
-        this(baseUrl, boardToken, "");
+    public CookingApiClient(Context context, String baseUrl, String boardToken) {
+        this(context, baseUrl, boardToken, "");
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -80,6 +87,7 @@ public class CookingApiClient {
                     }
                     postSuccess(callback, list);
                 } catch (final Exception e) {
+                    UpdateLogger.logError(context, "Sync cooking_list failed", e);
                     postError(callback, e.getMessage());
                 }
             }
@@ -110,6 +118,7 @@ public class CookingApiClient {
                     httpPost(baseUrl, body.toString());
                     postSuccess(callback, null);
                 } catch (final Exception e) {
+                    UpdateLogger.logError(context, "Sync cooking_upsert failed (id=" + dish.id + ")", e);
                     postError(callback, e.getMessage());
                 }
             }
@@ -125,6 +134,7 @@ public class CookingApiClient {
                     httpPost(baseUrl, "action=cooking_delete&id=" + id + "&board_token=" + encode(boardToken));
                     postSuccess(callback, null);
                 } catch (final Exception e) {
+                    UpdateLogger.logError(context, "Sync cooking_delete failed (id=" + id + ")", e);
                     postError(callback, e.getMessage());
                 }
             }
@@ -143,6 +153,7 @@ public class CookingApiClient {
                             + "&board_token=" + encode(boardToken));
                     postSuccess(callback, null);
                 } catch (final Exception e) {
+                    UpdateLogger.logError(context, "Sync cooking_mark_cooked failed (id=" + id + ")", e);
                     postError(callback, e.getMessage());
                 }
             }

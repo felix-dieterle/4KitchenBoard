@@ -1,7 +1,10 @@
 package com.kitchenboard.shopping;
 
+import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+
+import com.kitchenboard.update.UpdateLogger;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -31,6 +34,7 @@ public class ShoppingApiClient {
         void onError(String message);
     }
 
+    private final Context context;
     private final String baseUrl;
     private final String boardToken;
     private final String apiToken;
@@ -38,11 +42,13 @@ public class ShoppingApiClient {
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
 
     /**
+     * @param context    Application context used for error logging
      * @param baseUrl    Full URL of api.php, e.g. {@code http://192.168.1.10/kitchenboard/api.php}
      * @param boardToken Shared board token that scopes all data (empty = default board)
      * @param apiToken   Server access token sent as X-Api-Token header (empty = no auth)
      */
-    public ShoppingApiClient(String baseUrl, String boardToken, String apiToken) {
+    public ShoppingApiClient(Context context, String baseUrl, String boardToken, String apiToken) {
+        this.context = context.getApplicationContext();
         // Normalise: strip trailing slash
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.boardToken = boardToken != null ? boardToken : "";
@@ -50,11 +56,12 @@ public class ShoppingApiClient {
     }
 
     /**
+     * @param context    Application context used for error logging
      * @param baseUrl    Full URL of api.php, e.g. {@code http://192.168.1.10/kitchenboard/api.php}
      * @param boardToken Shared board token that scopes all data (empty = default board)
      */
-    public ShoppingApiClient(String baseUrl, String boardToken) {
-        this(baseUrl, boardToken, "");
+    public ShoppingApiClient(Context context, String baseUrl, String boardToken) {
+        this(context, baseUrl, boardToken, "");
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -82,6 +89,7 @@ public class ShoppingApiClient {
                     }
                     postSuccess(callback, items);
                 } catch (final Exception e) {
+                    UpdateLogger.logError(context, "Sync shopping list failed", e);
                     postError(callback, e.getMessage());
                 }
             }
@@ -114,6 +122,7 @@ public class ShoppingApiClient {
                             json.optInt("priority", ShoppingItem.PRIORITY_NORMAL));
                     postSuccess(callback, item);
                 } catch (final Exception e) {
+                    UpdateLogger.logError(context, "Sync shopping add failed (name=" + name + ")", e);
                     postError(callback, e.getMessage());
                 }
             }
@@ -142,6 +151,7 @@ public class ShoppingApiClient {
                             + "&board_token=" + encode(boardToken));
                     postSuccess(callback, null);
                 } catch (final Exception e) {
+                    UpdateLogger.logError(context, "Sync shopping update_quantity failed (id=" + id + ")", e);
                     postError(callback, e.getMessage());
                 }
             }
@@ -157,6 +167,7 @@ public class ShoppingApiClient {
                     httpPost(baseUrl, "action=check&id=" + id + "&board_token=" + encode(boardToken));
                     postSuccess(callback, null);
                 } catch (final Exception e) {
+                    UpdateLogger.logError(context, "Sync shopping check failed (id=" + id + ")", e);
                     postError(callback, e.getMessage());
                 }
             }
@@ -172,6 +183,7 @@ public class ShoppingApiClient {
                     httpPost(baseUrl, "action=delete&id=" + id + "&board_token=" + encode(boardToken));
                     postSuccess(callback, null);
                 } catch (final Exception e) {
+                    UpdateLogger.logError(context, "Sync shopping delete failed (id=" + id + ")", e);
                     postError(callback, e.getMessage());
                 }
             }

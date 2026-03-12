@@ -11,6 +11,7 @@ import com.kitchenboard.calendar.CalendarDatabaseHelper;
 import com.kitchenboard.calendar.Person;
 import com.kitchenboard.notifications.AppNotification;
 import com.kitchenboard.notifications.NotificationStore;
+import com.kitchenboard.update.UpdateLogger;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -91,6 +92,7 @@ public class TasksCheckReceiver extends BroadcastReceiver {
         try {
             remoteTasks = fetchRemoteTasks(serverUrl, boardToken, apiToken);
         } catch (Exception e) {
+            UpdateLogger.logError(context, "TasksCheck: sync failed", e);
             return; // Network error; will retry on next alarm
         }
 
@@ -121,6 +123,7 @@ public class TasksCheckReceiver extends BroadcastReceiver {
                 }
             }
         } catch (Exception e) {
+            UpdateLogger.logError(context, "TasksCheck: parse error during sync", e);
             // Ignore parse errors for individual tasks
         } finally {
             localDb.close();

@@ -276,7 +276,7 @@ public class CookingFragment extends Fragment {
         String url      = prefs.getString(PREF_SERVER_URL, "");
         String token    = prefs.getString(PREF_BOARD_TOKEN, "");
         String apiToken = prefs.getString(PREF_API_TOKEN, "");
-        apiClient = (url != null && !url.isEmpty()) ? new CookingApiClient(url, token, apiToken) : null;
+        apiClient = (url != null && !url.isEmpty()) ? new CookingApiClient(requireContext(), url, token, apiToken) : null;
         if (apiClient == null && tvSyncStatus != null) {
             tvSyncStatus.setVisibility(View.GONE);
         }

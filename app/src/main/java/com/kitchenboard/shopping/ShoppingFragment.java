@@ -266,7 +266,7 @@ public class ShoppingFragment extends Fragment {
         String url      = prefs.getString(PREF_SERVER_URL, "");
         String token    = prefs.getString(PREF_BOARD_TOKEN, "");
         String apiToken = prefs.getString(PREF_API_TOKEN, "");
-        apiClient = (url != null && !url.isEmpty()) ? new ShoppingApiClient(url, token, apiToken) : null;
+        apiClient = (url != null && !url.isEmpty()) ? new ShoppingApiClient(requireContext(), url, token, apiToken) : null;
     }
 
     private String loadServerUrl() {
