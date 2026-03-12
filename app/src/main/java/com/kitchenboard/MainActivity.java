@@ -56,6 +56,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -283,6 +284,11 @@ public class MainActivity extends AppCompatActivity {
         etUrl.setSingleLine(true);
         etUrl.setText(prefs.getString(PREF_SERVER_URL, ""));
 
+        final TextView tvUrlExample = new TextView(this);
+        tvUrlExample.setText(R.string.sync_url_example);
+        tvUrlExample.setTextSize(12f);
+        tvUrlExample.setAlpha(0.6f);
+
         final TextView tvTokenDesc = new TextView(this);
         tvTokenDesc.setText(R.string.board_token_description);
         tvTokenDesc.setTextSize(12f);
@@ -332,6 +338,7 @@ public class MainActivity extends AppCompatActivity {
         layout.setPadding(padPx, padPx, padPx, padPx);
         layout.addView(btnInfo);
         layout.addView(etUrl);
+        layout.addView(tvUrlExample);
         layout.addView(tvTokenDesc);
         layout.addView(etToken);
         layout.addView(tvApiTokenDesc);
@@ -383,31 +390,39 @@ public class MainActivity extends AppCompatActivity {
         layout.addView(cbWellnessEnabled);
         layout.addView(btnWellnessTime);
 
+        // Track whether the user explicitly cancelled (back-press / outside tap should still save)
+        final AtomicBoolean cancelClicked = new AtomicBoolean(false);
+
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.account_setup_title)
                 .setMessage(R.string.account_setup_message)
                 .setView(scrollView)
-                .setPositiveButton(R.string.account_setup_save, (d, which) -> {
-                    String url      = etUrl.getText().toString().trim();
-                    String token    = etToken.getText().toString().trim();
-                    String apiToken = etApiToken.getText().toString().trim();
-                    SharedPreferences.Editor editor = prefs.edit()
-                            .putString(PREF_SERVER_URL, url)
-                            .putString(PREF_BOARD_TOKEN, token)
-                            .putString(PREF_API_TOKEN, apiToken);
-                    for (int i = 0; i < cbPages.length; i++) {
-                        editor.putBoolean(String.format(Locale.US, PREF_PAGE_IN_ROTATION, i),
-                                cbPages[i].isChecked());
-                    }
-                    editor.putBoolean(PREF_WELLNESS_ENABLED, cbWellnessEnabled.isChecked());
-                    editor.putInt(PREF_WELLNESS_HOUR,   wellnessTime[0]);
-                    editor.putInt(PREF_WELLNESS_MINUTE, wellnessTime[1]);
-                    editor.apply();
-                    WellnessCheckScheduler.schedule(MainActivity.this);
-                })
+                .setPositiveButton(R.string.account_setup_save, null)
                 .setNeutralButton(R.string.account_setup_copy, null)
-                .setNegativeButton(R.string.cancel, null)
+                .setNegativeButton(R.string.cancel, (d, which) -> cancelClicked.set(true))
                 .create();
+
+        dialog.setOnDismissListener(d -> {
+            if (!cancelClicked.get()) {
+                String url      = etUrl.getText().toString().trim();
+                String token    = etToken.getText().toString().trim();
+                String apiToken = etApiToken.getText().toString().trim();
+                SharedPreferences.Editor editor = prefs.edit()
+                        .putString(PREF_SERVER_URL, url)
+                        .putString(PREF_BOARD_TOKEN, token)
+                        .putString(PREF_API_TOKEN, apiToken);
+                for (int i = 0; i < cbPages.length; i++) {
+                    editor.putBoolean(String.format(Locale.US, PREF_PAGE_IN_ROTATION, i),
+                            cbPages[i].isChecked());
+                }
+                editor.putBoolean(PREF_WELLNESS_ENABLED, cbWellnessEnabled.isChecked());
+                editor.putInt(PREF_WELLNESS_HOUR,   wellnessTime[0]);
+                editor.putInt(PREF_WELLNESS_MINUTE, wellnessTime[1]);
+                editor.apply();
+                WellnessCheckScheduler.schedule(MainActivity.this);
+            }
+        });
+
         dialog.show();
         dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> {
             String url      = etUrl.getText().toString().trim();
