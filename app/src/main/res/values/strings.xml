@@ -33,6 +33,7 @@
     <string name="sync_url_title">Sync Server URL</string>
     <string name="sync_url_message">Enter the full URL of api.php on your server (leave empty to disable sync):</string>
     <string name="sync_url_hint">http://192.168.1.x/apps/kitchenboard/api.php</string>
+    <string name="sync_url_example">Beispiel: http://192.168.1.x/apps/kitchenboard/api.php</string>
     <string name="sync_save">Save</string>
     <string name="sync_status_ok">✓ Synced</string>
     <string name="sync_status_error">Sync failed</string>
