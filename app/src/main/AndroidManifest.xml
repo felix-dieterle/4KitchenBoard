@@ -96,6 +96,14 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".shopping.StoreGeofenceReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.kitchenboard.action.STORE_GEOFENCE" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

@@ -223,6 +223,12 @@
     <string name="category_icon_desc">Kategorie-Icon</string>
     <string name="store_icon_desc">Shop-Icon</string>
 
+    <!-- Store geofence / proximity notifications -->
+    <string name="geofence_notif_title">In der Nähe: %s</string>
+    <string name="geofence_notif_message">%d Artikel zu kaufen: %s</string>
+    <string name="geofence_channel_name">Einkaufs-Benachrichtigungen</string>
+    <string name="geofence_channel_desc">Benachrichtigungen, wenn du dich einem Geschäft näherst, für das offene Einkaufsartikel vorhanden sind</string>
+
     <!-- Tasks page -->
     <string name="tasks_title">Aufgaben</string>
     <string name="tasks_empty">Keine Aufgaben.\nTippe + um eine Aufgabe hinzuzufügen.</string>

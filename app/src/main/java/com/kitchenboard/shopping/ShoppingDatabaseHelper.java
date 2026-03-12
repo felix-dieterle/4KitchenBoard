@@ -13,7 +13,7 @@ import java.util.List;
 public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "shopping.db";
-    private static final int DB_VERSION = 6;
+    private static final int DB_VERSION = 7;
 
     static final String TABLE = "shopping_items";
     static final String COL_ID = "_id";
@@ -30,6 +30,14 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     static final String COL_CAT_NAME = "name";
     /** Optional user-chosen icon name (maps to a drawable via {@link IconProvider}). */
     static final String COL_CAT_ICON = "icon_name";
+
+    /** Stores table: one row per shop name, optionally storing GPS coordinates. */
+    static final String TABLE_STORES       = "stores";
+    static final String COL_STORE_ID       = "_id";
+    static final String COL_STORE_NAME     = "name";
+    static final String COL_STORE_LAT      = "latitude";
+    static final String COL_STORE_LON      = "longitude";
+    static final String COL_STORE_RADIUS   = "radius_meters";
 
     public ShoppingDatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -50,6 +58,12 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
                 COL_CAT_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COL_CAT_NAME + " TEXT NOT NULL UNIQUE, " +
                 COL_CAT_ICON + " TEXT DEFAULT '')");
+        db.execSQL("CREATE TABLE " + TABLE_STORES + " (" +
+                COL_STORE_ID     + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COL_STORE_NAME   + " TEXT NOT NULL UNIQUE, " +
+                COL_STORE_LAT    + " REAL DEFAULT 0, " +
+                COL_STORE_LON    + " REAL DEFAULT 0, " +
+                COL_STORE_RADIUS + " INTEGER DEFAULT 200)");
     }
 
     @Override
@@ -88,6 +102,14 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
             } catch (SQLiteException ignored) {
                 // Column may already exist if upgrade runs twice; ignore.
             }
+        }
+        if (oldVersion < 7) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_STORES + " (" +
+                    COL_STORE_ID     + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    COL_STORE_NAME   + " TEXT NOT NULL UNIQUE, " +
+                    COL_STORE_LAT    + " REAL DEFAULT 0, " +
+                    COL_STORE_LON    + " REAL DEFAULT 0, " +
+                    COL_STORE_RADIUS + " INTEGER DEFAULT 200)");
         }
     }
 
@@ -250,5 +272,76 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
         }
         c.close();
         return names;
+    }
+
+    // ── Store / Geofence helpers ──────────────────────────────────────────────
+
+    /**
+     * Inserts or updates a store entry with GPS coordinates.
+     * If a store with this name already exists its coordinates are updated.
+     *
+     * @param name         Store display name (must match the {@code shop} field on items).
+     * @param latitude     WGS-84 latitude.
+     * @param longitude    WGS-84 longitude.
+     * @param radiusMeters Geofence radius in metres (use ≤ 0 to keep the default 200 m).
+     */
+    public void upsertStore(String name, double latitude, double longitude, int radiusMeters) {
+        if (name == null || name.isEmpty()) return;
+        ContentValues cv = new ContentValues();
+        cv.put(COL_STORE_NAME,   name);
+        cv.put(COL_STORE_LAT,    latitude);
+        cv.put(COL_STORE_LON,    longitude);
+        cv.put(COL_STORE_RADIUS, radiusMeters > 0 ? radiusMeters : 200);
+        SQLiteDatabase db = getWritableDatabase();
+        int rows = db.update(TABLE_STORES, cv,
+                COL_STORE_NAME + "=?", new String[]{name});
+        if (rows == 0) {
+            db.insertWithOnConflict(TABLE_STORES, null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+        }
+    }
+
+    /**
+     * Returns all stores that have valid GPS coordinates ({@link StoreLocation#hasValidCoordinates()}).
+     */
+    public List<StoreLocation> getStoresWithLocation() {
+        List<StoreLocation> result = new ArrayList<>();
+        Cursor c = getReadableDatabase().query(TABLE_STORES,
+                new String[]{COL_STORE_ID, COL_STORE_NAME, COL_STORE_LAT, COL_STORE_LON, COL_STORE_RADIUS},
+                COL_STORE_LAT + " != 0 OR " + COL_STORE_LON + " != 0",
+                null, null, null, COL_STORE_NAME + " ASC");
+        try {
+            while (c.moveToNext()) {
+                result.add(new StoreLocation(
+                        c.getLong(0), c.getString(1),
+                        c.getDouble(2), c.getDouble(3), c.getInt(4)));
+            }
+        } finally {
+            c.close();
+        }
+        return result;
+    }
+
+    /**
+     * Returns all unchecked items whose {@code shop} matches the given store name,
+     * ordered by priority then name.
+     */
+    public List<ShoppingItem> getActiveItemsForShop(String shopName) {
+        List<ShoppingItem> items = new ArrayList<>();
+        if (shopName == null || shopName.isEmpty()) return items;
+        Cursor c = getReadableDatabase().query(TABLE,
+                new String[]{COL_ID, COL_NAME, COL_CATEGORY, COL_CHECKED, COL_QUANTITY, COL_SHOP, COL_PRIORITY},
+                COL_CHECKED + "=? AND " + COL_SHOP + "=?",
+                new String[]{"0", shopName}, null, null,
+                COL_PRIORITY + " ASC, " + COL_NAME + " ASC");
+        try {
+            while (c.moveToNext()) {
+                items.add(new ShoppingItem(
+                        c.getLong(0), c.getString(1), c.getString(2), false,
+                        c.getInt(4), c.getString(5), c.getInt(6)));
+            }
+        } finally {
+            c.close();
+        }
+        return items;
     }
 }

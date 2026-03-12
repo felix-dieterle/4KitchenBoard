@@ -18,6 +18,8 @@ public class AppNotification {
     public static final int TYPE_PROPERTY = 2;
     /** Notification originates from a new task being assigned to the active person. */
     public static final int TYPE_TASK = 3;
+    /** Notification originates from a store geofence (nearby shopping items). */
+    public static final int TYPE_SHOPPING = 4;
 
     /** Unique identifier – creation timestamp in milliseconds. */
     public final long id;
