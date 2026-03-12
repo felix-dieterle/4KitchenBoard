@@ -54,7 +54,8 @@
             }
             m.setOpacity(0.6);
             selectedMarker = m;
-            Android.onShopSelected(result.name, result.display_name);
+            Android.onShopSelected(result.name, result.display_name,
+                                   String(result.lat), String(result.lon));
           });
         })(r, marker);
         markers.push(marker);

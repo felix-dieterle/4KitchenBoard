@@ -70,6 +70,12 @@ public class ShoppingFragment extends Fragment {
     /** Non-null when a valid server URL is configured. */
     private ShoppingApiClient apiClient;
 
+    /**
+     * Cached list of stores with GPS coordinates, used for geofence registration.
+     * Refreshed every time the fragment resumes.
+     */
+    private java.util.List<StoreLocation> cachedStoreLocations = new java.util.ArrayList<>();
+
     /** Handler for periodic sync on the main thread. */
     private final Handler syncHandler = new Handler(Looper.getMainLooper());
     private final Runnable syncRunnable = new Runnable() {
@@ -239,12 +245,17 @@ public class ShoppingFragment extends Fragment {
             refreshList();
         }
         checkPendingQrItem();
+        // Load stores with GPS coordinates and register proximity alerts.
+        cachedStoreLocations = db.getStoresWithLocation();
+        StoreGeofenceHelper.registerAll(requireContext(), cachedStoreLocations);
     }
 
     @Override
     public void onPause() {
         super.onPause();
         syncHandler.removeCallbacks(syncRunnable);
+        // Remove proximity alerts to avoid stale registrations when stores change.
+        StoreGeofenceHelper.unregisterAll(requireContext(), cachedStoreLocations);
     }
 
     // ── Sync helpers ──────────────────────────────────────────────────────────
@@ -436,6 +447,8 @@ public class ShoppingFragment extends Fragment {
 
         // Mutable shop holder
         final String[] selectedShop = {""};
+        final double[] selectedShopLat = {0.0};
+        final double[] selectedShopLon = {0.0};
 
         btnMinus.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -477,8 +490,10 @@ public class ShoppingFragment extends Fragment {
             public void onClick(View v) {
                 new ShopPickerDialog(requireContext(), new ShopPickerDialog.OnShopSelectedListener() {
                     @Override
-                    public void onShopSelected(String shopName) {
-                        selectedShop[0] = shopName;
+                    public void onShopSelected(String shopName, double latitude, double longitude) {
+                        selectedShop[0]    = shopName;
+                        selectedShopLat[0] = latitude;
+                        selectedShopLon[0] = longitude;
                         tvShopName.setText(shopName);
                         tvShopName.setTextColor(
                                 ContextCompat.getColor(requireContext(), R.color.text_primary));
@@ -524,6 +539,8 @@ public class ShoppingFragment extends Fragment {
                                 public void onSuccess(ShoppingItem item) {
                                     // Save category locally for autocomplete suggestions only
                                     db.addCategory(category);
+                                    saveStoreLocationIfPresent(shop,
+                                            selectedShopLat[0], selectedShopLon[0]);
                                     refreshList();
                                 }
                                 @Override
@@ -534,6 +551,8 @@ public class ShoppingFragment extends Fragment {
                         } else {
                             db.addCategory(category);
                             db.addItem(name, category, qty, shop, priority);
+                            saveStoreLocationIfPresent(shop,
+                                    selectedShopLat[0], selectedShopLon[0]);
                             refreshList();
                         }
                     }
@@ -576,6 +595,21 @@ public class ShoppingFragment extends Fragment {
         if (checkedId == R.id.rb_priority_high) return ShoppingItem.PRIORITY_HIGH;
         if (checkedId == R.id.rb_priority_low)  return ShoppingItem.PRIORITY_LOW;
         return ShoppingItem.PRIORITY_NORMAL;
+    }
+
+    /**
+     * Persists GPS coordinates for a store when the user picked it from the map.
+     * No-op if the shop name is empty or coordinates are both zero.
+     * Refreshes the geofence registrations after saving.
+     */
+    private void saveStoreLocationIfPresent(String shop, double lat, double lon) {
+        if (shop == null || shop.isEmpty()) return;
+        if (lat == 0.0 && lon == 0.0) return;
+        db.upsertStore(shop, lat, lon, 200);
+        // Refresh geofences so the new store is immediately monitored.
+        StoreGeofenceHelper.unregisterAll(requireContext(), cachedStoreLocations);
+        cachedStoreLocations = db.getStoresWithLocation();
+        StoreGeofenceHelper.registerAll(requireContext(), cachedStoreLocations);
     }
 
     private void showDeleteConfirmation(final ShoppingItem item) {
@@ -702,6 +736,8 @@ public class ShoppingFragment extends Fragment {
         final int[] quantity = {1};
         tvQuantity.setText("1");
         final String[] selectedShop = {""};
+        final double[] selectedShopLat = {0.0};
+        final double[] selectedShopLon = {0.0};
 
         btnMinus.setOnClickListener(v -> {
             if (quantity[0] > 1) {
@@ -723,8 +759,10 @@ public class ShoppingFragment extends Fragment {
                 }).show());
 
         btnSearchShop.setOnClickListener(v -> new ShopPickerDialog(requireContext(),
-                shopName -> {
-                    selectedShop[0] = shopName;
+                (shopName, latitude, longitude) -> {
+                    selectedShop[0]    = shopName;
+                    selectedShopLat[0] = latitude;
+                    selectedShopLon[0] = longitude;
                     tvShopName.setText(shopName);
                     tvShopName.setTextColor(
                             ContextCompat.getColor(requireContext(), R.color.text_primary));
@@ -755,6 +793,8 @@ public class ShoppingFragment extends Fragment {
                             @Override
                             public void onSuccess(ShoppingItem item) {
                                 db.addCategory(itemCategory);
+                                saveStoreLocationIfPresent(shop,
+                                        selectedShopLat[0], selectedShopLon[0]);
                                 refreshList();
                             }
                             @Override
@@ -763,6 +803,8 @@ public class ShoppingFragment extends Fragment {
                     } else {
                         db.addCategory(itemCategory);
                         db.addItem(itemName, itemCategory, qty, shop, priority);
+                        saveStoreLocationIfPresent(shop,
+                                selectedShopLat[0], selectedShopLon[0]);
                         refreshList();
                     }
                 })

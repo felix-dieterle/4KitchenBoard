@@ -6,6 +6,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -36,12 +37,21 @@ import java.util.concurrent.Executors;
 
 /**
  * Dialog that lets the user search for a shop using the OpenStreetMap Nominatim API
- * and shows results on a Leaflet.js map. The selected shop name is returned via callback.
+ * and shows results on a Leaflet.js map. The selected shop name and coordinates are
+ * returned via callback.
  */
 public class ShopPickerDialog {
 
+    private static final String TAG = "ShopPickerDialog";
+
     public interface OnShopSelectedListener {
-        void onShopSelected(String shopName);
+        /** Called when the user confirms a shop selection.
+         *
+         * @param shopName  Display name of the selected shop.
+         * @param latitude  WGS-84 latitude of the selected location.
+         * @param longitude WGS-84 longitude of the selected location.
+         */
+        void onShopSelected(String shopName, double latitude, double longitude);
     }
 
     private final Context context;
@@ -52,6 +62,8 @@ public class ShopPickerDialog {
     private WebView webView;
     private TextView tvSelectedShop;
     private String selectedShop = null;
+    private double selectedLat  = 0.0;
+    private double selectedLon  = 0.0;
     private AlertDialog dialog;
 
     public ShopPickerDialog(Context context, OnShopSelectedListener listener) {
@@ -112,7 +124,7 @@ public class ShopPickerDialog {
                 .setView(view)
                 .setPositiveButton(R.string.shop_select, (d, which) -> {
                     if (selectedShop != null && listener != null) {
-                        listener.onShopSelected(selectedShop);
+                        listener.onShopSelected(selectedShop, selectedLat, selectedLon);
                     }
                 })
                 .setNegativeButton(R.string.cancel, null)
@@ -206,9 +218,18 @@ public class ShopPickerDialog {
 
     private class MapJsInterface {
         @JavascriptInterface
-        public void onShopSelected(final String name, final String displayName) {
+        public void onShopSelected(final String name, final String displayName,
+                                   final String lat, final String lon) {
             final String shop = (name != null && !name.isEmpty()) ? name : displayName;
             selectedShop = shop;
+            try {
+                selectedLat = Double.parseDouble(lat);
+                selectedLon = Double.parseDouble(lon);
+            } catch (NumberFormatException e) {
+                Log.w(TAG, "Failed to parse shop coordinates: lat=" + lat + ", lon=" + lon, e);
+                selectedLat = 0.0;
+                selectedLon = 0.0;
+            }
             mainHandler.post(new Runnable() {
                 @Override
                 public void run() {

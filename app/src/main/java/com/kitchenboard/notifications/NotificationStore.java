@@ -94,7 +94,8 @@ public class NotificationStore {
     /**
      * Adds a new notification and notifies observers.
      *
-     * @param type       {@link AppNotification#TYPE_REMINDER} or {@link AppNotification#TYPE_PROPERTY}
+     * @param type       {@link AppNotification#TYPE_REMINDER}, {@link AppNotification#TYPE_PROPERTY},
+     *                   {@link AppNotification#TYPE_TASK}, or {@link AppNotification#TYPE_SHOPPING}
      * @param title      Short title string
      * @param message    Full detail message
      * @param navigateTo Page index to open when the user taps the notification, or {@code -1}
