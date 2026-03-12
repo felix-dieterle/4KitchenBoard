@@ -1,7 +1,6 @@
 package com.kitchenboard.update;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -18,10 +17,9 @@ import java.nio.charset.Charset;
 /**
  * Checks for a newer version of the app.
  *
- * <p>When a backend server URL is configured in SharedPreferences the check is routed through
- * the backend's {@code ?action=check_update} endpoint, authenticated with the same
- * {@code board_token} / {@code X-Api-Token} used by every other API call in the app.
- * When no server URL is configured the check falls back to the GitHub Releases API directly.
+ * <p>The check is always performed against the GitHub Releases API directly
+ * ({@value #RELEASES_URL}), independent of any backend server that may be configured
+ * for other features of the app.
  *
  * <p>Auto-update releases are identified by the presence of the token {@value #AUTO_UPDATE_FLAG}
  * anywhere in the release body. Releases without this flag are never installed automatically.
@@ -33,11 +31,6 @@ public class UpdateChecker {
 
     /** Token that must appear in a release body to enable automatic installation. */
     public static final String AUTO_UPDATE_FLAG = "[auto_update]";
-
-    private static final String PREFS_NAME       = "shopping_prefs";
-    private static final String PREF_SERVER_URL  = "server_url";
-    private static final String PREF_BOARD_TOKEN = "board_token";
-    private static final String PREF_API_TOKEN   = "api_token";
 
     public interface UpdateCallback {
         void onUpdateAvailable(String tagName, String downloadUrl);
@@ -75,7 +68,7 @@ public class UpdateChecker {
      * @param callback           receives the result
      */
     public static void checkForUpdate(final int currentVersionCode, final UpdateCallback callback) {
-        checkForUpdateInternal(null, currentVersionCode, new UpdateResultCallback() {
+        checkForUpdateWithFlag(null, currentVersionCode, new UpdateResultCallback() {
             @Override
             public void onUpdateAvailable(UpdateResult result) {
                 callback.onUpdateAvailable(result.tagName, result.downloadUrl);
@@ -95,56 +88,22 @@ public class UpdateChecker {
 
     /**
      * Asynchronously checks for updates and reports whether the release carries the
-     * {@value #AUTO_UPDATE_FLAG} flag. When a backend server URL is configured in
-     * SharedPreferences the check is routed through {@code ?action=check_update}, authenticated
-     * with the shared board / API tokens. Falls back to the GitHub Releases API otherwise.
+     * {@value #AUTO_UPDATE_FLAG} flag. Always queries the GitHub Releases API directly.
      * The callback is always invoked on the main thread.
      *
-     * @param context            used to read server configuration from SharedPreferences
+     * @param context            used to log errors when the check fails
      * @param currentVersionCode the installed app's versionCode
      * @param callback           receives a full {@link UpdateResult}
      */
     public static void checkForUpdateWithFlag(final Context context,
                                               final int currentVersionCode,
                                               final UpdateResultCallback callback) {
-        checkForUpdateInternal(context, currentVersionCode, callback);
-    }
-
-    // ── Internal implementation ───────────────────────────────────────────────
-
-    private static void checkForUpdateInternal(final Context context,
-                                               final int currentVersionCode,
-                                               final UpdateResultCallback callback) {
-        // Read server configuration on the calling thread (SharedPreferences is thread-safe).
-        final String serverUrl;
-        final String boardToken;
-        final String apiToken;
-        if (context != null) {
-            SharedPreferences prefs =
-                    context.getApplicationContext()
-                           .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-            serverUrl  = prefs.getString(PREF_SERVER_URL,  "").trim();
-            boardToken = prefs.getString(PREF_BOARD_TOKEN, "");
-            apiToken   = prefs.getString(PREF_API_TOKEN,   "");
-        } else {
-            serverUrl  = "";
-            boardToken = "";
-            apiToken   = "";
-        }
-
         final Handler mainHandler = new Handler(Looper.getMainLooper());
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    final UpdateResult result;
-                    if (!serverUrl.isEmpty()) {
-                        result = fetchViaBackend(serverUrl, boardToken, apiToken,
-                                currentVersionCode);
-                    } else {
-                        result = fetchViaGitHub(currentVersionCode);
-                    }
-
+                    final UpdateResult result = fetchViaGitHub(currentVersionCode);
                     if (result != null) {
                         mainHandler.post(new Runnable() {
                             @Override
@@ -163,7 +122,6 @@ public class UpdateChecker {
                 } catch (final Exception e) {
                     final String errorMsg = e.getClass().getSimpleName()
                             + (e.getMessage() != null ? ": " + e.getMessage() : "");
-                    // Log the full exception with stack trace immediately on the bg thread.
                     if (context != null) {
                         UpdateLogger.logError(context, "Update check failed", e);
                     } else {
@@ -178,34 +136,6 @@ public class UpdateChecker {
                 }
             }
         }).start();
-    }
-
-    /**
-     * Routes the update check through the configured backend server.
-     * The backend endpoint is {@code {serverUrl}?action=check_update&board_token={token}},
-     * authenticated via the {@code X-Api-Token} header.
-     * Returns {@code null} when no newer version is available.
-     */
-    private static UpdateResult fetchViaBackend(String serverUrl, String boardToken,
-                                                String apiToken, int currentVersionCode)
-            throws Exception {
-        String base = serverUrl.endsWith("/") ? serverUrl.substring(0, serverUrl.length() - 1)
-                                              : serverUrl;
-        String url = base + "?action=check_update&board_token="
-                + java.net.URLEncoder.encode(boardToken, "UTF-8");
-
-        String response = httpGet(url, apiToken);
-        JSONObject json = new JSONObject(response);
-
-        String tagName     = json.getString("tag_name");
-        String body        = json.optString("body", "");
-        String downloadUrl = json.optString("download_url", "");
-
-        int latestBuildNumber = parseBuildNumber(tagName);
-        if (latestBuildNumber <= currentVersionCode) return null;
-
-        boolean isAutoUpdate = body.contains(AUTO_UPDATE_FLAG);
-        return new UpdateResult(tagName, downloadUrl, isAutoUpdate);
     }
 
     /**
