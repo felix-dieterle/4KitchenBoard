@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fork (left) + Knife (right): universal kitchen symbol for the 4KitchenBoard launcher icon.
+<!-- Fork (left) + Calendar (centre) + Knife (right) for the 4KitchenBoard launcher icon.
+     The calendar hints at the built-in calendar / reminder module.
      Designed for the adaptive-icon safe zone (108×108 dp, safe area 18–90 dp on each axis).
      fillType="evenOdd" cuts the gaps between fork tines (requires API 24+, fine for the
      adaptive-icon foreground which already needs API 26). -->
@@ -9,19 +10,49 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Fork – centered at x=38, spanning the full safe-zone height (y=26–85) -->
+    <!-- Fork – shifted left to x=30 (tines x=19–41, handle x=25–35) to create centre space -->
     <path
         android:fillColor="#FFFFFF"
         android:fillType="evenOdd"
         android:pathData="
-            M27,26 L49,26 L49,52 L43,58 L43,82 Q43,86 38,86 Q33,86 33,82 L33,58 L27,52 Z
-            M33,26 L35,26 L35,52 L33,52 Z
-            M41,26 L43,26 L43,52 L41,52 Z" />
+            M19,26 L41,26 L41,52 L35,58 L35,82 Q35,86 30,86 Q25,86 25,82 L25,58 L19,52 Z
+            M25,26 L27,26 L27,52 L25,52 Z
+            M33,26 L35,26 L35,52 L33,52 Z" />
 
-    <!-- Knife – centered at x=70, spanning the full safe-zone height (y=26–85) -->
+    <!-- Knife – shifted right to x=78 (blade x=70–86, handle x=74–82) to create centre space -->
     <path
         android:fillColor="#FFFFFF"
         android:pathData="
-            M70,26 Q78,32 78,44 L78,52 L74,52 L74,82 Q74,86 70,86 Q66,86 66,82 L66,52 L62,52 Q62,38 70,26 Z" />
+            M78,26 Q86,32 86,44 L86,52 L82,52 L82,82 Q82,86 78,86 Q74,86 74,82 L74,52 L70,52 Q70,38 78,26 Z" />
+
+    <!-- Calendar – centre, between the utensils (x=46–62, y=54–84) -->
+
+    <!-- Binding pegs that stick up above the calendar spine (white) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="
+            M50,51 Q50,49 51,49 Q52,49 52,51 L52,58 L50,58 Z
+            M56,51 Q56,49 57,49 Q58,49 58,51 L58,58 L56,58 Z" />
+
+    <!-- Calendar body (white rectangle) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M46,57 L62,57 L62,84 L46,84 Z" />
+
+    <!-- Calendar header bar (amber – matches the icon background colour) -->
+    <path
+        android:fillColor="#FF8A00"
+        android:pathData="M46,57 L62,57 L62,65 L46,65 Z" />
+
+    <!-- Calendar day grid – 3 × 2 filled squares (amber) -->
+    <path
+        android:fillColor="#FF8A00"
+        android:pathData="
+            M48,68 L51,68 L51,71 L48,71 Z
+            M53,68 L56,68 L56,71 L53,71 Z
+            M58,68 L61,68 L61,71 L58,71 Z
+            M48,74 L51,74 L51,77 L48,77 Z
+            M53,74 L56,74 L56,77 L53,77 Z
+            M58,74 L61,74 L61,77 L58,77 Z" />
 
 </vector>
