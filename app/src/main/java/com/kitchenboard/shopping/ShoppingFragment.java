@@ -45,8 +45,10 @@ import com.google.zxing.integration.android.IntentResult;
 import com.kitchenboard.R;
 import com.kitchenboard.feedback.FeatureRequestHelper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.TreeSet;
 
 public class ShoppingFragment extends Fragment {
 
@@ -565,6 +567,8 @@ public class ShoppingFragment extends Fragment {
                         tvShopName.setText(storeName);
                         tvShopName.setTextColor(
                                 ContextCompat.getColor(requireContext(), R.color.text_primary));
+                        // Persist the shop name so it appears in Manage Shops
+                        db.addStoreIfAbsent(storeName);
                     }
                 }).show();
             }
@@ -698,21 +702,67 @@ public class ShoppingFragment extends Fragment {
                 .inflate(R.layout.dialog_manage_shops, null);
 
         final RecyclerView rv = dialogView.findViewById(R.id.rv_shop_locations);
-        final TextView tvManageEmpty = dialogView.findViewById(R.id.tv_manage_shops_empty);
+        final Button btnAddShop = dialogView.findViewById(R.id.btn_add_shop);
 
-        final List<String> shopNames = db.getAllShopNames();
-        if (shopNames.isEmpty()) {
-            rv.setVisibility(View.GONE);
-            tvManageEmpty.setVisibility(View.VISIBLE);
-        } else {
-            rv.setLayoutManager(new LinearLayoutManager(requireContext()));
-            rv.setAdapter(new ShopLocationAdapter(shopNames));
-        }
+        // Always show a non-empty list: merge DB shops with the curated known-stores list.
+        final List<String> shopNames = buildMergedShopList();
+        final ShopLocationAdapter shopAdapter = new ShopLocationAdapter(shopNames);
+        rv.setLayoutManager(new LinearLayoutManager(requireContext()));
+        rv.setAdapter(shopAdapter);
+
+        btnAddShop.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showAddCustomShopDialog(shopAdapter);
+            }
+        });
 
         new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.manage_shops_title)
                 .setView(dialogView)
                 .setPositiveButton(R.string.ok, null)
+                .show();
+    }
+
+    /**
+     * Returns a merged, sorted list of shop names: the union of all shops stored in the
+     * database and all curated known-store names. The list is never empty.
+     */
+    private List<String> buildMergedShopList() {
+        TreeSet<String> nameSet = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        nameSet.addAll(db.getAllShopNames());
+        for (IconProvider.KnownStore store : IconProvider.knownStores()) {
+            nameSet.add(store.name);
+        }
+        return new ArrayList<>(nameSet);
+    }
+
+    /**
+     * Shows a dialog prompting the user to enter a custom shop name and adds it to
+     * the database and the manage-shops adapter.
+     */
+    private void showAddCustomShopDialog(final ShopLocationAdapter adapter) {
+        final EditText etName = new EditText(requireContext());
+        etName.setHint(R.string.add_shop_hint);
+        etName.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        int pad = getResources().getDimensionPixelSize(R.dimen.spacing_normal);
+        etName.setPadding(pad, pad, pad, pad);
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.add_shop_title)
+                .setView(etName)
+                .setPositiveButton(R.string.add, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        String name = etName.getText().toString().trim();
+                        if (!name.isEmpty()) {
+                            db.addStoreIfAbsent(name);
+                            adapter.addShop(name);
+                        }
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
                 .show();
     }
 
@@ -724,7 +774,22 @@ public class ShoppingFragment extends Fragment {
         private final List<String> shops;
 
         ShopLocationAdapter(List<String> shops) {
-            this.shops = shops;
+            this.shops = new java.util.ArrayList<>(shops);
+        }
+
+        /** Adds a new shop to the list (no-op if already present, case-insensitive). */
+        void addShop(String name) {
+            for (String s : shops) {
+                if (s.equalsIgnoreCase(name)) return;
+            }
+            // Insert in alphabetical position
+            int pos = 0;
+            while (pos < shops.size()
+                    && shops.get(pos).compareToIgnoreCase(name) < 0) {
+                pos++;
+            }
+            shops.add(pos, name);
+            notifyItemInserted(pos);
         }
 
         @NonNull
@@ -799,6 +864,37 @@ public class ShoppingFragment extends Fragment {
                         Toast.makeText(requireContext(),
                                 R.string.shop_location_cleared,
                                 Toast.LENGTH_SHORT).show();
+                    }
+                });
+
+                // Long-press to remove a custom shop from the list and the database
+                itemView.setOnLongClickListener(new View.OnLongClickListener() {
+                    @Override
+                    public boolean onLongClick(View v) {
+                        new AlertDialog.Builder(requireContext())
+                                .setTitle(R.string.remove_shop_title)
+                                .setMessage(getString(R.string.remove_shop_confirm, shopName))
+                                .setPositiveButton(R.string.remove_shop_confirm_yes,
+                                        new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        int pos = getAdapterPosition();
+                                        if (pos < 0) return;
+                                        // Update UI first to keep the list consistent
+                                        shops.remove(pos);
+                                        notifyItemRemoved(pos);
+                                        // Then update DB and geofences
+                                        db.deleteStore(shopName);
+                                        StoreGeofenceHelper.unregisterAll(
+                                                requireContext(), cachedStoreLocations);
+                                        cachedStoreLocations = db.getStoresWithLocation();
+                                        StoreGeofenceHelper.registerAll(
+                                                requireContext(), cachedStoreLocations);
+                                    }
+                                })
+                                .setNegativeButton(R.string.cancel, null)
+                                .show();
+                        return true;
                     }
                 });
             }
@@ -969,6 +1065,8 @@ public class ShoppingFragment extends Fragment {
                     tvShopName.setText(storeName);
                     tvShopName.setTextColor(
                             ContextCompat.getColor(requireContext(), R.color.text_primary));
+                    // Persist the shop name so it appears in Manage Shops
+                    db.addStoreIfAbsent(storeName);
                 }).show());
 
         btnSearchShop.setOnClickListener(v -> new ShopPickerDialog(requireContext(),

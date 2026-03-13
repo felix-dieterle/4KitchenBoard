@@ -345,6 +345,31 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     // ── Store / Geofence helpers ──────────────────────────────────────────────
 
     /**
+     * Adds a store entry by name only (no GPS coordinates) if none exists for this name.
+     * No-op if the name is empty or the store already exists.
+     */
+    public void addStoreIfAbsent(String name) {
+        if (name == null || name.isEmpty()) return;
+        ContentValues cv = new ContentValues();
+        cv.put(COL_STORE_NAME,   name);
+        cv.put(COL_STORE_LAT,    0.0);
+        cv.put(COL_STORE_LON,    0.0);
+        cv.put(COL_STORE_RADIUS, 200);
+        getWritableDatabase().insertWithOnConflict(
+                TABLE_STORES, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
+    }
+
+    /**
+     * Removes the store row with the given name (case-insensitive match).
+     * No-op if the name is empty or does not exist in the stores table.
+     */
+    public void deleteStore(String name) {
+        if (name == null || name.isEmpty()) return;
+        getWritableDatabase().delete(TABLE_STORES,
+                "LOWER(" + COL_STORE_NAME + ")=LOWER(?)", new String[]{name});
+    }
+
+    /**
      * Inserts or updates a store entry with GPS coordinates.
      * If a store with this name already exists its coordinates are updated.
      *
