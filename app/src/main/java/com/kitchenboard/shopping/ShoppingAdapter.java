@@ -89,7 +89,7 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
             String lastShop = null;
             for (ShoppingItem item : sorted) {
                 String shopKey = item.getShop().isEmpty() ? noShopLabel : item.getShop();
-                if (!shopKey.equals(lastShop)) {
+                if (!shopKey.equalsIgnoreCase(lastShop)) {
                     rows.add(shopKey);
                     lastShop = shopKey;
                 }

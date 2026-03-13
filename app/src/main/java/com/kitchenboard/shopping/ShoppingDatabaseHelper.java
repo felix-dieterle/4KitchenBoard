@@ -274,6 +274,74 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
         return names;
     }
 
+    /**
+     * Returns all distinct shop names: the union of non-empty {@code shop} values on items
+     * and names from the stores table, deduplicated case-insensitively and sorted A–Z.
+     * Names already in the stores table take precedence over the casing used in items.
+     */
+    public List<String> getAllShopNames() {
+        // Use a case-insensitive TreeSet so "REWE" and "Rewe" count as one entry.
+        java.util.TreeSet<String> nameSet =
+                new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        // Collect from the stores table FIRST so its casing takes precedence.
+        Cursor c2 = getReadableDatabase().query(TABLE_STORES,
+                new String[]{COL_STORE_NAME}, null, null, null, null,
+                COL_STORE_NAME + " ASC");
+        try {
+            while (c2.moveToNext()) {
+                String name = c2.getString(0);
+                if (name != null && !name.isEmpty()) nameSet.add(name);
+            }
+        } finally {
+            c2.close();
+        }
+        // Then add any shop names used on items that are not yet in the stores table.
+        Cursor c = getReadableDatabase().query(TABLE,
+                new String[]{"DISTINCT " + COL_SHOP},
+                COL_SHOP + " != ''", null, null, null, COL_SHOP + " ASC");
+        try {
+            while (c.moveToNext()) {
+                String shop = c.getString(0);
+                if (shop != null && !shop.isEmpty()) nameSet.add(shop);
+            }
+        } finally {
+            c.close();
+        }
+        return new java.util.ArrayList<>(nameSet);
+    }
+
+    /**
+     * Returns the {@link StoreLocation} for the given store name (case-insensitive match),
+     * or {@code null} if no matching row exists in the stores table.
+     */
+    public StoreLocation getStoreByName(String name) {
+        if (name == null || name.isEmpty()) return null;
+        Cursor c = getReadableDatabase().query(TABLE_STORES,
+                new String[]{COL_STORE_ID, COL_STORE_NAME, COL_STORE_LAT, COL_STORE_LON, COL_STORE_RADIUS},
+                "LOWER(" + COL_STORE_NAME + ")=LOWER(?)", new String[]{name},
+                null, null, null);
+        try {
+            if (c.moveToFirst()) {
+                return new StoreLocation(
+                        c.getLong(0), c.getString(1),
+                        c.getDouble(2), c.getDouble(3), c.getInt(4));
+            }
+        } finally {
+            c.close();
+        }
+        return null;
+    }
+
+    /** Removes GPS coordinates for a store (sets lat/lon back to 0, case-insensitive match). */
+    public void clearStoreLocation(String name) {
+        if (name == null || name.isEmpty()) return;
+        ContentValues cv = new ContentValues();
+        cv.put(COL_STORE_LAT, 0.0);
+        cv.put(COL_STORE_LON, 0.0);
+        getWritableDatabase().update(TABLE_STORES, cv,
+                "LOWER(" + COL_STORE_NAME + ")=LOWER(?)", new String[]{name});
+    }
+
     // ── Store / Geofence helpers ──────────────────────────────────────────────
 
     /**

@@ -170,6 +170,14 @@ public class ShoppingFragment extends Fragment {
             }
         });
 
+        ImageButton btnManageShops = view.findViewById(R.id.btn_manage_shops);
+        btnManageShops.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showManageShopsDialog();
+            }
+        });
+
         setupRotationToggle(view, 0);
 
         adapter.setOnItemCheckedListener(new ShoppingAdapter.OnItemCheckedListener() {
@@ -679,6 +687,127 @@ public class ShoppingFragment extends Fragment {
         if (checkedId == R.id.rb_priority_high) return ShoppingItem.PRIORITY_HIGH;
         if (checkedId == R.id.rb_priority_low)  return ShoppingItem.PRIORITY_LOW;
         return ShoppingItem.PRIORITY_NORMAL;
+    }
+
+    /**
+     * Shows a dialog listing all known shops, letting the user assign or clear a
+     * GPS location for each one via the map picker.
+     */
+    private void showManageShopsDialog() {
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_manage_shops, null);
+
+        final RecyclerView rv = dialogView.findViewById(R.id.rv_shop_locations);
+        final TextView tvManageEmpty = dialogView.findViewById(R.id.tv_manage_shops_empty);
+
+        final List<String> shopNames = db.getAllShopNames();
+        if (shopNames.isEmpty()) {
+            rv.setVisibility(View.GONE);
+            tvManageEmpty.setVisibility(View.VISIBLE);
+        } else {
+            rv.setLayoutManager(new LinearLayoutManager(requireContext()));
+            rv.setAdapter(new ShopLocationAdapter(shopNames));
+        }
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.manage_shops_title)
+                .setView(dialogView)
+                .setPositiveButton(R.string.ok, null)
+                .show();
+    }
+
+    // ── Adapter for manage-shops dialog ──────────────────────────────────────
+
+    private class ShopLocationAdapter
+            extends RecyclerView.Adapter<ShopLocationAdapter.ShopVH> {
+
+        private final List<String> shops;
+
+        ShopLocationAdapter(List<String> shops) {
+            this.shops = shops;
+        }
+
+        @NonNull
+        @Override
+        public ShopVH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.item_shop_location, parent, false);
+            return new ShopVH(v);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ShopVH holder, int position) {
+            holder.bind(shops.get(position));
+        }
+
+        @Override
+        public int getItemCount() { return shops.size(); }
+
+        class ShopVH extends RecyclerView.ViewHolder {
+            final ImageView ivIndicator;
+            final TextView tvName;
+            final Button btnSet;
+            final Button btnClear;
+
+            ShopVH(View v) {
+                super(v);
+                ivIndicator = v.findViewById(R.id.iv_location_indicator);
+                tvName = v.findViewById(R.id.tv_shop_name);
+                btnSet = v.findViewById(R.id.btn_set_location);
+                btnClear = v.findViewById(R.id.btn_clear_location);
+            }
+
+            void bind(final String shopName) {
+                tvName.setText(shopName);
+                StoreLocation loc = db.getStoreByName(shopName);
+                boolean hasLocation = loc != null && loc.hasValidCoordinates();
+                updateLocationState(hasLocation);
+
+                btnSet.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        new ShopPickerDialog(requireContext(),
+                                new ShopPickerDialog.OnShopSelectedListener() {
+                            @Override
+                            public void onShopSelected(String name, double latitude,
+                                                       double longitude) {
+                                db.upsertStore(shopName, latitude, longitude, 200);
+                                StoreGeofenceHelper.unregisterAll(
+                                        requireContext(), cachedStoreLocations);
+                                cachedStoreLocations = db.getStoresWithLocation();
+                                StoreGeofenceHelper.registerAll(
+                                        requireContext(), cachedStoreLocations);
+                                updateLocationState(true);
+                                Toast.makeText(requireContext(),
+                                        R.string.shop_location_saved,
+                                        Toast.LENGTH_SHORT).show();
+                            }
+                        }).show();
+                    }
+                });
+
+                btnClear.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        db.clearStoreLocation(shopName);
+                        StoreGeofenceHelper.unregisterAll(
+                                requireContext(), cachedStoreLocations);
+                        cachedStoreLocations = db.getStoresWithLocation();
+                        StoreGeofenceHelper.registerAll(
+                                requireContext(), cachedStoreLocations);
+                        updateLocationState(false);
+                        Toast.makeText(requireContext(),
+                                R.string.shop_location_cleared,
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+
+            private void updateLocationState(boolean hasLocation) {
+                ivIndicator.setAlpha(hasLocation ? 1.0f : 0.3f);
+                btnClear.setVisibility(hasLocation ? View.VISIBLE : View.GONE);
+            }
+        }
     }
 
     /**
