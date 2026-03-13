@@ -179,13 +179,13 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
                 new String[]{String.valueOf(id)});
     }
 
-    /** Returns all unchecked items, ordered by priority then category then name. */
+    /** Returns all unchecked items, ordered by category then priority then name. */
     public List<ShoppingItem> getActiveItems() {
         List<ShoppingItem> items = new ArrayList<>();
         Cursor c = getReadableDatabase().query(TABLE,
                 new String[]{COL_ID, COL_NAME, COL_CATEGORY, COL_CHECKED, COL_QUANTITY, COL_SHOP, COL_PRIORITY},
                 COL_CHECKED + "=?", new String[]{"0"}, null, null,
-                COL_PRIORITY + " ASC, " + COL_CATEGORY + " ASC, " + COL_NAME + " ASC");
+                COL_CATEGORY + " ASC, " + COL_PRIORITY + " ASC, " + COL_NAME + " ASC");
         while (c.moveToNext()) {
             items.add(new ShoppingItem(
                     c.getLong(0), c.getString(1), c.getString(2), false,
