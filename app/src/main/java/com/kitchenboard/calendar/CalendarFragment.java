@@ -939,7 +939,7 @@ public class CalendarFragment extends Fragment {
                     refreshDayStrip();
                 })
                 .setNeutralButton(R.string.calendar_template_recurrence, (d, which) ->
-                        showRecurrenceDialog(t))
+                        showRecurrenceDialog(t, chosenDate[0], chosenTime[0]))
                 .setNegativeButton(R.string.cancel, null)
                 .create();
         dialog.setOnDismissListener(d -> resumeAutoAdvance());
@@ -949,6 +949,11 @@ public class CalendarFragment extends Fragment {
     // ── Recurrence dialog ─────────────────────────────────────────────────────
 
     private void showRecurrenceDialog(final Template t) {
+        showRecurrenceDialog(t, selectedDate, null);
+    }
+
+    private void showRecurrenceDialog(final Template t, final String initialDate,
+                                      final String initialTime) {
         if (!isAdded() || getContext() == null) return;
 
         final String[] recurrenceKeys = {
@@ -963,17 +968,19 @@ public class CalendarFragment extends Fragment {
                 R.string.calendar_recurrence_monthly
         };
 
-        // Default end date = 1 month from currently selected date
+        // Default end date = 1 month from the initial (start) date
+        final String resolvedStartDate = (initialDate != null && !initialDate.isEmpty())
+                ? initialDate : selectedDate;
         final Calendar endCal = Calendar.getInstance();
         try {
-            endCal.setTime(DATE_FMT.parse(selectedDate));
+            endCal.setTime(DATE_FMT.parse(resolvedStartDate));
         } catch (ParseException e) { /* keep today */ }
         endCal.add(Calendar.MONTH, 1);
         final String[] endDate = {DATE_FMT.format(endCal.getTime())};
 
-        // Mutable start date and optional time for "once" mode
-        final String[] startDate = {selectedDate};
-        final String[] appointmentTime = {null};
+        // Mutable start date and optional time; pre-fill with values from the calling dialog
+        final String[] startDate = {resolvedStartDate};
+        final String[] appointmentTime = {initialTime};
 
         // Build dialog view
         LinearLayout layout = new LinearLayout(requireContext());
@@ -1023,9 +1030,9 @@ public class CalendarFragment extends Fragment {
         final Button btnStartDate = new Button(requireContext());
         try {
             btnStartDate.setText(getString(R.string.calendar_recurrence_date,
-                    LABEL_FMT.format(DATE_FMT.parse(selectedDate))));
+                    LABEL_FMT.format(DATE_FMT.parse(resolvedStartDate))));
         } catch (Exception e) {
-            btnStartDate.setText(getString(R.string.calendar_recurrence_date, selectedDate));
+            btnStartDate.setText(getString(R.string.calendar_recurrence_date, resolvedStartDate));
         }
         btnStartDate.setAllCaps(false);
         btnStartDate.setTextSize(16f);
@@ -1034,19 +1041,24 @@ public class CalendarFragment extends Fragment {
 
         // Time button – shown for all recurrence modes; applies to every occurrence in the series
         final Button btnSetTime = new Button(requireContext());
-        btnSetTime.setText(R.string.calendar_recurrence_time_optional);
+        if (initialTime != null && !initialTime.isEmpty()) {
+            btnSetTime.setText(getString(R.string.calendar_recurrence_time, initialTime));
+        } else {
+            btnSetTime.setText(R.string.calendar_recurrence_time_optional);
+        }
         btnSetTime.setAllCaps(false);
         btnSetTime.setTextSize(16f);
         btnSetTime.setVisibility(View.VISIBLE);
         layout.addView(btnSetTime);
 
-        // Reminder button – visible only after a time has been chosen
+        // Reminder button – visible only after a time has been chosen (or pre-filled)
         final int[] selectedReminderMinutes = {0};
         final Button btnSetReminder = new Button(requireContext());
         btnSetReminder.setText(R.string.calendar_recurrence_reminder_optional);
         btnSetReminder.setAllCaps(false);
         btnSetReminder.setTextSize(16f);
-        btnSetReminder.setVisibility(View.GONE);
+        btnSetReminder.setVisibility(
+                (initialTime != null && !initialTime.isEmpty()) ? View.VISIBLE : View.GONE);
         layout.addView(btnSetReminder);
 
         // Person / group picker
@@ -1216,7 +1228,7 @@ public class CalendarFragment extends Fragment {
                             }
                         } else {
                             long seriesId = db.addRecurringAppointments(
-                                    selectedDate, endDate[0], t.getTitle(), recKey,
+                                    startDate[0], endDate[0], t.getTitle(), recKey,
                                     appointmentTime[0], selectedPersonId[0], selectedGroupId[0]);
                             if (selectedReminderMinutes[0] > 0
                                     && appointmentTime[0] != null
