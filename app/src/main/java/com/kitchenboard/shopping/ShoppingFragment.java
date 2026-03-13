@@ -623,6 +623,12 @@ public class ShoppingFragment extends Fragment {
                                 }
                                 @Override
                                 public void onError(String message) {
+                                    // Server unreachable – save locally so the item is not lost
+                                    db.addCategory(category);
+                                    db.addItem(name, category, qty, shop, priority);
+                                    saveStoreLocationIfPresent(shop,
+                                            selectedShopLat[0], selectedShopLon[0]);
+                                    refreshList();
                                     showSyncError();
                                 }
                             });
@@ -876,7 +882,15 @@ public class ShoppingFragment extends Fragment {
                                 refreshList();
                             }
                             @Override
-                            public void onError(String message) { showSyncError(); }
+                            public void onError(String message) {
+                                // Server unreachable – save locally so the item is not lost
+                                db.addCategory(itemCategory);
+                                db.addItem(itemName, itemCategory, qty, shop, priority);
+                                saveStoreLocationIfPresent(shop,
+                                        selectedShopLat[0], selectedShopLon[0]);
+                                refreshList();
+                                showSyncError();
+                            }
                         });
                     } else {
                         db.addCategory(itemCategory);
