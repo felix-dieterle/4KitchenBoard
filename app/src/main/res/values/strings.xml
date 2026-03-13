@@ -236,6 +236,12 @@
     <string name="shop_clear_location">✕</string>
     <string name="shop_location_saved">Standort gespeichert</string>
     <string name="shop_location_cleared">Standort gelöscht</string>
+    <string name="add_shop_button">+ Eigenen Shop hinzufügen</string>
+    <string name="add_shop_title">Shop hinzufügen</string>
+    <string name="add_shop_hint">z. B. Bioladen, Markt…</string>
+    <string name="remove_shop_title">Shop entfernen</string>
+    <string name="remove_shop_confirm">„%s" aus der Liste entfernen?</string>
+    <string name="remove_shop_confirm_yes">Entfernen</string>
 
     <!-- Store geofence / proximity notifications -->
     <string name="geofence_notif_title">In der Nähe: %s</string>
