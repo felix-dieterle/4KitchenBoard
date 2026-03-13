@@ -60,6 +60,12 @@ A minimal PHP/MySQL REST API that lets multiple 4KitchenBoard devices share and 
 
    Use the LAN IP address so all devices on the same network can reach it.
 
+   > **Note (Android 9+ / API 28+):** Android blocks unencrypted HTTP traffic by
+   > default.  4KitchenBoard ships with a `network_security_config.xml` that
+   > explicitly allows cleartext HTTP, so plain `http://` URLs work correctly.
+   > If you see _"Cleartext HTTP traffic … not permitted"_ in the logs, make sure
+   > you are running a build from this repository (not an older APK).
+
 ## Windows Auto-Update (keeping backend files in sync automatically)
 
 The script `scripts/update_backend_windows.ps1` (in the repository root) clones the
