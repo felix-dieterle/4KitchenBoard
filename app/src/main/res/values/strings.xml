@@ -228,6 +228,15 @@
     <string name="category_icon_desc">Kategorie-Icon</string>
     <string name="store_icon_desc">Shop-Icon</string>
 
+    <!-- Manage shop locations dialog -->
+    <string name="manage_shops_title">Shop-Standorte verwalten</string>
+    <string name="manage_shops_button_desc">Shop-Standorte verwalten</string>
+    <string name="manage_shops_empty">Noch keine Shops vorhanden.\nFüge einem Artikel einen Shop zu.</string>
+    <string name="shop_set_location">📍 Standort</string>
+    <string name="shop_clear_location">✕</string>
+    <string name="shop_location_saved">Standort gespeichert</string>
+    <string name="shop_location_cleared">Standort gelöscht</string>
+
     <!-- Store geofence / proximity notifications -->
     <string name="geofence_notif_title">In der Nähe: %s</string>
     <string name="geofence_notif_message">%d Artikel zu kaufen: %s</string>

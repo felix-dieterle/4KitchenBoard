@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="@dimen/spacing_small"
+    android:paddingEnd="@dimen/spacing_small"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <ImageView
+        android:id="@+id/iv_location_indicator"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:src="@drawable/ic_store"
+        android:contentDescription="@string/store_icon_desc"
+        android:layout_marginEnd="8dp"/>
+
+    <TextView
+        android:id="@+id/tv_shop_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="@dimen/body_text_size"
+        android:textColor="@color/text_primary"
+        android:singleLine="true"
+        android:ellipsize="end"/>
+
+    <Button
+        android:id="@+id/btn_set_location"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="48dp"
+        android:minHeight="48dp"
+        android:text="@string/shop_set_location"
+        android:textAllCaps="false"
+        android:textSize="@dimen/small_text_size"
+        android:layout_marginStart="4dp"/>
+
+    <Button
+        android:id="@+id/btn_clear_location"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="48dp"
+        android:minHeight="48dp"
+        android:text="@string/shop_clear_location"
+        android:textAllCaps="false"
+        android:textSize="@dimen/small_text_size"
+        android:layout_marginStart="4dp"
+        android:visibility="gone"/>
+
+</LinearLayout>

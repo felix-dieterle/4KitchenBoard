@@ -58,6 +58,16 @@
                     android:contentDescription="@string/feature_request_hint"/>
 
                 <ImageButton
+                    android:id="@+id/btn_manage_shops"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:src="@drawable/ic_store"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:padding="8dp"
+                    android:contentDescription="@string/manage_shops_button_desc"/>
+
+                <ImageButton
                     android:id="@+id/btn_sync_configure"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
