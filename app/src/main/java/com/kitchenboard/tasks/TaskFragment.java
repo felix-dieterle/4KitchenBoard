@@ -42,10 +42,15 @@ import java.util.Locale;
 
 public class TaskFragment extends Fragment {
 
-    private static final String PREFS_NAME      = "shopping_prefs";
-    private static final String PREF_SERVER_URL = "server_url";
-    private static final String PREF_BOARD_TOKEN = "board_token";
-    private static final String PREF_API_TOKEN   = "api_token";
+    private static final String PREFS_NAME        = "shopping_prefs";
+    private static final String PREF_SERVER_URL   = "server_url";
+    private static final String PREF_SERVER_HOST  = "server_host";
+    private static final String PREF_SERVER_BASEPATH = "server_basepath";
+    private static final String PREF_BOARD_TOKEN  = "board_token";
+    private static final String PREF_API_TOKEN    = "api_token";
+
+    /** Default API base path used when no custom path has been configured. */
+    private static final String DEFAULT_BASEPATH  = "/apps/kitchenboard/api.php";
 
     /** ViewPager2 page index of this fragment (used for notification navigation). */
     static final int TASK_PAGE_INDEX = 3;
@@ -190,6 +195,53 @@ public class TaskFragment extends Fragment {
         String token    = prefs.getString(PREF_BOARD_TOKEN, "").trim();
         String apiToken = prefs.getString(PREF_API_TOKEN, "").trim();
         apiClient = url.isEmpty() ? null : new TaskApiClient(requireContext(), url, token, apiToken);
+    }
+
+    /**
+     * Constructs a full API URL from a host (hostname or IP, optionally with scheme)
+     * and a base path. Prepends {@code http://} when no scheme is present.
+     */
+    private static String buildServerUrl(String host, String basepath) {
+        if (host == null || host.trim().isEmpty()) return "";
+        host = host.trim();
+        if (!host.startsWith("http://") && !host.startsWith("https://")) {
+            host = "http://" + host;
+        }
+        while (host.endsWith("/")) {
+            host = host.substring(0, host.length() - 1);
+        }
+        if (basepath == null || basepath.trim().isEmpty()) {
+            basepath = DEFAULT_BASEPATH;
+        } else {
+            basepath = basepath.trim();
+            if (!basepath.startsWith("/")) {
+                basepath = "/" + basepath;
+            }
+        }
+        return host + basepath;
+    }
+
+    /** Extracts the host (with scheme and optional port) from a full URL for migration. */
+    private static String extractHost(String url) {
+        if (url == null || url.isEmpty()) return "";
+        try {
+            java.net.URL u = new java.net.URL(url);
+            String port = u.getPort() != -1 ? ":" + u.getPort() : "";
+            return u.getProtocol() + "://" + u.getHost() + port;
+        } catch (Exception e) {
+            return url;
+        }
+    }
+
+    /** Extracts the base path from a full URL for migration. */
+    private static String extractBasePath(String url) {
+        if (url == null || url.isEmpty()) return DEFAULT_BASEPATH;
+        try {
+            String path = new java.net.URL(url).getPath();
+            return path.isEmpty() ? DEFAULT_BASEPATH : path;
+        } catch (Exception e) {
+            return DEFAULT_BASEPATH;
+        }
     }
 
     private void loadTasks() {
@@ -401,10 +453,29 @@ public class TaskFragment extends Fragment {
         SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, 0);
         int pad = requireContext().getResources().getDimensionPixelSize(R.dimen.panel_padding);
 
-        final EditText etUrl = new EditText(requireContext());
-        etUrl.setText(prefs.getString(PREF_SERVER_URL, ""));
-        etUrl.setHint(getString(R.string.sync_url_hint));
-        etUrl.setSingleLine(true);
+        // Populate host/basepath from saved values; fall back to parsing legacy full URL.
+        String savedHost     = prefs.getString(PREF_SERVER_HOST, "");
+        String savedBasepath = prefs.getString(PREF_SERVER_BASEPATH, "");
+        if (savedHost.isEmpty()) {
+            String legacyUrl = prefs.getString(PREF_SERVER_URL, "");
+            if (!legacyUrl.isEmpty()) {
+                savedHost     = extractHost(legacyUrl);
+                savedBasepath = extractBasePath(legacyUrl);
+            }
+        }
+        if (savedBasepath.isEmpty()) {
+            savedBasepath = DEFAULT_BASEPATH;
+        }
+
+        final EditText etHost = new EditText(requireContext());
+        etHost.setText(savedHost);
+        etHost.setHint(getString(R.string.sync_host_hint));
+        etHost.setSingleLine(true);
+
+        final EditText etBasepath = new EditText(requireContext());
+        etBasepath.setHint(getString(R.string.sync_basepath_hint));
+        etBasepath.setSingleLine(true);
+        etBasepath.setText(savedBasepath);
 
         final TextView tvTokenDesc = new TextView(requireContext());
         tvTokenDesc.setText(R.string.board_token_description);
@@ -427,7 +498,8 @@ public class TaskFragment extends Fragment {
         LinearLayout layout = new LinearLayout(requireContext());
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(pad, pad, pad, pad);
-        layout.addView(etUrl);
+        layout.addView(etHost);
+        layout.addView(etBasepath);
         layout.addView(tvTokenDesc);
         layout.addView(etToken);
         layout.addView(tvApiTokenDesc);
@@ -440,13 +512,17 @@ public class TaskFragment extends Fragment {
                 .setPositiveButton(R.string.sync_save, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
-                        String url      = etUrl.getText().toString().trim();
+                        String host     = etHost.getText().toString().trim();
+                        String basepath = etBasepath.getText().toString().trim();
                         String token    = etToken.getText().toString().trim();
                         String apiToken = etApiToken.getText().toString().trim();
+                        String url      = buildServerUrl(host, basepath);
                         prefs.edit()
-                                .putString(PREF_SERVER_URL, url)
-                                .putString(PREF_BOARD_TOKEN, token)
-                                .putString(PREF_API_TOKEN, apiToken)
+                                .putString(PREF_SERVER_HOST,     host)
+                                .putString(PREF_SERVER_BASEPATH, basepath)
+                                .putString(PREF_SERVER_URL,      url)
+                                .putString(PREF_BOARD_TOKEN,     token)
+                                .putString(PREF_API_TOKEN,       apiToken)
                                 .apply();
                         refreshApiClient();
                         if (apiClient != null) {
@@ -459,9 +535,11 @@ public class TaskFragment extends Fragment {
                 .create();
         dialog.show();
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
-            String url      = etUrl.getText().toString().trim();
+            String host     = etHost.getText().toString().trim();
+            String basepath = etBasepath.getText().toString().trim();
             String token    = etToken.getText().toString().trim();
             String apiToken = etApiToken.getText().toString().trim();
+            String url      = buildServerUrl(host, basepath);
             String config = url
                     + (token.isEmpty()    ? "" : "\nToken: "     + token)
                     + (apiToken.isEmpty() ? "" : "\nAPI-Token: " + apiToken);
