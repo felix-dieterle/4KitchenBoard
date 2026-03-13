@@ -30,9 +30,12 @@
 
     <!-- Shopping list sync -->
     <string name="sync_configure">Configure sync</string>
-    <string name="sync_url_title">Sync Server URL</string>
-    <string name="sync_url_message">Enter the full URL of api.php on your server (leave empty to disable sync):</string>
+    <string name="sync_url_title">Sync-Server konfigurieren</string>
+    <string name="sync_url_message">Host oder IP-Adresse des Servers eingeben (leer lassen um Sync zu deaktivieren):</string>
     <string name="sync_url_hint">http://192.168.1.x/apps/kitchenboard/api.php</string>
+    <string name="sync_url_example">Beispiel: http://192.168.1.x/apps/kitchenboard/api.php</string>
+    <string name="sync_host_hint">z. B. 192.168.1.10 oder meinserver.local</string>
+    <string name="sync_basepath_hint">/apps/kitchenboard/api.php</string>
     <string name="sync_save">Save</string>
     <string name="sync_status_ok">✓ Synced</string>
     <string name="sync_status_error">Sync failed</string>
