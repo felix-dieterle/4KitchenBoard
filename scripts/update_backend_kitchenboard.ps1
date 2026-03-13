@@ -27,11 +27,11 @@
 # Full path to the directory where Apache/XAMPP serves files.
 # This should be the folder where api.php will be reachable as
 #   http://localhost/apps/kitchenboard/api.php
-$ApacheTargetPath = "C:\xampp\htdocs\apps\kitchenboard"
+$ApacheTargetPath = "F:\CascadeProjects\mama-razzi\public\apps\kitchenboard"
 
 # Local directory where the repository clone is kept.
 # The script creates this directory and the initial clone automatically.
-$LocalRepoPath    = "C:\kitchenboard-repo"
+$LocalRepoPath    = "F:\temp\kitchenboard-repo"
 
 # GitHub repository (owner/name) and branch to track.
 $GitHubRepo       = "felix-dieterle/4KitchenBoard"
@@ -76,6 +76,11 @@ try {
             throw "git reset failed with exit code $LASTEXITCODE"
         }
     } else {
+        # If directory exists but isn't a git repo, remove it first
+        if (Test-Path $LocalRepoPath) {
+            Write-Log "Removing existing non-git directory at '$LocalRepoPath' ..."
+            Remove-Item -Path $LocalRepoPath -Recurse -Force
+        }
         Write-Log "Cloning https://github.com/$GitHubRepo into '$LocalRepoPath' ..."
         $output = git clone --branch $GitHubBranch --depth 1 `
             "https://github.com/$GitHubRepo.git" $LocalRepoPath 2>&1
@@ -105,12 +110,12 @@ try {
     }
 
     # Copy every file from backend/ EXCEPT config.php.
-    # config.php contains local database credentials and the API token –
+    # config.php contains local database credentials and the API token -
     # it must never be overwritten by a remote update.
     $files = Get-ChildItem -Path $BackendSource -File
     foreach ($file in $files) {
         if ($file.Name -eq "config.php") {
-            Write-Log "Skipping config.php (local credentials – never overwritten by update)"
+            Write-Log "Skipping config.php (local credentials - never overwritten by update)"
             continue
         }
         $dest = Join-Path $ApacheTargetPath $file.Name
