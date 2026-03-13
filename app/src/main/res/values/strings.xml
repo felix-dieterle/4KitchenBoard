@@ -111,6 +111,8 @@
     <string name="calendar_recurrence_date">Datum: %s</string>
     <string name="calendar_recurrence_time">Uhrzeit: %s</string>
     <string name="calendar_recurrence_time_optional">Uhrzeit festlegen (optional)</string>
+    <string name="calendar_recurrence_reminder_optional">Erinnerung festlegen (optional)</string>
+    <string name="calendar_recurrence_reminder">Erinnerung: %d min vorher</string>
 
     <!-- Series (recurring) delete -->
     <string name="calendar_delete_this_only">Nur diesen</string>
