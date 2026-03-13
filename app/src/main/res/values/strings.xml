@@ -15,6 +15,9 @@
     <string name="delete">Delete</string>
     <string name="item_name_label">Item name</string>
     <string name="item_name_hint">e.g. Apples</string>
+    <string name="item_history_button_desc">Select from previously used items</string>
+    <string name="item_history_title">Previously used items</string>
+    <string name="item_history_empty">No items used yet.</string>
     <string name="category_label">Category</string>
     <string name="category_hint">e.g. Fruits &amp; Vegetables</string>
     <string name="locate_me">📍 Locate</string>

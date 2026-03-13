@@ -599,6 +599,25 @@ public class ShoppingFragment extends Fragment {
         etName.setAdapter(suggestAdapter);
         etName.setThreshold(1);
 
+        // Show the full suggestion list as soon as the name field gains focus
+        etName.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                if (hasFocus && !history.isEmpty()) {
+                    etName.post(() -> etName.showDropDown());
+                }
+            }
+        });
+
+        // History button opens a full scrollable list of all previously used items
+        final ImageButton btnItemHistory = dialogView.findViewById(R.id.btn_item_history);
+        btnItemHistory.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showItemHistoryDialog(history, etName);
+            }
+        });
+
         // Populate category suggestions from saved categories
         List<String> categories = db.getCategories();
         ArrayAdapter<String> catAdapter = new ArrayAdapter<>(requireContext(),
@@ -691,6 +710,31 @@ public class ShoppingFragment extends Fragment {
         if (checkedId == R.id.rb_priority_high) return ShoppingItem.PRIORITY_HIGH;
         if (checkedId == R.id.rb_priority_low)  return ShoppingItem.PRIORITY_LOW;
         return ShoppingItem.PRIORITY_NORMAL;
+    }
+
+    /**
+     * Shows a dialog listing all previously used item names so the user can pick one
+     * directly without typing.  The selected name is written into {@code target}.
+     */
+    private void showItemHistoryDialog(final List<String> history,
+                                       final AutoCompleteTextView target) {
+        if (history.isEmpty()) {
+            Toast.makeText(requireContext(),
+                    R.string.item_history_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final String[] items = history.toArray(new String[0]);
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.item_history_title)
+                .setItems(items, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        target.setText(items[which]);
+                        target.setSelection(items[which].length());
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
     }
 
     /**
