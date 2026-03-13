@@ -1040,6 +1040,15 @@ public class CalendarFragment extends Fragment {
         btnSetTime.setVisibility(View.VISIBLE);
         layout.addView(btnSetTime);
 
+        // Reminder button – visible only after a time has been chosen
+        final int[] selectedReminderMinutes = {0};
+        final Button btnSetReminder = new Button(requireContext());
+        btnSetReminder.setText(R.string.calendar_recurrence_reminder_optional);
+        btnSetReminder.setAllCaps(false);
+        btnSetReminder.setTextSize(16f);
+        btnSetReminder.setVisibility(View.GONE);
+        layout.addView(btnSetReminder);
+
         // Person / group picker
         final Long[] selectedPersonId = {null};
         final Long[] selectedGroupId  = {null};
@@ -1125,7 +1134,42 @@ public class CalendarFragment extends Fragment {
                 appointmentTime[0] = String.format(Locale.US, "%02d:%02d", h, m);
                 btnSetTime.setText(getString(R.string.calendar_recurrence_time,
                         appointmentTime[0]));
+                // Show reminder option now that a time is defined
+                btnSetReminder.setVisibility(View.VISIBLE);
             }, hour, minute, true).show();
+        });
+
+        btnSetReminder.setOnClickListener(v -> {
+            final int[] currentMinutes = {
+                    selectedReminderMinutes[0] > 0 ? selectedReminderMinutes[0] : 30};
+            final int step = 15;
+            final int minMinutes = 15;
+            View timerView = LayoutInflater.from(requireContext())
+                    .inflate(R.layout.dialog_timer, null);
+            final TextView tvValue = timerView.findViewById(R.id.tv_timer_value);
+            final Button btnMinus  = timerView.findViewById(R.id.btn_timer_minus);
+            final Button btnPlus   = timerView.findViewById(R.id.btn_timer_plus);
+            tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+            btnMinus.setOnClickListener(vm -> {
+                if (currentMinutes[0] - step >= minMinutes) {
+                    currentMinutes[0] -= step;
+                    tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+                }
+            });
+            btnPlus.setOnClickListener(vm -> {
+                currentMinutes[0] += step;
+                tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+            });
+            new AlertDialog.Builder(requireContext())
+                    .setTitle(R.string.calendar_timer_title)
+                    .setView(timerView)
+                    .setPositiveButton(R.string.ok, (dv, which) -> {
+                        selectedReminderMinutes[0] = currentMinutes[0];
+                        btnSetReminder.setText(getString(R.string.calendar_recurrence_reminder,
+                                selectedReminderMinutes[0]));
+                    })
+                    .setNegativeButton(R.string.cancel, null)
+                    .show();
         });
 
         pauseAutoAdvance();
@@ -1141,6 +1185,20 @@ public class CalendarFragment extends Fragment {
                             if (rbIds[i] == checkedId) { idx = i; break; }
                         }
                         String recKey = recurrenceKeys[idx];
+                        // Request POST_NOTIFICATIONS permission on Android 13+ if needed
+                        if (selectedReminderMinutes[0] > 0
+                                && appointmentTime[0] != null
+                                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            if (ActivityCompat.checkSelfPermission(requireContext(),
+                                    android.Manifest.permission.POST_NOTIFICATIONS)
+                                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                requestPermissions(
+                                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 0);
+                            }
+                        }
+                        if (selectedReminderMinutes[0] > 0 && appointmentTime[0] != null) {
+                            ReminderReceiver.createNotificationChannel(requireContext());
+                        }
                         if ("once".equals(recKey)) {
                             long id = db.addAppointment(startDate[0], appointmentTime[0],
                                     t.getTitle(), selectedPersonId[0], selectedGroupId[0]);
@@ -1148,11 +1206,27 @@ public class CalendarFragment extends Fragment {
                                 pushAppointment(new Appointment(id, startDate[0],
                                         appointmentTime[0], t.getTitle(), null,
                                         selectedPersonId[0], selectedGroupId[0]));
+                                if (selectedReminderMinutes[0] > 0 && appointmentTime[0] != null) {
+                                    db.setReminderForAppointment(id, selectedReminderMinutes[0]);
+                                    ReminderScheduler.scheduleReminder(requireContext(),
+                                            new Appointment(id, startDate[0], appointmentTime[0],
+                                                    t.getTitle(), null, selectedPersonId[0],
+                                                    selectedGroupId[0], selectedReminderMinutes[0]));
+                                }
                             }
                         } else {
                             long seriesId = db.addRecurringAppointments(
                                     selectedDate, endDate[0], t.getTitle(), recKey,
                                     appointmentTime[0], selectedPersonId[0], selectedGroupId[0]);
+                            if (selectedReminderMinutes[0] > 0
+                                    && appointmentTime[0] != null
+                                    && seriesId > 0) {
+                                db.setReminderForSeries(seriesId, selectedReminderMinutes[0]);
+                                for (Appointment apt : db.getAppointmentsBySeriesId(seriesId)) {
+                                    ReminderScheduler.scheduleReminder(requireContext(),
+                                            apt.withReminderMinutes(selectedReminderMinutes[0]));
+                                }
+                            }
                             pushSeries(seriesId);
                         }
                         refreshAppointments();
