@@ -646,8 +646,9 @@ public class ShoppingFragment extends Fragment {
                                     new ShoppingApiClient.Callback<ShoppingItem>() {
                                 @Override
                                 public void onSuccess(ShoppingItem item) {
-                                    // Save category locally for autocomplete suggestions only
+                                    // Save category and name locally for autocomplete suggestions
                                     db.addCategory(category);
+                                    db.addItemNameToHistory(name);
                                     saveStoreLocationIfPresent(shop,
                                             selectedShopLat[0], selectedShopLon[0]);
                                     refreshList();
@@ -657,6 +658,7 @@ public class ShoppingFragment extends Fragment {
                                     // Server unreachable – save locally so the item is not lost
                                     db.addCategory(category);
                                     db.addItem(name, category, qty, shop, priority);
+                                    db.addItemNameToHistory(name);
                                     saveStoreLocationIfPresent(shop,
                                             selectedShopLat[0], selectedShopLon[0]);
                                     refreshList();
@@ -666,6 +668,7 @@ public class ShoppingFragment extends Fragment {
                         } else {
                             db.addCategory(category);
                             db.addItem(name, category, qty, shop, priority);
+                            db.addItemNameToHistory(name);
                             saveStoreLocationIfPresent(shop,
                                     selectedShopLat[0], selectedShopLon[0]);
                             refreshList();
@@ -1148,6 +1151,7 @@ public class ShoppingFragment extends Fragment {
                             @Override
                             public void onSuccess(ShoppingItem item) {
                                 db.addCategory(itemCategory);
+                                db.addItemNameToHistory(itemName);
                                 saveStoreLocationIfPresent(shop,
                                         selectedShopLat[0], selectedShopLon[0]);
                                 refreshList();
@@ -1157,6 +1161,7 @@ public class ShoppingFragment extends Fragment {
                                 // Server unreachable – save locally so the item is not lost
                                 db.addCategory(itemCategory);
                                 db.addItem(itemName, itemCategory, qty, shop, priority);
+                                db.addItemNameToHistory(itemName);
                                 saveStoreLocationIfPresent(shop,
                                         selectedShopLat[0], selectedShopLon[0]);
                                 refreshList();
@@ -1166,6 +1171,7 @@ public class ShoppingFragment extends Fragment {
                     } else {
                         db.addCategory(itemCategory);
                         db.addItem(itemName, itemCategory, qty, shop, priority);
+                        db.addItemNameToHistory(itemName);
                         saveStoreLocationIfPresent(shop,
                                 selectedShopLat[0], selectedShopLon[0]);
                         refreshList();

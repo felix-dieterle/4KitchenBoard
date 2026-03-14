@@ -13,7 +13,7 @@ import java.util.List;
 public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "shopping.db";
-    private static final int DB_VERSION = 7;
+    private static final int DB_VERSION = 8;
 
     static final String TABLE = "shopping_items";
     static final String COL_ID = "_id";
@@ -38,6 +38,10 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     static final String COL_STORE_LAT      = "latitude";
     static final String COL_STORE_LON      = "longitude";
     static final String COL_STORE_RADIUS   = "radius_meters";
+
+    /** History table: one row per distinct item name the user has ever submitted. */
+    static final String TABLE_ITEM_HISTORY = "item_history";
+    static final String COL_HIST_NAME      = "name";
 
     public ShoppingDatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -64,6 +68,9 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
                 COL_STORE_LAT    + " REAL DEFAULT 0, " +
                 COL_STORE_LON    + " REAL DEFAULT 0, " +
                 COL_STORE_RADIUS + " INTEGER DEFAULT 200)");
+        db.execSQL("CREATE TABLE " + TABLE_ITEM_HISTORY + " (" +
+                "_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COL_HIST_NAME + " TEXT NOT NULL UNIQUE)");
     }
 
     @Override
@@ -110,6 +117,14 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
                     COL_STORE_LAT    + " REAL DEFAULT 0, " +
                     COL_STORE_LON    + " REAL DEFAULT 0, " +
                     COL_STORE_RADIUS + " INTEGER DEFAULT 200)");
+        }
+        if (oldVersion < 8) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_ITEM_HISTORY + " (" +
+                    "_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    COL_HIST_NAME + " TEXT NOT NULL UNIQUE)");
+            // Seed history with names already stored in shopping_items
+            db.execSQL("INSERT OR IGNORE INTO " + TABLE_ITEM_HISTORY + " (" + COL_HIST_NAME + ") " +
+                    "SELECT DISTINCT " + COL_NAME + " FROM " + TABLE);
         }
     }
 
@@ -260,18 +275,31 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     /**
      * Returns all distinct item names ever added (including checked ones)
      * for autocomplete suggestions, ordered alphabetically.
+     * Names are stored in the dedicated {@link #TABLE_ITEM_HISTORY} table so they
+     * persist even when items are deleted or managed via the remote API.
      */
     public List<String> getAllItemNames() {
         List<String> names = new ArrayList<>();
-        // COL_NAME and TABLE are compile-time constants – safe to interpolate
         Cursor c = getReadableDatabase().query(
-                TABLE, new String[]{"DISTINCT " + COL_NAME},
-                null, null, COL_NAME, null, COL_NAME + " ASC");
+                TABLE_ITEM_HISTORY, new String[]{COL_HIST_NAME},
+                null, null, null, null, COL_HIST_NAME + " ASC");
         while (c.moveToNext()) {
             names.add(c.getString(0));
         }
         c.close();
         return names;
+    }
+
+    /**
+     * Records {@code name} in the persistent item history used for autocomplete.
+     * Silently ignored if {@code name} is empty or already recorded.
+     */
+    public void addItemNameToHistory(String name) {
+        if (name == null || name.isEmpty()) return;
+        ContentValues cv = new ContentValues();
+        cv.put(COL_HIST_NAME, name);
+        getWritableDatabase().insertWithOnConflict(
+                TABLE_ITEM_HISTORY, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
     }
 
     /**
