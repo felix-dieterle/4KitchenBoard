@@ -13,7 +13,7 @@ import java.util.List;
 public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "shopping.db";
-    private static final int DB_VERSION = 8;
+    private static final int DB_VERSION = 9;
 
     static final String TABLE = "shopping_items";
     static final String COL_ID = "_id";
@@ -40,8 +40,10 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     static final String COL_STORE_RADIUS   = "radius_meters";
 
     /** History table: one row per distinct item name the user has ever submitted. */
-    static final String TABLE_ITEM_HISTORY = "item_history";
-    static final String COL_HIST_NAME      = "name";
+    static final String TABLE_ITEM_HISTORY  = "item_history";
+    static final String COL_HIST_NAME       = "name";
+    /** Category last used for this item name (added in DB v9). */
+    static final String COL_HIST_CATEGORY   = "category";
 
     public ShoppingDatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -70,7 +72,8 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
                 COL_STORE_RADIUS + " INTEGER DEFAULT 200)");
         db.execSQL("CREATE TABLE " + TABLE_ITEM_HISTORY + " (" +
                 "_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                COL_HIST_NAME + " TEXT NOT NULL UNIQUE)");
+                COL_HIST_NAME + " TEXT NOT NULL UNIQUE, " +
+                COL_HIST_CATEGORY + " TEXT DEFAULT '')");
     }
 
     @Override
@@ -125,6 +128,19 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
             // Seed history with names already stored in shopping_items
             db.execSQL("INSERT OR IGNORE INTO " + TABLE_ITEM_HISTORY + " (" + COL_HIST_NAME + ") " +
                     "SELECT DISTINCT " + COL_NAME + " FROM " + TABLE);
+        }
+        if (oldVersion < 9) {
+            try {
+                db.execSQL("ALTER TABLE " + TABLE_ITEM_HISTORY +
+                        " ADD COLUMN " + COL_HIST_CATEGORY + " TEXT DEFAULT ''");
+            } catch (SQLiteException ignored) {
+                // Column may already exist if upgrade runs twice; ignore.
+            }
+            // Back-fill category from shopping_items where name matches
+            db.execSQL("UPDATE " + TABLE_ITEM_HISTORY + " SET " + COL_HIST_CATEGORY +
+                    " = COALESCE((SELECT " + COL_CATEGORY + " FROM " + TABLE +
+                    " WHERE " + TABLE + "." + COL_NAME + " = " + TABLE_ITEM_HISTORY + "." + COL_HIST_NAME +
+                    " LIMIT 1), '')");
         }
     }
 
@@ -291,15 +307,50 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
-     * Records {@code name} in the persistent item history used for autocomplete.
-     * Silently ignored if {@code name} is empty or already recorded.
+     * Records {@code name} and its {@code category} in the persistent item history used
+     * for autocomplete.  If the name already exists its category is updated to the new value.
+     * Silently ignored if {@code name} is empty.
      */
-    public void addItemNameToHistory(String name) {
+    public void addItemNameToHistory(String name, String category) {
         if (name == null || name.isEmpty()) return;
         ContentValues cv = new ContentValues();
         cv.put(COL_HIST_NAME, name);
+        cv.put(COL_HIST_CATEGORY, category != null ? category : "");
+        // CONFLICT_REPLACE deletes the old row and re-inserts, effectively updating the category.
         getWritableDatabase().insertWithOnConflict(
-                TABLE_ITEM_HISTORY, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
+                TABLE_ITEM_HISTORY, null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+    }
+
+    /**
+     * Returns all history items grouped by category, with both categories and item names
+     * sorted alphabetically.  The returned map preserves insertion order so the sorted
+     * categories are iterated in the correct order.
+     */
+    public java.util.LinkedHashMap<String, List<String>> getHistoryGroupedByCategory() {
+        java.util.LinkedHashMap<String, List<String>> grouped = new java.util.LinkedHashMap<>();
+        Cursor c = getReadableDatabase().query(
+                TABLE_ITEM_HISTORY,
+                new String[]{COL_HIST_NAME, COL_HIST_CATEGORY},
+                null, null, null, null,
+                COL_HIST_CATEGORY + " ASC, " + COL_HIST_NAME + " ASC");
+        try {
+            while (c.moveToNext()) {
+                String name = c.getString(0);
+                String category = c.getString(1);
+                if (category == null) {
+                    category = "";
+                }
+                List<String> names = grouped.get(category);
+                if (names == null) {
+                    names = new ArrayList<>();
+                    grouped.put(category, names);
+                }
+                names.add(name);
+            }
+        } finally {
+            c.close();
+        }
+        return grouped;
     }
 
     /**

@@ -614,7 +614,7 @@ public class ShoppingFragment extends Fragment {
         btnItemHistory.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                showItemHistoryDialog(history, etName);
+                showItemHistoryDialog(etName, etCategory);
             }
         });
 
@@ -648,7 +648,7 @@ public class ShoppingFragment extends Fragment {
                                 public void onSuccess(ShoppingItem item) {
                                     // Save category and name locally for autocomplete suggestions
                                     db.addCategory(category);
-                                    db.addItemNameToHistory(name);
+                                    db.addItemNameToHistory(name, category);
                                     saveStoreLocationIfPresent(shop,
                                             selectedShopLat[0], selectedShopLon[0]);
                                     refreshList();
@@ -658,7 +658,7 @@ public class ShoppingFragment extends Fragment {
                                     // Server unreachable – save locally so the item is not lost
                                     db.addCategory(category);
                                     db.addItem(name, category, qty, shop, priority);
-                                    db.addItemNameToHistory(name);
+                                    db.addItemNameToHistory(name, category);
                                     saveStoreLocationIfPresent(shop,
                                             selectedShopLat[0], selectedShopLon[0]);
                                     refreshList();
@@ -668,7 +668,7 @@ public class ShoppingFragment extends Fragment {
                         } else {
                             db.addCategory(category);
                             db.addItem(name, category, qty, shop, priority);
-                            db.addItemNameToHistory(name);
+                            db.addItemNameToHistory(name, category);
                             saveStoreLocationIfPresent(shop,
                                     selectedShopLat[0], selectedShopLon[0]);
                             refreshList();
@@ -716,28 +716,97 @@ public class ShoppingFragment extends Fragment {
     }
 
     /**
-     * Shows a dialog listing all previously used item names so the user can pick one
-     * directly without typing.  The selected name is written into {@code target}.
+     * Shows a dialog listing all previously used item names grouped by category so the user
+     * can pick one directly without typing.  The selected name is written into {@code nameTarget}
+     * and the associated category is written into {@code categoryTarget}.
      */
-    private void showItemHistoryDialog(final List<String> history,
-                                       final AutoCompleteTextView target) {
-        if (history.isEmpty()) {
+    private void showItemHistoryDialog(final AutoCompleteTextView nameTarget,
+                                       final AutoCompleteTextView categoryTarget) {
+        final java.util.LinkedHashMap<String, List<String>> grouped =
+                db.getHistoryGroupedByCategory();
+        if (grouped.isEmpty()) {
             Toast.makeText(requireContext(),
                     R.string.item_history_empty, Toast.LENGTH_SHORT).show();
             return;
         }
-        final String[] items = history.toArray(new String[0]);
-        new AlertDialog.Builder(requireContext())
+        final List<String> groupList = new ArrayList<>(grouped.keySet());
+
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_item_history, null);
+        final android.widget.ExpandableListView elv =
+                dialogView.findViewById(R.id.elv_item_history);
+
+        final AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.item_history_title)
-                .setItems(items, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        target.setText(items[which]);
-                        target.setSelection(items[which].length());
-                    }
-                })
+                .setView(dialogView)
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                .create();
+
+        elv.setAdapter(new android.widget.BaseExpandableListAdapter() {
+            @Override public int getGroupCount() { return groupList.size(); }
+            @Override public int getChildrenCount(int g) {
+                return grouped.get(groupList.get(g)).size();
+            }
+            @Override public Object getGroup(int g) { return groupList.get(g); }
+            @Override public Object getChild(int g, int ch) {
+                return grouped.get(groupList.get(g)).get(ch);
+            }
+            @Override public long getGroupId(int g) { return g; }
+            @Override public long getChildId(int g, int ch) { return ch; }
+            @Override public boolean hasStableIds() { return false; }
+            @Override public boolean isChildSelectable(int g, int ch) { return true; }
+
+            @Override
+            public View getGroupView(int g, boolean isExpanded, View convertView,
+                                     ViewGroup parent) {
+                if (convertView == null) {
+                    convertView = LayoutInflater.from(requireContext())
+                            .inflate(R.layout.item_history_group, parent, false);
+                }
+                String cat = groupList.get(g);
+                ((TextView) convertView.findViewById(R.id.tv_history_group))
+                        .setText(cat.isEmpty() ? getString(R.string.category_default) : cat);
+                return convertView;
+            }
+
+            @Override
+            public View getChildView(int g, int ch, boolean isLast, View convertView,
+                                     ViewGroup parent) {
+                if (convertView == null) {
+                    convertView = LayoutInflater.from(requireContext())
+                            .inflate(R.layout.item_history_child, parent, false);
+                }
+                ((TextView) convertView.findViewById(R.id.tv_history_child))
+                        .setText(grouped.get(groupList.get(g)).get(ch));
+                return convertView;
+            }
+        });
+
+        elv.setOnChildClickListener(new android.widget.ExpandableListView.OnChildClickListener() {
+            @Override
+            public boolean onChildClick(android.widget.ExpandableListView parent, View v,
+                                        int groupPosition, int childPosition, long id) {
+                String name = grouped.get(groupList.get(groupPosition)).get(childPosition);
+                String category = groupList.get(groupPosition);
+                nameTarget.setText(name);
+                nameTarget.setSelection(name.length());
+                if (categoryTarget != null) {
+                    String cat = category.isEmpty()
+                            ? getString(R.string.category_default) : category;
+                    categoryTarget.setText(cat);
+                    categoryTarget.setSelection(cat.length());
+                }
+                dialog.dismiss();
+                return true;
+            }
+        });
+
+        dialog.show();
+
+        // Expand all category groups by default so items are immediately visible
+        for (int i = 0; i < groupList.size(); i++) {
+            elv.expandGroup(i);
+        }
     }
 
     /**
@@ -1151,7 +1220,7 @@ public class ShoppingFragment extends Fragment {
                             @Override
                             public void onSuccess(ShoppingItem item) {
                                 db.addCategory(itemCategory);
-                                db.addItemNameToHistory(itemName);
+                                db.addItemNameToHistory(itemName, itemCategory);
                                 saveStoreLocationIfPresent(shop,
                                         selectedShopLat[0], selectedShopLon[0]);
                                 refreshList();
@@ -1161,7 +1230,7 @@ public class ShoppingFragment extends Fragment {
                                 // Server unreachable – save locally so the item is not lost
                                 db.addCategory(itemCategory);
                                 db.addItem(itemName, itemCategory, qty, shop, priority);
-                                db.addItemNameToHistory(itemName);
+                                db.addItemNameToHistory(itemName, itemCategory);
                                 saveStoreLocationIfPresent(shop,
                                         selectedShopLat[0], selectedShopLon[0]);
                                 refreshList();
@@ -1171,7 +1240,7 @@ public class ShoppingFragment extends Fragment {
                     } else {
                         db.addCategory(itemCategory);
                         db.addItem(itemName, itemCategory, qty, shop, priority);
-                        db.addItemNameToHistory(itemName);
+                        db.addItemNameToHistory(itemName, itemCategory);
                         saveStoreLocationIfPresent(shop,
                                 selectedShopLat[0], selectedShopLon[0]);
                         refreshList();
