@@ -25,16 +25,19 @@ import java.io.File;
  * <p>When the twice-daily alarm fires ({@link AutoUpdateScheduler#ACTION_AUTO_UPDATE_CHECK}):
  * <ol>
  *   <li>A brief "Prüfe auf Updates…" notification is shown.
- *   <li>The latest GitHub release is fetched.
- *   <li>If the release is newer <b>and</b> carries the {@link UpdateChecker#AUTO_UPDATE_FLAG},
- *       the APK is downloaded silently via DownloadManager with a progress notification.
- *   <li>If the release is newer but does <b>not</b> carry the flag, no automatic download is
- *       performed (the user will see the normal in-app prompt on next launch).
- *   <li>A brief completion notification is shown in both cases.
+ *   <li>The latest GitHub release is fetched. If it is newer <b>and</b> carries the
+ *       {@link UpdateChecker#AUTO_UPDATE_FLAG}, the APK is downloaded silently via
+ *       DownloadManager with a progress notification (sub-number reset to 0).
+ *   <li>If GitHub has no auto-update release, the configured backend server is checked.
+ *       If the backend reports a newer {@code (buildNumber, subNumber)}, the backend APK
+ *       is downloaded and the pending sub-number is persisted for later commit.
+ *   <li>A brief completion notification is shown in both cases; if neither source has an
+ *       update the status notification is silently cancelled.
  * </ol>
  *
- * When DownloadManager reports {@link DownloadManager#ACTION_DOWNLOAD_COMPLETE}, the downloaded
- * APK is offered for installation via an install-intent notification.
+ * When DownloadManager reports {@link DownloadManager#ACTION_DOWNLOAD_COMPLETE}, the
+ * downloaded APK is offered for installation and the pending sub-number is committed as
+ * the new current sub-number via {@link BackendUpdateChecker#saveCurrentSubNumber}.
  */
 public class AutoUpdateReceiver extends BroadcastReceiver {
 
@@ -46,10 +49,10 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
     private static final int NOTIF_ID_INSTALL  = 2002;
 
     /** SharedPreferences key that stores the active DownloadManager download ID. */
-    private static final String PREFS_NAME    = "auto_update_prefs";
-    private static final String PREF_DL_ID    = "download_id";
+    private static final String PREFS_NAME       = BackendUpdateChecker.PREFS_UPDATE;
+    private static final String PREF_DL_ID       = "download_id";
     /** SharedPreferences key for the APK file path of the pending download. */
-    private static final String PREF_APK_PATH = "apk_path";
+    private static final String PREF_APK_PATH    = "apk_path";
 
     @Override
     public void onReceive(final Context context, Intent intent) {
@@ -75,7 +78,7 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
                 context.getString(R.string.auto_update_checking_title),
                 context.getString(R.string.auto_update_checking_text));
 
-        // Use goAsync so the BroadcastReceiver window stays open during the HTTP call
+        // Use goAsync so the BroadcastReceiver window stays open during the HTTP calls
         final PendingResult pendingResult = goAsync();
 
         UpdateChecker.checkForUpdateWithFlag(
@@ -84,28 +87,72 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
                 new UpdateChecker.UpdateResultCallback() {
                     @Override
                     public void onUpdateAvailable(UpdateChecker.UpdateResult result) {
+                        UpdateLogger.logInfo(context,
+                                "GitHub update available: " + result.tagName
+                                        + (result.isAutoUpdate ? " [auto_update]" : ""));
+                        if (result.isAutoUpdate) {
+                            if (result.downloadUrl.endsWith(".apk")) {
+                                // GitHub [auto_update] APK: download it and reset sub-number
+                                startDownload(context, result.downloadUrl, result.tagName, 0);
+                                cancelNotification(context, NOTIF_ID_STATUS);
+                                pendingResult.finish();
+                                return;
+                            } else {
+                                // No APK asset – inform user; no silent install possible
+                                UpdateLogger.logError(context,
+                                        "Auto-update: no APK asset found for " + result.tagName);
+                                showStatusNotification(context,
+                                        context.getString(R.string.auto_update_available_title),
+                                        context.getString(
+                                                R.string.auto_update_available_text,
+                                                result.tagName));
+                                pendingResult.finish();
+                                return;
+                            }
+                        }
+                        // Release exists but is not flagged for auto-update: check backend
+                        checkBackend(context, pendingResult);
+                    }
+
+                    @Override
+                    public void onNoUpdate() {
+                        // GitHub has nothing newer: check backend
+                        checkBackend(context, pendingResult);
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        UpdateLogger.logError(context,
+                                "Auto-update check (GitHub) failed: "
+                                        + (message != null ? message : "unknown error"));
+                        // GitHub check failed: still try the backend
+                        checkBackend(context, pendingResult);
+                    }
+                });
+    }
+
+    /** Second step: check the configured backend for a sub-number update. */
+    private void checkBackend(final Context context, final PendingResult pendingResult) {
+        int currentBuildNr = com.kitchenboard.BuildConfig.VERSION_CODE;
+        int currentSubNr   = BackendUpdateChecker.getCurrentSubNumber(context);
+
+        BackendUpdateChecker.checkForUpdate(context, currentBuildNr, currentSubNr,
+                new BackendUpdateChecker.BackendUpdateCallback() {
+                    @Override
+                    public void onUpdateAvailable(BackendUpdateChecker.BackendUpdateResult result) {
                         try {
                             UpdateLogger.logInfo(context,
-                                    "Update available: " + result.tagName
-                                            + (result.isAutoUpdate ? " [auto_update]" : ""));
-                            if (result.isAutoUpdate) {
-                                if (result.downloadUrl.endsWith(".apk")) {
-                                    startDownload(context, result.downloadUrl, result.tagName);
-                                    // Download notification is shown by DownloadManager itself
-                                    cancelNotification(context, NOTIF_ID_STATUS);
-                                } else {
-                                    // No APK asset – inform user; no silent install possible
-                                    UpdateLogger.logError(context,
-                                            "Auto-update: no APK asset found for " + result.tagName);
-                                    showStatusNotification(context,
-                                            context.getString(R.string.auto_update_available_title),
-                                            context.getString(
-                                                    R.string.auto_update_available_text,
-                                                    result.tagName));
-                                }
-                            } else {
-                                // Release exists but is not flagged for auto-update
+                                    "Backend update available: " + result.tagName);
+                            if (result.downloadUrl.endsWith(".apk")) {
+                                startDownload(context, result.downloadUrl,
+                                        result.tagName, result.subNumber);
                                 cancelNotification(context, NOTIF_ID_STATUS);
+                            } else {
+                                showStatusNotification(context,
+                                        context.getString(R.string.auto_update_available_title),
+                                        context.getString(
+                                                R.string.auto_update_backend_available_text,
+                                                result.tagName));
                             }
                         } finally {
                             pendingResult.finish();
@@ -125,7 +172,7 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
                     public void onError(String message) {
                         try {
                             UpdateLogger.logError(context,
-                                    "Auto-update check failed: "
+                                    "Auto-update check (backend) failed: "
                                             + (message != null ? message : "unknown error"));
                             cancelNotification(context, NOTIF_ID_STATUS);
                         } finally {
@@ -137,7 +184,12 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
 
     // ── Download ──────────────────────────────────────────────────────────────
 
-    private void startDownload(Context context, String url, String tagName) {
+    /**
+     * Enqueues an APK download via DownloadManager and persists the download state.
+     *
+     * @param subNumber backend sub-number of this release (0 for GitHub releases)
+     */
+    private void startDownload(Context context, String url, String tagName, int subNumber) {
         UpdateLogger.logInfo(context, "Starting APK download for " + tagName + " from " + url);
         File downloadDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
         if (downloadDir == null) {
@@ -170,11 +222,13 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
         }
         long downloadId = dm.enqueue(request);
 
-        // Persist download ID and file path so the completion receiver can verify them
+        // Persist download ID, file path, and pending sub-number so the completion
+        // receiver can verify and commit the sub-number upon successful install.
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .putLong(PREF_DL_ID, downloadId)
                 .putString(PREF_APK_PATH, apkFile.getAbsolutePath())
+                .putInt(BackendUpdateChecker.PREF_PENDING_SUB_NR, subNumber)
                 .apply();
     }
 
@@ -188,12 +242,20 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
 
         if (completedId != expectedId) return; // not our download
 
-        String apkPath = prefs.getString(PREF_APK_PATH, null);
-        prefs.edit().remove(PREF_DL_ID).remove(PREF_APK_PATH).apply();
+        String apkPath       = prefs.getString(PREF_APK_PATH, null);
+        int pendingSubNumber = prefs.getInt(BackendUpdateChecker.PREF_PENDING_SUB_NR, 0);
+        prefs.edit()
+                .remove(PREF_DL_ID)
+                .remove(PREF_APK_PATH)
+                .remove(BackendUpdateChecker.PREF_PENDING_SUB_NR)
+                .apply();
 
         if (apkPath == null) return;
         File apkFile = new File(apkPath);
         if (!apkFile.exists()) return;
+
+        // Commit the sub-number so future checks compare correctly.
+        BackendUpdateChecker.saveCurrentSubNumber(context, pendingSubNumber);
 
         createNotificationChannel(context);
         showInstallNotification(context, apkFile);
