@@ -38,8 +38,14 @@
  * Error log endpoint:
  *   POST ?action=log_error  → body: message, level[, timestamp] → {"success":true}
  *
- * Update check:
- *   GET  ?action=check_update  → proxies GitHub releases; returns {tag_name, body, download_url}
+ * Update endpoints:
+ *   GET  ?action=check_update       → returns the latest backend update entry:
+ *                                     {build_number, sub_number, download_url, tag}
+ *                                     Returns {"build_number":0} when no entry exists.
+ *   POST ?action=publish_update     → body: build_number, sub_number[, download_url, tag]
+ *                                     Publishes a new update entry. → {"success":true, "id":N}
+ *   GET  ?action=list_updates       → returns all update entries sorted newest-first
+ *   POST ?action=delete_update      → body: id → {"success":true}
  *
  * Storage: MySQL database.  Connection credentials are read from config.php
  * (DB_HOST, DB_NAME, DB_USER, DB_PASS).  Run generate_token.php to create
@@ -198,6 +204,15 @@ $db->exec("CREATE TABLE IF NOT EXISTS error_logs (
     timestamp  VARCHAR(30)  NOT NULL DEFAULT ''
 )");
 
+$db->exec("CREATE TABLE IF NOT EXISTS app_updates (
+    id           INT          AUTO_INCREMENT PRIMARY KEY,
+    build_number INT          NOT NULL,
+    sub_number   INT          NOT NULL DEFAULT 0,
+    download_url TEXT         NOT NULL DEFAULT '',
+    tag          VARCHAR(100) NOT NULL DEFAULT '',
+    created_at   BIGINT       NOT NULL DEFAULT 0
+)");
+
 // ── Dispatch ──────────────────────────────────────────────────────────────────
 
 $action  = trim((string)($_GET['action']     ?? $_POST['action']     ?? ''));
@@ -259,9 +274,17 @@ switch ($action) {
         logErrorEntry($db, $boardId);
         break;
     case 'check_update':
-        $db = null;
-        checkUpdate();
-        exit;
+        checkUpdate($db);
+        break;
+    case 'publish_update':
+        publishUpdate($db);
+        break;
+    case 'list_updates':
+        listUpdates($db);
+        break;
+    case 'delete_update':
+        deleteUpdate($db);
+        break;
     default:
         http_response_code(400);
         echo json_encode(['error' => 'Unknown or missing action']);
@@ -725,57 +748,139 @@ function logErrorEntry(PDO $db, string $boardId): void
     echo json_encode(['success' => true]);
 }
 
-// ── Update check ──────────────────────────────────────────────────────────────
+// ── Update management ─────────────────────────────────────────────────────────
 
 /**
- * Proxies the GitHub Releases API to expose the latest release info.
- * Returns {"tag_name": "v1.0-5", "body": "...", "download_url": "https://..."}.
- * Protected by the same X-Api-Token auth as all other endpoints.
+ * Returns the latest backend update entry from the app_updates table.
+ *
+ * The "latest" entry is determined by the highest build_number, and for equal
+ * build numbers by the highest sub_number.  When no entry exists the response
+ * is {"build_number": 0, "sub_number": 0, "download_url": "", "tag": ""}.
+ *
+ * Response JSON:
+ *   {
+ *     "build_number": 42,
+ *     "sub_number":    3,
+ *     "download_url": "http://example.com/4KitchenBoard.apk",
+ *     "tag":          "v1.0-42+3"
+ *   }
  */
-function checkUpdate(): void
+function checkUpdate(PDO $db): void
 {
-    $githubUrl = 'https://api.github.com/repos/felix-dieterle/4KitchenBoard/releases/latest';
-    $ctx = stream_context_create([
-        'http' => [
-            'method'  => 'GET',
-            'header'  => "User-Agent: 4KitchenBoard-Server\r\nAccept: application/json\r\n",
-            'timeout' => 10,
-        ],
-    ]);
+    $stmt = $db->query(
+        'SELECT build_number, sub_number, download_url, tag
+         FROM app_updates
+         ORDER BY build_number DESC, sub_number DESC
+         LIMIT 1'
+    );
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    $raw = @file_get_contents($githubUrl, false, $ctx);
-    if ($raw === false) {
-        http_response_code(502);
-        echo json_encode(['error' => 'Failed to fetch release information from GitHub']);
+    if ($row === false) {
+        // No update entry published yet – device is up to date.
+        echo json_encode([
+            'build_number' => 0,
+            'sub_number'   => 0,
+            'download_url' => '',
+            'tag'          => '',
+        ]);
         return;
-    }
-
-    $data = json_decode($raw, true);
-    if (!is_array($data) || !isset($data['tag_name'])) {
-        http_response_code(502);
-        echo json_encode(['error' => 'Invalid release data returned by GitHub']);
-        return;
-    }
-
-    // Resolve the direct APK download URL from the release assets
-    $downloadUrl = '';
-    if (!empty($data['assets']) && is_array($data['assets'])) {
-        foreach ($data['assets'] as $asset) {
-            $name = $asset['name'] ?? '';
-            if (substr($name, -4) === '.apk') {
-                $downloadUrl = $asset['browser_download_url'];
-                break;
-            }
-        }
-    }
-    // Fall back to the release HTML page when no APK asset is attached
-    if ($downloadUrl === '') {
-        $downloadUrl = $data['html_url'] ?? '';
     }
 
     echo json_encode([
-        'tag_name'     => $data['tag_name'],
-        'body'         => $data['body'] ?? '',
-        'download_url' => $downloadUrl,
+        'build_number' => (int)$row['build_number'],
+        'sub_number'   => (int)$row['sub_number'],
+        'download_url' => (string)$row['download_url'],
+        'tag'          => (string)$row['tag'],
     ]);
+}
+
+/**
+ * Publishes a new backend update entry.
+ *
+ * Body parameters:
+ *   build_number  (required) – GitHub CI build number this update is based on
+ *   sub_number    (optional, default 0) – incremental counter within the same build
+ *   download_url  (optional) – direct APK download URL served by this backend
+ *   tag           (optional) – human-readable version label, e.g. "v1.0-42+3"
+ *
+ * Response: {"success": true, "id": <new row id>}
+ */
+function publishUpdate(PDO $db): void
+{
+    $buildNumber = (int)($_POST['build_number'] ?? 0);
+    $subNumber   = max(0, (int)($_POST['sub_number'] ?? 0));
+    $downloadUrl = trim((string)($_POST['download_url'] ?? ''));
+    $tag         = trim((string)($_POST['tag'] ?? ''));
+
+    if ($buildNumber <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameter "build_number" is required and must be > 0']);
+        return;
+    }
+
+    // Auto-generate a tag when none is supplied
+    if ($tag === '') {
+        $tag = 'build-' . $buildNumber . ($subNumber > 0 ? '+' . $subNumber : '');
+    }
+
+    $stmt = $db->prepare(
+        'INSERT INTO app_updates (build_number, sub_number, download_url, tag, created_at)
+         VALUES (:build_number, :sub_number, :download_url, :tag, :created_at)'
+    );
+    $stmt->bindValue(':build_number',  $buildNumber,  PDO::PARAM_INT);
+    $stmt->bindValue(':sub_number',    $subNumber,    PDO::PARAM_INT);
+    $stmt->bindValue(':download_url',  $downloadUrl,  PDO::PARAM_STR);
+    $stmt->bindValue(':tag',           $tag,          PDO::PARAM_STR);
+    $stmt->bindValue(':created_at',    (int)(microtime(true) * 1000), PDO::PARAM_INT);
+    $stmt->execute();
+
+    echo json_encode(['success' => true, 'id' => (int)$db->lastInsertId()]);
+}
+
+/**
+ * Returns all update entries sorted from newest to oldest.
+ *
+ * Response: {"updates": [{id, build_number, sub_number, download_url, tag, created_at}, ...]}
+ */
+function listUpdates(PDO $db): void
+{
+    $stmt = $db->query(
+        'SELECT id, build_number, sub_number, download_url, tag, created_at
+         FROM app_updates
+         ORDER BY build_number DESC, sub_number DESC'
+    );
+    $updates = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $updates[] = [
+            'id'           => (int)$row['id'],
+            'build_number' => (int)$row['build_number'],
+            'sub_number'   => (int)$row['sub_number'],
+            'download_url' => (string)$row['download_url'],
+            'tag'          => (string)$row['tag'],
+            'created_at'   => (int)$row['created_at'],
+        ];
+    }
+    echo json_encode(['updates' => $updates]);
+}
+
+/**
+ * Deletes a single update entry by its id.
+ *
+ * Body parameters: id (required)
+ * Response: {"success": true}
+ */
+function deleteUpdate(PDO $db): void
+{
+    $id = (int)($_POST['id'] ?? 0);
+    if ($id <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameter "id" is required and must be > 0']);
+        return;
+    }
+
+    $stmt = $db->prepare('DELETE FROM app_updates WHERE id = :id');
+    $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
 }
