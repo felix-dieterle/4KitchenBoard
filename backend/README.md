@@ -188,7 +188,78 @@ Body parameters: `id`
 { "success": true }
 ```
 
-## Security Notes
+---
+
+## Backend Update Distribution
+
+The backend can distribute APK updates to devices independently of GitHub CI builds.
+This uses a three-part version scheme: `version + buildNumber + subNumber`.
+
+**Version ordering:**
+- `(buildY, subN > 0)` > `(buildY, 0)` — any backend sub-release is newer than the base GitHub build
+- `(buildY+1, any)` > `(buildY, subN)` — a higher build number always wins regardless of sub-number
+
+### `GET ?action=check_update`
+Returns the latest backend update entry.  The app calls this endpoint automatically
+every 12 hours alongside the GitHub release check.
+
+```json
+{
+  "build_number": 42,
+  "sub_number":    3,
+  "download_url": "http://192.168.1.10/apps/kitchenboard/4KitchenBoard.apk",
+  "tag":          "v1.0-42+3"
+}
+```
+Returns `{"build_number": 0, "sub_number": 0, "download_url": "", "tag": ""}` when no
+update has been published yet.
+
+### `POST ?action=publish_update`
+Publishes a new update entry.  Call this once you have placed the APK on the server and
+want all devices to receive it.
+
+Body parameters:
+
+| Parameter | Required | Description |
+|---|---|---|
+| `build_number` | ✓ | GitHub CI build number this release is based on (= `VERSION_CODE`) |
+| `sub_number` | | Incremental counter within the same build (default `0`) |
+| `download_url` | | Direct URL to the `.apk` file served by this backend |
+| `tag` | | Human-readable label, e.g. `v1.0-42+3` (auto-generated if omitted) |
+
+```json
+{ "success": true, "id": 7 }
+```
+
+**Typical workflow for a backend sub-release:**
+1. Build the APK with the same `build_number` as the corresponding GitHub release.
+2. Copy the APK to a web-accessible location on the server.
+3. Call `publish_update` with `build_number`, `sub_number` (start at 1 for the first
+   sub-release within a given build), and the `download_url`.
+4. Devices will pick up the update within 12 hours.
+
+### `GET ?action=list_updates`
+Returns all published update entries sorted newest-first.
+
+```json
+{
+  "updates": [
+    { "id": 7, "build_number": 42, "sub_number": 3, "download_url": "...", "tag": "v1.0-42+3", "created_at": 1700000000000 },
+    { "id": 6, "build_number": 42, "sub_number": 2, "download_url": "...", "tag": "v1.0-42+2", "created_at": 1699999000000 }
+  ]
+}
+```
+
+### `POST ?action=delete_update`
+Removes an update entry by its `id`.
+
+Body parameters: `id`
+
+```json
+{ "success": true }
+```
+
+---
 
 * The `.htaccess` file prevents `config.php` and `generate_token.php` from being accessed via HTTP.
 * All SQL queries use PDO prepared statements to prevent injection.
