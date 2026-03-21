@@ -562,16 +562,17 @@ public class MainActivity extends AppCompatActivity {
                 editor.apply();
                 WellnessCheckScheduler.schedule(MainActivity.this);
                 if (powerSavingManager != null) powerSavingManager.applySettings();
-                // Start or stop LAN mode depending on the new setting
+                // Restart LAN components and adjust polling based on the new setting
                 stopLanMode();
                 if (newLanMode) {
                     // LAN mode: cancel backend polling – messages arrive via LanChatServer
                     ChatCheckScheduler.cancel(MainActivity.this);
-                    initLanModeIfEnabled();
                 } else {
                     // Backend mode: ensure the polling alarm is active
                     ChatCheckScheduler.schedule(MainActivity.this);
                 }
+                // Always restart LAN server/discovery so it is available as fallback
+                initLanModeIfEnabled();
                 refreshChatBadge();
             }
         });
@@ -874,11 +875,8 @@ public class MainActivity extends AppCompatActivity {
         refreshChatBadge();
     }
 
-    /** Starts LAN chat server and discovery if the LAN mode preference is active. */
+    /** Starts LAN chat server and discovery (always, for fallback capability). */
     private void initLanModeIfEnabled() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        if (!prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_LAN_MODE, false)) return;
-
         String myDeviceId   = "device_" + android.provider.Settings.Secure.getString(
                 getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
         String myDeviceName = resolveActiveSenderName();
@@ -1067,8 +1065,19 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 com.kitchenboard.update.UpdateLogger.logError(this,
                         "ChatSend: failed to send message via API", e);
-                runOnUiThread(() ->
-                        Toast.makeText(this, R.string.chat_send_error, Toast.LENGTH_SHORT).show());
+                // Fall back to LAN broadcast if any peers are reachable
+                runOnUiThread(() -> {
+                    // Capture local reference to guard against concurrent nulling by stopLanMode()
+                    LanDiscoveryManager localDiscovery = lanDiscovery;
+                    if (localDiscovery != null && !localDiscovery.getPeers().isEmpty()) {
+                        com.kitchenboard.update.UpdateLogger.logInfo(this,
+                                "ChatSend: API unavailable, falling back to LAN");
+                        // Empty recipient triggers broadcast to all discovered peers
+                        sendChatMessageLan(senderId, senderName, "", "", text);
+                    } else {
+                        Toast.makeText(this, R.string.chat_send_error, Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
         });
     }
