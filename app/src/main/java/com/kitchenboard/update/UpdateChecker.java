@@ -52,6 +52,18 @@ public class UpdateChecker {
             this.downloadUrl  = downloadUrl;
             this.isAutoUpdate = isAutoUpdate;
         }
+
+        /** Parses and returns the build number from the tag (e.g. {@code "v1.0-42"} → 42). */
+        public int getBuildNumber() {
+            try {
+                int dashIndex = tagName.lastIndexOf('-');
+                if (dashIndex >= 0) {
+                    return Integer.parseInt(tagName.substring(dashIndex + 1));
+                }
+            } catch (NumberFormatException ignored) {
+            }
+            return 0;
+        }
     }
 
     public interface UpdateResultCallback {

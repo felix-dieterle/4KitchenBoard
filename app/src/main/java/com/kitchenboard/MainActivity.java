@@ -129,6 +129,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         com.kitchenboard.update.UpdateLogger.logInfo(this, "MainActivity.onCreate: start");
+        // Keep the screen on permanently so the wall-mounted tablet never goes idle.
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_main);
 
         viewPager = findViewById(R.id.view_pager);
@@ -924,98 +926,24 @@ public class MainActivity extends AppCompatActivity {
         com.kitchenboard.update.UpdateLogger.logInfo(this,
                 "checkForUpdates: starting check (versionCode=" + BuildConfig.VERSION_CODE + ")");
         Toast.makeText(this, R.string.auto_update_checking_text, Toast.LENGTH_SHORT).show();
-        UpdateChecker.checkForUpdateWithFlag(this, BuildConfig.VERSION_CODE,
-                new UpdateChecker.UpdateResultCallback() {
-            @Override
-            public void onUpdateAvailable(final UpdateChecker.UpdateResult result) {
-                if (isFinishing() || isActivityDestroyed()) return;
-                com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
-                        "checkForUpdates: GitHub update available tag=" + result.tagName
-                                + " autoUpdate=" + result.isAutoUpdate
-                                + " url=" + result.downloadUrl);
-                try {
-                    if (result.isAutoUpdate) {
-                        // Trigger the download immediately instead of waiting for the background
-                        // scheduler, so updates are applied as soon as the app is opened.
-                        if (result.downloadUrl != null && result.downloadUrl.endsWith(".apk")) {
-                            downloadAndInstallApk(result.downloadUrl, result.tagName, 0);
-                        } else if (result.downloadUrl != null && !result.downloadUrl.isEmpty()) {
-                            try {
-                                startActivity(new Intent(Intent.ACTION_VIEW,
-                                        Uri.parse(result.downloadUrl)));
-                            } catch (android.content.ActivityNotFoundException e) {
-                                com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
-                                        "No browser available to open update URL", e);
-                            }
-                        }
-                        return;
-                    }
-                    new AlertDialog.Builder(MainActivity.this)
-                            .setTitle(R.string.update_available_title)
-                            .setMessage(getString(R.string.update_available_message, result.tagName))
-                            .setPositiveButton(R.string.update_download, (dialog, which) -> {
-                                try {
-                                    if (result.downloadUrl != null && result.downloadUrl.endsWith(".apk")) {
-                                        downloadAndInstallApk(result.downloadUrl, result.tagName, 0);
-                                    } else if (result.downloadUrl != null) {
-                                        startActivity(new Intent(Intent.ACTION_VIEW,
-                                                Uri.parse(result.downloadUrl)));
-                                    } else {
-                                        com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
-                                                "Download URL is null for " + result.tagName);
-                                        Toast.makeText(MainActivity.this,
-                                                R.string.update_check_error, Toast.LENGTH_SHORT).show();
-                                    }
-                                } catch (Exception e) {
-                                    com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
-                                            "Failed to open update URL", e);
-                                }
-                            })
-                            .setNegativeButton(R.string.cancel, null)
-                            .show();
-                } catch (Exception e) {
-                    com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
-                            "Error handling update result for " + result.tagName, e);
-                    if (!isFinishing() && !isActivityDestroyed()) {
-                        Toast.makeText(MainActivity.this,
-                                R.string.update_install_error,
-                                Toast.LENGTH_LONG).show();
-                    }
-                }
-            }
 
-            @Override
-            public void onNoUpdate() {
-                if (isFinishing() || isActivityDestroyed()) return;
-                com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
-                        "checkForUpdates: no GitHub update – checking backend");
-                checkBackendForUpdate(true);
-            }
+        // Both sources are checked in parallel; the one with the highest version wins.
+        // All callbacks are delivered on the main thread, so the plain array is race-free.
+        final int[] completed      = {0};
+        final UpdateChecker.UpdateResult[] githubResult   = {null};
+        final com.kitchenboard.update.BackendUpdateChecker.BackendUpdateResult[] backendResult = {null};
 
+        final Runnable onBothDone = new Runnable() {
             @Override
-            public void onError(String message) {
+            public void run() {
                 if (isFinishing() || isActivityDestroyed()) return;
-                // The full stack trace was already logged in UpdateChecker; just note context here.
-                Log.e(TAG, "Update check error reported to UI: "
-                        + (message != null ? message : "unknown error"));
-                // GitHub check failed; still try the backend before reporting "error"
-                checkBackendForUpdate(false);
+                applyBestUpdate(githubResult[0], backendResult[0]);
             }
-        });
-    }
+        };
 
-    /**
-     * Checks the configured backend for a sub-number update and offers installation
-     * to the user when a newer version is found.
-     *
-     * @param showUpToDateOnNoUpdate when {@code true} a "up-to-date" toast is shown
-     *                               when neither GitHub nor the backend has a newer version
-     */
-    private void checkBackendForUpdate(final boolean showUpToDateOnNoUpdate) {
-        if (isFinishing() || isActivityDestroyed()) return;
+        // ── Backend check ──
         int currentBuildNr = BuildConfig.VERSION_CODE;
         int currentSubNr   = com.kitchenboard.update.BackendUpdateChecker.getCurrentSubNumber(this);
-
         com.kitchenboard.update.BackendUpdateChecker.checkForUpdate(this, currentBuildNr,
                 currentSubNr, new com.kitchenboard.update.BackendUpdateChecker.BackendUpdateCallback() {
             @Override
@@ -1024,58 +952,161 @@ public class MainActivity extends AppCompatActivity {
                 if (isFinishing() || isActivityDestroyed()) return;
                 com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
                         "checkForUpdates: backend update available tag=" + result.tagName);
-                try {
-                    if (result.downloadUrl != null && result.downloadUrl.endsWith(".apk")) {
-                        downloadAndInstallApk(result.downloadUrl, result.tagName,
-                                result.subNumber);
-                    } else if (result.downloadUrl != null && !result.downloadUrl.isEmpty()) {
-                        // Non-APK link: show dialog so the user can open it
-                        new AlertDialog.Builder(MainActivity.this)
-                                .setTitle(R.string.update_available_title)
-                                .setMessage(getString(
-                                        R.string.auto_update_backend_available_text,
-                                        result.tagName))
-                                .setPositiveButton(R.string.update_download, (d, w) -> {
-                                    try {
-                                        startActivity(new Intent(Intent.ACTION_VIEW,
-                                                Uri.parse(result.downloadUrl)));
-                                    } catch (Exception e) {
-                                        com.kitchenboard.update.UpdateLogger.logError(
-                                                MainActivity.this,
-                                                "Failed to open backend update URL", e);
-                                    }
-                                })
-                                .setNegativeButton(R.string.cancel, null)
-                                .show();
-                    }
-                } catch (Exception e) {
-                    com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
-                            "Error handling backend update result for " + result.tagName, e);
-                }
+                backendResult[0] = result;
+                if (++completed[0] == 2) onBothDone.run();
             }
 
             @Override
             public void onNoUpdate() {
-                if (isFinishing() || isActivityDestroyed()) return;
-                if (showUpToDateOnNoUpdate) {
-                    com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
-                            "checkForUpdates: app is up to date (GitHub + backend)");
-                    Toast.makeText(MainActivity.this,
-                            R.string.update_up_to_date, Toast.LENGTH_SHORT).show();
-                }
+                if (++completed[0] == 2) onBothDone.run();
             }
 
             @Override
             public void onError(String message) {
-                if (isFinishing() || isActivityDestroyed()) return;
-                Log.e(TAG, "Backend update check error: "
+                Log.e(TAG, "Backend update check failed: "
                         + (message != null ? message : "unknown error"));
-                if (showUpToDateOnNoUpdate) {
-                    Toast.makeText(MainActivity.this,
-                            R.string.update_check_error, Toast.LENGTH_SHORT).show();
-                }
+                if (++completed[0] == 2) onBothDone.run();
             }
         });
+
+        // ── GitHub check ──
+        UpdateChecker.checkForUpdateWithFlag(this, BuildConfig.VERSION_CODE,
+                new UpdateChecker.UpdateResultCallback() {
+            @Override
+            public void onUpdateAvailable(final UpdateChecker.UpdateResult result) {
+                if (isFinishing() || isActivityDestroyed()) return;
+                com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
+                        "checkForUpdates: GitHub update available tag=" + result.tagName
+                                + " autoUpdate=" + result.isAutoUpdate);
+                githubResult[0] = result;
+                if (++completed[0] == 2) onBothDone.run();
+            }
+
+            @Override
+            public void onNoUpdate() {
+                if (++completed[0] == 2) onBothDone.run();
+            }
+
+            @Override
+            public void onError(String message) {
+                Log.e(TAG, "GitHub update check error: "
+                        + (message != null ? message : "unknown error"));
+                if (++completed[0] == 2) onBothDone.run();
+            }
+        });
+    }
+
+    /**
+     * Called once both update sources have responded. Picks the result with the highest version
+     * and offers it to the user. GitHub build number takes precedence; for equal build numbers
+     * the backend sub-number breaks the tie.
+     */
+    private void applyBestUpdate(
+            UpdateChecker.UpdateResult github,
+            com.kitchenboard.update.BackendUpdateChecker.BackendUpdateResult backend) {
+        if (github == null && backend == null) {
+            com.kitchenboard.update.UpdateLogger.logInfo(this,
+                    "checkForUpdates: app is up to date (backend + GitHub)");
+            Toast.makeText(this, R.string.update_up_to_date, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Determine which source has the higher version.
+        boolean preferGitHub;
+        if (github == null) {
+            preferGitHub = false;
+        } else if (backend == null) {
+            preferGitHub = true;
+        } else {
+            // backend is newer than GitHub only if (backendBuild, backendSub) > (githubBuild, 0)
+            preferGitHub = !com.kitchenboard.update.BackendUpdateChecker.isNewer(
+                    backend.buildNumber, backend.subNumber, github.getBuildNumber(), 0);
+        }
+
+        if (preferGitHub) {
+            com.kitchenboard.update.UpdateLogger.logInfo(this,
+                    "checkForUpdates: applying GitHub update " + github.tagName);
+            try {
+                if (github.isAutoUpdate) {
+                    if (github.downloadUrl != null && github.downloadUrl.endsWith(".apk")) {
+                        downloadAndInstallApk(github.downloadUrl, github.tagName, 0);
+                    } else if (github.downloadUrl != null && !github.downloadUrl.isEmpty()) {
+                        try {
+                            startActivity(new Intent(Intent.ACTION_VIEW,
+                                    Uri.parse(github.downloadUrl)));
+                        } catch (android.content.ActivityNotFoundException e) {
+                            com.kitchenboard.update.UpdateLogger.logError(this,
+                                    "No browser available to open update URL", e);
+                        }
+                    }
+                } else {
+                    new AlertDialog.Builder(this)
+                            .setTitle(R.string.update_available_title)
+                            .setMessage(getString(R.string.update_available_message,
+                                    github.tagName))
+                            .setPositiveButton(R.string.update_download, (dialog, which) -> {
+                                if (isFinishing() || isActivityDestroyed()) return;
+                                try {
+                                    if (github.downloadUrl != null
+                                            && github.downloadUrl.endsWith(".apk")) {
+                                        downloadAndInstallApk(github.downloadUrl,
+                                                github.tagName, 0);
+                                    } else if (github.downloadUrl != null) {
+                                        startActivity(new Intent(Intent.ACTION_VIEW,
+                                                Uri.parse(github.downloadUrl)));
+                                    } else {
+                                        com.kitchenboard.update.UpdateLogger.logError(this,
+                                                "Download URL is null for " + github.tagName);
+                                        Toast.makeText(this, R.string.update_check_error,
+                                                Toast.LENGTH_SHORT).show();
+                                    }
+                                } catch (Exception e) {
+                                    com.kitchenboard.update.UpdateLogger.logError(this,
+                                            "Failed to open update URL", e);
+                                }
+                            })
+                            .setNegativeButton(R.string.cancel, null)
+                            .show();
+                }
+            } catch (Exception e) {
+                com.kitchenboard.update.UpdateLogger.logError(this,
+                        "Error handling update result for " + github.tagName, e);
+                if (!isFinishing() && !isActivityDestroyed()) {
+                    Toast.makeText(this, R.string.update_install_error,
+                            Toast.LENGTH_LONG).show();
+                }
+            }
+        } else {
+            com.kitchenboard.update.UpdateLogger.logInfo(this,
+                    "checkForUpdates: applying backend update " + backend.tagName);
+            try {
+                if (backend.downloadUrl != null && backend.downloadUrl.endsWith(".apk")) {
+                    downloadAndInstallApk(backend.downloadUrl, backend.tagName,
+                            backend.subNumber);
+                } else if (backend.downloadUrl != null && !backend.downloadUrl.isEmpty()) {
+                    new AlertDialog.Builder(this)
+                            .setTitle(R.string.update_available_title)
+                            .setMessage(getString(
+                                    R.string.auto_update_backend_available_text,
+                                    backend.tagName))
+                            .setPositiveButton(R.string.update_download, (d, w) -> {
+                                if (isFinishing() || isActivityDestroyed()) return;
+                                try {
+                                    startActivity(new Intent(Intent.ACTION_VIEW,
+                                            Uri.parse(backend.downloadUrl)));
+                                } catch (Exception e) {
+                                    com.kitchenboard.update.UpdateLogger.logError(this,
+                                            "Failed to open backend update URL", e);
+                                }
+                            })
+                            .setNegativeButton(R.string.cancel, null)
+                            .show();
+                }
+            } catch (Exception e) {
+                com.kitchenboard.update.UpdateLogger.logError(this,
+                        "Error handling backend update result for " + backend.tagName, e);
+            }
+        }
     }
 
     private void downloadAndInstallApk(String url, String tagName, int subNumber) {

@@ -271,6 +271,13 @@ public class CalendarFragment extends Fragment {
             }
         });
 
+        adapter.setOnShiftListener(new AppointmentAdapter.OnShiftListener() {
+            @Override
+            public void onShift(Appointment appointment) {
+                showShiftTimeDialog(appointment);
+            }
+        });
+
         // ── Full-month CalendarView (month mode only) ─────────────────────────
         calendarView.setOnDateChangeListener(new CalendarView.OnDateChangeListener() {
             @Override
@@ -1433,6 +1440,105 @@ public class CalendarFragment extends Fragment {
     }
 
     // ── Reminder / alarm dialog ────────────────────────────────────────────────
+
+    /**
+     * Shows a dialog with ±15 min and ±1 hour quick-shift buttons so the user can
+     * nudge an appointment's start time without opening the full time-picker.
+     */
+    private void showShiftTimeDialog(final Appointment appointment) {
+        if (!isAdded() || getContext() == null) return;
+        if (appointment.getTime() == null || appointment.getTime().isEmpty()) {
+            Toast.makeText(requireContext(),
+                    R.string.calendar_reminder_no_time, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Parse current HH:mm
+        final String[] parts = appointment.getTime().split(":");
+        if (parts.length < 2) return;
+        int currentMinutes;
+        try {
+            currentMinutes = Integer.parseInt(parts[0]) * 60 + Integer.parseInt(parts[1]);
+        } catch (NumberFormatException ignored) {
+            return;
+        }
+        final int[] totalMinutes = {currentMinutes};
+        final int minMinutes = 0;
+        final int maxMinutes = 23 * 60 + 59;
+
+        final TextView tvCurrentTime = new TextView(requireContext());
+        tvCurrentTime.setTextSize(20f);
+        tvCurrentTime.setTypeface(null, android.graphics.Typeface.BOLD);
+        tvCurrentTime.setGravity(Gravity.CENTER);
+        tvCurrentTime.setPadding(0, dpToPx(12), 0, dpToPx(12));
+        tvCurrentTime.setText(appointment.getTime());
+
+        final Runnable updateLabel = () -> {
+            int h = totalMinutes[0] / 60;
+            int m = totalMinutes[0] % 60;
+            tvCurrentTime.setText(String.format(Locale.US, "%02d:%02d", h, m));
+        };
+
+        LinearLayout layout = new LinearLayout(requireContext());
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setGravity(Gravity.CENTER);
+        int pad = dpToPx(16);
+        layout.setPadding(pad, dpToPx(8), pad, dpToPx(4));
+
+        layout.addView(tvCurrentTime);
+
+        LinearLayout btnRow = new LinearLayout(requireContext());
+        btnRow.setOrientation(LinearLayout.HORIZONTAL);
+        btnRow.setGravity(Gravity.CENTER);
+        layout.addView(btnRow);
+
+        final int[] steps = {-60, -15, 15, 60};
+        final String[] labels = {"−1 h", "−15 min", "+15 min", "+1 h"};
+        for (int i = 0; i < steps.length; i++) {
+            final int step = steps[i];
+            Button btn = new Button(requireContext());
+            btn.setText(labels[i]);
+            btn.setAllCaps(false);
+            btn.setTextSize(14f);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            lp.setMargins(dpToPx(4), 0, dpToPx(4), 0);
+            btn.setLayoutParams(lp);
+            btn.setOnClickListener(v -> {
+                int newVal = totalMinutes[0] + step;
+                if (newVal < minMinutes) newVal = minMinutes;
+                if (newVal > maxMinutes) newVal = maxMinutes;
+                totalMinutes[0] = newVal;
+                updateLabel.run();
+            });
+            btnRow.addView(btn);
+        }
+
+        pauseAutoAdvance();
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.calendar_shift_time_title)
+                .setView(layout)
+                .setPositiveButton(R.string.ok, (d, which) -> {
+                    int h = totalMinutes[0] / 60;
+                    int m = totalMinutes[0] % 60;
+                    String newTime = String.format(Locale.US, "%02d:%02d", h, m);
+                    db.updateAppointmentDateTime(appointment.getId(),
+                            appointment.getDate(), newTime);
+                    if (apiClient != null) {
+                        apiClient.updateAppointmentDateTime(appointment.getId(),
+                                appointment.getDate(), newTime,
+                                new CalendarApiClient.Callback<Void>() {
+                                    @Override public void onSuccess(Void r) { showSyncOk(); }
+                                    @Override public void onError(String msg) { showSyncError(); }
+                                });
+                    }
+                    refreshAppointments();
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .create();
+        dialog.setOnDismissListener(d -> resumeAutoAdvance());
+        dialog.show();
+    }
 
     private void showReminderDialog(final Appointment appointment) {
         if (!isAdded() || getContext() == null) return;

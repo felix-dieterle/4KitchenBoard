@@ -25,14 +25,16 @@ import java.io.File;
  * <p>When the twice-daily alarm fires ({@link AutoUpdateScheduler#ACTION_AUTO_UPDATE_CHECK}):
  * <ol>
  *   <li>A brief "Prüfe auf Updates…" notification is shown.
- *   <li>The latest GitHub release is fetched. If it is newer <b>and</b> carries the
- *       {@link UpdateChecker#AUTO_UPDATE_FLAG}, the APK is downloaded silently via
- *       DownloadManager with a progress notification (sub-number reset to 0).
- *   <li>If GitHub has no auto-update release, the configured backend server is checked.
- *       If the backend reports a newer {@code (buildNumber, subNumber)}, the backend APK
- *       is downloaded and the pending sub-number is persisted for later commit.
- *   <li>A brief completion notification is shown in both cases; if neither source has an
- *       update the status notification is silently cancelled.
+ *   <li>Both the configured backend server and the GitHub Releases API are queried
+ *       <b>simultaneously</b>.
+ *   <li>Once both checks have completed (regardless of outcome), the result with the
+ *       highest version is chosen: build number takes precedence; for equal build numbers
+ *       the backend sub-number breaks the tie.
+ *   <li>If the winning source is GitHub and its release carries the
+ *       {@link UpdateChecker#AUTO_UPDATE_FLAG}, the APK is downloaded silently.
+ *       If the winning source is the backend, its APK is downloaded and the pending
+ *       sub-number is persisted for later commit.
+ *   <li>If neither source reports an update the status notification is silently cancelled.
  * </ol>
  *
  * When DownloadManager reports {@link DownloadManager#ACTION_DOWNLOAD_COMPLETE}, the
@@ -81,6 +83,47 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
         // Use goAsync so the BroadcastReceiver window stays open during the HTTP calls
         final PendingResult pendingResult = goAsync();
 
+        // Both sources are checked in parallel; the one with the highest version wins.
+        // All callbacks are delivered on the main thread, so a plain array is race-free.
+        final int[] completed      = {0};
+        final UpdateChecker.UpdateResult[] githubResult   = {null};
+        final BackendUpdateChecker.BackendUpdateResult[] backendResult = {null};
+
+        final Runnable onBothDone = new Runnable() {
+            @Override
+            public void run() {
+                applyBestUpdate(context, pendingResult, githubResult[0], backendResult[0]);
+            }
+        };
+
+        // ── Backend check ──
+        int currentBuildNr = com.kitchenboard.BuildConfig.VERSION_CODE;
+        int currentSubNr   = BackendUpdateChecker.getCurrentSubNumber(context);
+        BackendUpdateChecker.checkForUpdate(context, currentBuildNr, currentSubNr,
+                new BackendUpdateChecker.BackendUpdateCallback() {
+                    @Override
+                    public void onUpdateAvailable(BackendUpdateChecker.BackendUpdateResult result) {
+                        UpdateLogger.logInfo(context,
+                                "Backend update available: " + result.tagName);
+                        backendResult[0] = result;
+                        if (++completed[0] == 2) onBothDone.run();
+                    }
+
+                    @Override
+                    public void onNoUpdate() {
+                        if (++completed[0] == 2) onBothDone.run();
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        UpdateLogger.logError(context,
+                                "Auto-update check (backend) failed: "
+                                        + (message != null ? message : "unknown error"));
+                        if (++completed[0] == 2) onBothDone.run();
+                    }
+                });
+
+        // ── GitHub check ──
         UpdateChecker.checkForUpdateWithFlag(
                 context,
                 com.kitchenboard.BuildConfig.VERSION_CODE,
@@ -90,34 +133,13 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
                         UpdateLogger.logInfo(context,
                                 "GitHub update available: " + result.tagName
                                         + (result.isAutoUpdate ? " [auto_update]" : ""));
-                        if (result.isAutoUpdate) {
-                            if (result.downloadUrl.endsWith(".apk")) {
-                                // GitHub [auto_update] APK: download it and reset sub-number
-                                startDownload(context, result.downloadUrl, result.tagName, 0);
-                                cancelNotification(context, NOTIF_ID_STATUS);
-                                pendingResult.finish();
-                                return;
-                            } else {
-                                // No APK asset – inform user; no silent install possible
-                                UpdateLogger.logError(context,
-                                        "Auto-update: no APK asset found for " + result.tagName);
-                                showStatusNotification(context,
-                                        context.getString(R.string.auto_update_available_title),
-                                        context.getString(
-                                                R.string.auto_update_available_text,
-                                                result.tagName));
-                                pendingResult.finish();
-                                return;
-                            }
-                        }
-                        // Release exists but is not flagged for auto-update: check backend
-                        checkBackend(context, pendingResult);
+                        githubResult[0] = result;
+                        if (++completed[0] == 2) onBothDone.run();
                     }
 
                     @Override
                     public void onNoUpdate() {
-                        // GitHub has nothing newer: check backend
-                        checkBackend(context, pendingResult);
+                        if (++completed[0] == 2) onBothDone.run();
                     }
 
                     @Override
@@ -125,61 +147,69 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
                         UpdateLogger.logError(context,
                                 "Auto-update check (GitHub) failed: "
                                         + (message != null ? message : "unknown error"));
-                        // GitHub check failed: still try the backend
-                        checkBackend(context, pendingResult);
+                        if (++completed[0] == 2) onBothDone.run();
                     }
                 });
     }
 
-    /** Second step: check the configured backend for a sub-number update. */
-    private void checkBackend(final Context context, final PendingResult pendingResult) {
-        int currentBuildNr = com.kitchenboard.BuildConfig.VERSION_CODE;
-        int currentSubNr   = BackendUpdateChecker.getCurrentSubNumber(context);
+    /**
+     * Compares the results from both update sources and downloads the APK for whichever
+     * has the higher version. GitHub build number takes precedence over the backend's
+     * sub-number scheme; for equal build numbers the backend sub-number breaks the tie.
+     */
+    private void applyBestUpdate(Context context, PendingResult pendingResult,
+            UpdateChecker.UpdateResult github,
+            BackendUpdateChecker.BackendUpdateResult backend) {
+        try {
+            if (github == null && backend == null) {
+                cancelNotification(context, NOTIF_ID_STATUS);
+                return;
+            }
 
-        BackendUpdateChecker.checkForUpdate(context, currentBuildNr, currentSubNr,
-                new BackendUpdateChecker.BackendUpdateCallback() {
-                    @Override
-                    public void onUpdateAvailable(BackendUpdateChecker.BackendUpdateResult result) {
-                        try {
-                            UpdateLogger.logInfo(context,
-                                    "Backend update available: " + result.tagName);
-                            if (result.downloadUrl.endsWith(".apk")) {
-                                startDownload(context, result.downloadUrl,
-                                        result.tagName, result.subNumber);
-                                cancelNotification(context, NOTIF_ID_STATUS);
-                            } else {
-                                showStatusNotification(context,
-                                        context.getString(R.string.auto_update_available_title),
-                                        context.getString(
-                                                R.string.auto_update_backend_available_text,
-                                                result.tagName));
-                            }
-                        } finally {
-                            pendingResult.finish();
-                        }
-                    }
+            // Determine which source has the higher version.
+            boolean preferGitHub;
+            if (github == null) {
+                preferGitHub = false;
+            } else if (backend == null) {
+                preferGitHub = true;
+            } else {
+                // backend is newer than GitHub only if (backendBuild, backendSub) > (githubBuild, 0)
+                preferGitHub = !BackendUpdateChecker.isNewer(
+                        backend.buildNumber, backend.subNumber, github.getBuildNumber(), 0);
+            }
 
-                    @Override
-                    public void onNoUpdate() {
-                        try {
-                            cancelNotification(context, NOTIF_ID_STATUS);
-                        } finally {
-                            pendingResult.finish();
-                        }
+            if (preferGitHub) {
+                if (github.isAutoUpdate) {
+                    if (github.downloadUrl.endsWith(".apk")) {
+                        startDownload(context, github.downloadUrl, github.tagName, 0);
+                        cancelNotification(context, NOTIF_ID_STATUS);
+                    } else {
+                        UpdateLogger.logError(context,
+                                "Auto-update: no APK asset found for " + github.tagName);
+                        showStatusNotification(context,
+                                context.getString(R.string.auto_update_available_title),
+                                context.getString(R.string.auto_update_available_text,
+                                        github.tagName));
                     }
-
-                    @Override
-                    public void onError(String message) {
-                        try {
-                            UpdateLogger.logError(context,
-                                    "Auto-update check (backend) failed: "
-                                            + (message != null ? message : "unknown error"));
-                            cancelNotification(context, NOTIF_ID_STATUS);
-                        } finally {
-                            pendingResult.finish();
-                        }
-                    }
-                });
+                } else {
+                    // Non-[auto_update] GitHub release – nothing to install silently.
+                    cancelNotification(context, NOTIF_ID_STATUS);
+                }
+            } else {
+                if (backend.downloadUrl.endsWith(".apk")) {
+                    startDownload(context, backend.downloadUrl,
+                            backend.tagName, backend.subNumber);
+                    cancelNotification(context, NOTIF_ID_STATUS);
+                } else {
+                    showStatusNotification(context,
+                            context.getString(R.string.auto_update_available_title),
+                            context.getString(R.string.auto_update_backend_available_text,
+                                    backend.tagName));
+                }
+            }
+        } finally {
+            pendingResult.finish();
+        }
     }
 
     // ── Download ──────────────────────────────────────────────────────────────

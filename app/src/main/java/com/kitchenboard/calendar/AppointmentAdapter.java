@@ -38,11 +38,17 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
         void onTimer(Appointment appointment);
     }
 
+    /** Called when the user requests a time shift on an appointment (±15 min, ±1 h). */
+    public interface OnShiftListener {
+        void onShift(Appointment appointment);
+    }
+
     private final List<Appointment> items = new ArrayList<>();
     private final Map<Long, Person> personMap = new HashMap<>();
     private final Map<Long, PersonGroup> groupMap = new HashMap<>();
     private OnDeleteListener deleteListener;
     private OnTimerListener timerListener;
+    private OnShiftListener shiftListener;
 
     public void setOnDeleteListener(OnDeleteListener listener) {
         this.deleteListener = listener;
@@ -50,6 +56,11 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
 
     public void setOnTimerListener(OnTimerListener listener) {
         this.timerListener = listener;
+    }
+
+    /** Sets the listener that is invoked when the user taps the time label to shift the appointment. */
+    public void setOnShiftListener(OnShiftListener listener) {
+        this.shiftListener = listener;
     }
 
     public void setItems(List<Appointment> newItems) {
@@ -90,8 +101,16 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
         if (time != null && !time.isEmpty()) {
             holder.tvTime.setText(time);
             holder.tvTime.setVisibility(View.VISIBLE);
+            // Tap on the time label opens the quarter-hour shift dialog
+            holder.tvTime.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (shiftListener != null) shiftListener.onShift(item);
+                }
+            });
         } else {
             holder.tvTime.setVisibility(View.GONE);
+            holder.tvTime.setOnClickListener(null);
         }
         holder.btnDelete.setOnClickListener(new View.OnClickListener() {
             @Override
