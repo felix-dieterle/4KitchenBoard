@@ -424,7 +424,7 @@ public class CalendarFragment extends Fragment {
             TextView tvDayName = new TextView(requireContext());
             tvDayName.setText(DAY_NAME_FMT.format(cal.getTime()));
             tvDayName.setGravity(Gravity.CENTER);
-            tvDayName.setTextSize(11f);
+            tvDayName.setTextSize(13f);
             tvDayName.setTextColor(textSecondary);
             content.addView(tvDayName);
 
@@ -487,7 +487,7 @@ public class CalendarFragment extends Fragment {
                 TextView tvApt = new TextView(requireContext());
                 tvApt.setText(aptText);
                 tvApt.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-                tvApt.setTextSize(9f);
+                tvApt.setTextSize(11f);
                 tvApt.setTextColor(accentColor);
                 tvApt.setMaxLines(1);
                 tvApt.setEllipsize(TextUtils.TruncateAt.END);
@@ -522,7 +522,7 @@ public class CalendarFragment extends Fragment {
                 TextView tvMore = new TextView(requireContext());
                 tvMore.setText("+" + (dayApts.size() - maxShow));
                 tvMore.setGravity(Gravity.CENTER);
-                tvMore.setTextSize(9f);
+                tvMore.setTextSize(11f);
                 tvMore.setTextColor(textSecondary);
                 content.addView(tvMore);
             }
@@ -543,7 +543,7 @@ public class CalendarFragment extends Fragment {
             TextView tvDragSlot = new TextView(requireContext());
             tvDragSlot.setGravity(Gravity.CENTER);
             tvDragSlot.setTextColor(Color.WHITE);
-            tvDragSlot.setTextSize(10f);
+            tvDragSlot.setTextSize(12f);
             tvDragSlot.setBackgroundColor(
                     ContextCompat.getColor(requireContext(), R.color.drag_slot_overlay));
             tvDragSlot.setVisibility(View.GONE);
