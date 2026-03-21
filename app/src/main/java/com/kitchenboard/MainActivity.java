@@ -1065,13 +1065,13 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 com.kitchenboard.update.UpdateLogger.logError(this,
                         "ChatSend: failed to send message via API", e);
-                // Fall back to LAN broadcast if any peers are reachable
+                // Fall back to LAN broadcast (always attempt if discovery is running)
                 runOnUiThread(() -> {
                     // Capture local reference to guard against concurrent nulling by stopLanMode()
                     LanDiscoveryManager localDiscovery = lanDiscovery;
-                    if (localDiscovery != null && !localDiscovery.getPeers().isEmpty()) {
+                    if (localDiscovery != null) {
                         com.kitchenboard.update.UpdateLogger.logInfo(this,
-                                "ChatSend: API unavailable, falling back to LAN");
+                                "ChatSend: API unavailable, falling back to LAN broadcast");
                         // Empty recipient triggers broadcast to all discovered peers
                         sendChatMessageLan(senderId, senderName, "", "", text);
                     } else {
@@ -1107,6 +1107,8 @@ public class MainActivity extends AppCompatActivity {
         CHAT_EXECUTOR.execute(() -> {
             List<LanPeer> peers = lanDiscovery.getPeers();
             if (peers.isEmpty()) {
+                com.kitchenboard.update.UpdateLogger.logError(this,
+                        "LanChatSend: no peers discovered – broadcast not delivered");
                 runOnUiThread(() -> Toast.makeText(this,
                         R.string.chat_lan_no_peers, Toast.LENGTH_SHORT).show());
                 return;
