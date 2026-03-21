@@ -926,6 +926,77 @@ public class MainActivity extends AppCompatActivity {
         com.kitchenboard.update.UpdateLogger.logInfo(this,
                 "checkForUpdates: starting check (versionCode=" + BuildConfig.VERSION_CODE + ")");
         Toast.makeText(this, R.string.auto_update_checking_text, Toast.LENGTH_SHORT).show();
+
+        // Backend is the primary update source; GitHub is checked as the fallback.
+        int currentBuildNr = BuildConfig.VERSION_CODE;
+        int currentSubNr   = com.kitchenboard.update.BackendUpdateChecker.getCurrentSubNumber(this);
+
+        com.kitchenboard.update.BackendUpdateChecker.checkForUpdate(this, currentBuildNr,
+                currentSubNr, new com.kitchenboard.update.BackendUpdateChecker.BackendUpdateCallback() {
+            @Override
+            public void onUpdateAvailable(
+                    com.kitchenboard.update.BackendUpdateChecker.BackendUpdateResult result) {
+                if (isFinishing() || isActivityDestroyed()) return;
+                com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
+                        "checkForUpdates: backend update available tag=" + result.tagName);
+                try {
+                    if (result.downloadUrl != null && result.downloadUrl.endsWith(".apk")) {
+                        downloadAndInstallApk(result.downloadUrl, result.tagName,
+                                result.subNumber);
+                    } else if (result.downloadUrl != null && !result.downloadUrl.isEmpty()) {
+                        // Non-APK link: show dialog so the user can open it
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setTitle(R.string.update_available_title)
+                                .setMessage(getString(
+                                        R.string.auto_update_backend_available_text,
+                                        result.tagName))
+                                .setPositiveButton(R.string.update_download, (d, w) -> {
+                                    try {
+                                        startActivity(new Intent(Intent.ACTION_VIEW,
+                                                Uri.parse(result.downloadUrl)));
+                                    } catch (Exception e) {
+                                        com.kitchenboard.update.UpdateLogger.logError(
+                                                MainActivity.this,
+                                                "Failed to open backend update URL", e);
+                                    }
+                                })
+                                .setNegativeButton(R.string.cancel, null)
+                                .show();
+                    }
+                } catch (Exception e) {
+                    com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
+                            "Error handling backend update result for " + result.tagName, e);
+                }
+            }
+
+            @Override
+            public void onNoUpdate() {
+                if (isFinishing() || isActivityDestroyed()) return;
+                com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
+                        "checkForUpdates: no backend update – checking GitHub");
+                // Backend healthy but no update; check GitHub for a newer release.
+                checkGitHubForUpdate(true);
+            }
+
+            @Override
+            public void onError(String message) {
+                if (isFinishing() || isActivityDestroyed()) return;
+                Log.e(TAG, "Backend update check failed (falling back to GitHub): "
+                        + (message != null ? message : "unknown error"));
+                // Backend unavailable – always fall back to GitHub.
+                checkGitHubForUpdate(false);
+            }
+        });
+    }
+
+    /**
+     * Checks GitHub for updates as a fallback when the backend has no update or is unavailable.
+     *
+     * @param showUpToDateOnNoUpdate when {@code true} a "up-to-date" toast is shown when GitHub
+     *                               also has no newer version (i.e. backend was healthy but empty)
+     */
+    private void checkGitHubForUpdate(final boolean showUpToDateOnNoUpdate) {
+        if (isFinishing() || isActivityDestroyed()) return;
         UpdateChecker.checkForUpdateWithFlag(this, BuildConfig.VERSION_CODE,
                 new UpdateChecker.UpdateResultCallback() {
             @Override
@@ -989,79 +1060,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onNoUpdate() {
                 if (isFinishing() || isActivityDestroyed()) return;
-                com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
-                        "checkForUpdates: no GitHub update – checking backend");
-                checkBackendForUpdate(true);
-            }
-
-            @Override
-            public void onError(String message) {
-                if (isFinishing() || isActivityDestroyed()) return;
-                // The full stack trace was already logged in UpdateChecker; just note context here.
-                Log.e(TAG, "Update check error reported to UI: "
-                        + (message != null ? message : "unknown error"));
-                // GitHub check failed; still try the backend before reporting "error"
-                checkBackendForUpdate(false);
-            }
-        });
-    }
-
-    /**
-     * Checks the configured backend for a sub-number update and offers installation
-     * to the user when a newer version is found.
-     *
-     * @param showUpToDateOnNoUpdate when {@code true} a "up-to-date" toast is shown
-     *                               when neither GitHub nor the backend has a newer version
-     */
-    private void checkBackendForUpdate(final boolean showUpToDateOnNoUpdate) {
-        if (isFinishing() || isActivityDestroyed()) return;
-        int currentBuildNr = BuildConfig.VERSION_CODE;
-        int currentSubNr   = com.kitchenboard.update.BackendUpdateChecker.getCurrentSubNumber(this);
-
-        com.kitchenboard.update.BackendUpdateChecker.checkForUpdate(this, currentBuildNr,
-                currentSubNr, new com.kitchenboard.update.BackendUpdateChecker.BackendUpdateCallback() {
-            @Override
-            public void onUpdateAvailable(
-                    com.kitchenboard.update.BackendUpdateChecker.BackendUpdateResult result) {
-                if (isFinishing() || isActivityDestroyed()) return;
-                com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
-                        "checkForUpdates: backend update available tag=" + result.tagName);
-                try {
-                    if (result.downloadUrl != null && result.downloadUrl.endsWith(".apk")) {
-                        downloadAndInstallApk(result.downloadUrl, result.tagName,
-                                result.subNumber);
-                    } else if (result.downloadUrl != null && !result.downloadUrl.isEmpty()) {
-                        // Non-APK link: show dialog so the user can open it
-                        new AlertDialog.Builder(MainActivity.this)
-                                .setTitle(R.string.update_available_title)
-                                .setMessage(getString(
-                                        R.string.auto_update_backend_available_text,
-                                        result.tagName))
-                                .setPositiveButton(R.string.update_download, (d, w) -> {
-                                    try {
-                                        startActivity(new Intent(Intent.ACTION_VIEW,
-                                                Uri.parse(result.downloadUrl)));
-                                    } catch (Exception e) {
-                                        com.kitchenboard.update.UpdateLogger.logError(
-                                                MainActivity.this,
-                                                "Failed to open backend update URL", e);
-                                    }
-                                })
-                                .setNegativeButton(R.string.cancel, null)
-                                .show();
-                    }
-                } catch (Exception e) {
-                    com.kitchenboard.update.UpdateLogger.logError(MainActivity.this,
-                            "Error handling backend update result for " + result.tagName, e);
-                }
-            }
-
-            @Override
-            public void onNoUpdate() {
-                if (isFinishing() || isActivityDestroyed()) return;
                 if (showUpToDateOnNoUpdate) {
                     com.kitchenboard.update.UpdateLogger.logInfo(MainActivity.this,
-                            "checkForUpdates: app is up to date (GitHub + backend)");
+                            "checkForUpdates: app is up to date (backend + GitHub)");
                     Toast.makeText(MainActivity.this,
                             R.string.update_up_to_date, Toast.LENGTH_SHORT).show();
                 }
@@ -1070,15 +1071,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onError(String message) {
                 if (isFinishing() || isActivityDestroyed()) return;
-                Log.e(TAG, "Backend update check error: "
+                Log.e(TAG, "GitHub update check error: "
                         + (message != null ? message : "unknown error"));
-                if (showUpToDateOnNoUpdate) {
-                    Toast.makeText(MainActivity.this,
-                            R.string.update_check_error, Toast.LENGTH_SHORT).show();
-                }
+                Toast.makeText(MainActivity.this,
+                        R.string.update_check_error, Toast.LENGTH_SHORT).show();
             }
         });
     }
+
 
     private void downloadAndInstallApk(String url, String tagName, int subNumber) {
         com.kitchenboard.update.UpdateLogger.logInfo(this,

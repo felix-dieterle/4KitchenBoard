@@ -25,14 +25,13 @@ import java.io.File;
  * <p>When the twice-daily alarm fires ({@link AutoUpdateScheduler#ACTION_AUTO_UPDATE_CHECK}):
  * <ol>
  *   <li>A brief "Prüfe auf Updates…" notification is shown.
- *   <li>The latest GitHub release is fetched. If it is newer <b>and</b> carries the
- *       {@link UpdateChecker#AUTO_UPDATE_FLAG}, the APK is downloaded silently via
- *       DownloadManager with a progress notification (sub-number reset to 0).
- *   <li>If GitHub has no auto-update release, the configured backend server is checked.
- *       If the backend reports a newer {@code (buildNumber, subNumber)}, the backend APK
- *       is downloaded and the pending sub-number is persisted for later commit.
- *   <li>A brief completion notification is shown in both cases; if neither source has an
- *       update the status notification is silently cancelled.
+ *   <li>The configured backend server is checked first. If the backend reports a newer
+ *       {@code (buildNumber, subNumber)}, the backend APK is downloaded and the pending
+ *       sub-number is persisted for later commit.
+ *   <li>If the backend has no update <b>or fails</b>, the latest GitHub release is fetched as
+ *       the fallback. If it is newer <b>and</b> carries the {@link UpdateChecker#AUTO_UPDATE_FLAG},
+ *       the APK is downloaded silently via DownloadManager (sub-number reset to 0).
+ *   <li>If neither source has an update the status notification is silently cancelled.
  * </ol>
  *
  * When DownloadManager reports {@link DownloadManager#ACTION_DOWNLOAD_COMPLETE}, the
@@ -81,56 +80,11 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
         // Use goAsync so the BroadcastReceiver window stays open during the HTTP calls
         final PendingResult pendingResult = goAsync();
 
-        UpdateChecker.checkForUpdateWithFlag(
-                context,
-                com.kitchenboard.BuildConfig.VERSION_CODE,
-                new UpdateChecker.UpdateResultCallback() {
-                    @Override
-                    public void onUpdateAvailable(UpdateChecker.UpdateResult result) {
-                        UpdateLogger.logInfo(context,
-                                "GitHub update available: " + result.tagName
-                                        + (result.isAutoUpdate ? " [auto_update]" : ""));
-                        if (result.isAutoUpdate) {
-                            if (result.downloadUrl.endsWith(".apk")) {
-                                // GitHub [auto_update] APK: download it and reset sub-number
-                                startDownload(context, result.downloadUrl, result.tagName, 0);
-                                cancelNotification(context, NOTIF_ID_STATUS);
-                                pendingResult.finish();
-                                return;
-                            } else {
-                                // No APK asset – inform user; still check backend independently
-                                UpdateLogger.logError(context,
-                                        "Auto-update: no APK asset found for " + result.tagName);
-                                showStatusNotification(context,
-                                        context.getString(R.string.auto_update_available_title),
-                                        context.getString(
-                                                R.string.auto_update_available_text,
-                                                result.tagName));
-                                // Fall through: also check backend even though GitHub notified
-                            }
-                        }
-                        // Release not flagged for auto-update (or GitHub had no APK): check backend
-                        checkBackend(context, pendingResult);
-                    }
-
-                    @Override
-                    public void onNoUpdate() {
-                        // GitHub has nothing newer: check backend
-                        checkBackend(context, pendingResult);
-                    }
-
-                    @Override
-                    public void onError(String message) {
-                        UpdateLogger.logError(context,
-                                "Auto-update check (GitHub) failed: "
-                                        + (message != null ? message : "unknown error"));
-                        // GitHub check failed: still try the backend
-                        checkBackend(context, pendingResult);
-                    }
-                });
+        // Backend is the primary update source; GitHub serves as the fallback.
+        checkBackend(context, pendingResult);
     }
 
-    /** Second step: check the configured backend for a sub-number update. */
+    /** First step: check the configured backend. Falls back to GitHub on failure or no update. */
     private void checkBackend(final Context context, final PendingResult pendingResult) {
         int currentBuildNr = com.kitchenboard.BuildConfig.VERSION_CODE;
         int currentSubNr   = BackendUpdateChecker.getCurrentSubNumber(context);
@@ -160,23 +114,68 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
 
                     @Override
                     public void onNoUpdate() {
-                        try {
-                            cancelNotification(context, NOTIF_ID_STATUS);
-                        } finally {
-                            pendingResult.finish();
-                        }
+                        // Backend healthy but no update – still check GitHub for a newer release.
+                        checkGitHub(context, pendingResult);
                     }
 
                     @Override
                     public void onError(String message) {
-                        try {
-                            UpdateLogger.logError(context,
-                                    "Auto-update check (backend) failed: "
-                                            + (message != null ? message : "unknown error"));
-                            cancelNotification(context, NOTIF_ID_STATUS);
-                        } finally {
-                            pendingResult.finish();
+                        UpdateLogger.logError(context,
+                                "Auto-update check (backend) failed: "
+                                        + (message != null ? message : "unknown error"));
+                        // Backend unavailable – always fall back to GitHub.
+                        checkGitHub(context, pendingResult);
+                    }
+                });
+    }
+
+    /** Fallback: check GitHub when the backend has no update or is unavailable. */
+    private void checkGitHub(final Context context, final PendingResult pendingResult) {
+        UpdateChecker.checkForUpdateWithFlag(
+                context,
+                com.kitchenboard.BuildConfig.VERSION_CODE,
+                new UpdateChecker.UpdateResultCallback() {
+                    @Override
+                    public void onUpdateAvailable(UpdateChecker.UpdateResult result) {
+                        UpdateLogger.logInfo(context,
+                                "GitHub update available: " + result.tagName
+                                        + (result.isAutoUpdate ? " [auto_update]" : ""));
+                        if (result.isAutoUpdate) {
+                            if (result.downloadUrl.endsWith(".apk")) {
+                                // GitHub [auto_update] APK: download it and reset sub-number
+                                startDownload(context, result.downloadUrl, result.tagName, 0);
+                                cancelNotification(context, NOTIF_ID_STATUS);
+                                pendingResult.finish();
+                                return;
+                            } else {
+                                // No APK asset – inform user
+                                UpdateLogger.logError(context,
+                                        "Auto-update: no APK asset found for " + result.tagName);
+                                showStatusNotification(context,
+                                        context.getString(R.string.auto_update_available_title),
+                                        context.getString(
+                                                R.string.auto_update_available_text,
+                                                result.tagName));
+                            }
                         }
+                        // Non-[auto_update] release or no APK: nothing to download silently.
+                        cancelNotification(context, NOTIF_ID_STATUS);
+                        pendingResult.finish();
+                    }
+
+                    @Override
+                    public void onNoUpdate() {
+                        cancelNotification(context, NOTIF_ID_STATUS);
+                        pendingResult.finish();
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        UpdateLogger.logError(context,
+                                "Auto-update check (GitHub) failed: "
+                                        + (message != null ? message : "unknown error"));
+                        cancelNotification(context, NOTIF_ID_STATUS);
+                        pendingResult.finish();
                     }
                 });
     }
