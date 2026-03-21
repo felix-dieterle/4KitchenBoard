@@ -41,6 +41,10 @@ import com.kitchenboard.chat.ChatCheckReceiver;
 import com.kitchenboard.chat.ChatDatabaseHelper;
 import com.kitchenboard.chat.ChatMessage;
 import com.kitchenboard.chat.ChatApiClient;
+import com.kitchenboard.chat.LanChatClient;
+import com.kitchenboard.chat.LanChatServer;
+import com.kitchenboard.chat.LanDiscoveryManager;
+import com.kitchenboard.chat.LanPeer;
 import com.kitchenboard.powersaving.PowerSavingManager;
 import com.kitchenboard.shopping.ShoppingFragment;
 import com.kitchenboard.tasks.TasksCheckScheduler;
@@ -119,9 +123,18 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvChatBadge;
     private TextView tvChatEmpty;
     private EditText etChatInput;
+    private TextView tvChatRecipientSelected;
     private static final ExecutorService CHAT_EXECUTOR = Executors.newSingleThreadExecutor();
     /** Fraction of screen height used as the max height of the chat message list. */
     private static final float CHAT_PANEL_HEIGHT_RATIO = 0.40f;
+    /** SharedPreferences key: whether LAN direct mode is enabled for chat. */
+    static final String PREF_CHAT_LAN_MODE = "chat_lan_mode";
+    /** Currently selected chat recipient, or {@code null} for broadcast. */
+    private LanPeer selectedLanRecipient;
+    /** Active person chosen as recipient (from persons DB), or {@code null} for broadcast. */
+    private Person selectedPersonRecipient;
+    /** LAN discovery / messaging helpers (null when LAN mode is off). */
+    private LanDiscoveryManager lanDiscovery;
 
     // ── Power saving ──────────────────────────────────────────────────────────
     private PowerSavingManager powerSavingManager;
@@ -440,9 +453,14 @@ public class MainActivity extends AppCompatActivity {
         cbChatTokenFilter.setText(R.string.chat_settings_token_filter);
         cbChatTokenFilter.setChecked(prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_TOKEN_FILTER, false));
 
+        final CheckBox cbChatLanMode = new CheckBox(this);
+        cbChatLanMode.setText(R.string.chat_settings_lan_mode);
+        cbChatLanMode.setChecked(prefs.getBoolean(PREF_CHAT_LAN_MODE, false));
+
         layout.addView(tvChatSection);
         layout.addView(cbChatEnabled);
         layout.addView(cbChatTokenFilter);
+        layout.addView(cbChatLanMode);
 
         // ── Stromspar-Einstellungen ───────────────────────────────────────────
         final TextView tvPowerSection = new TextView(this);
@@ -516,8 +534,10 @@ public class MainActivity extends AppCompatActivity {
                 editor.putInt(PREF_WELLNESS_HOUR,   wellnessTime[0]);
                 editor.putInt(PREF_WELLNESS_MINUTE, wellnessTime[1]);
                 // Chat settings
+                boolean newLanMode = cbChatLanMode.isChecked();
                 editor.putBoolean(ChatCheckReceiver.PREF_CHAT_ENABLED,      cbChatEnabled.isChecked());
                 editor.putBoolean(ChatCheckReceiver.PREF_CHAT_TOKEN_FILTER,  cbChatTokenFilter.isChecked());
+                editor.putBoolean(PREF_CHAT_LAN_MODE,                       newLanMode);
                 // Power saving settings
                 editor.putBoolean(PowerSavingManager.PREF_LOW_BATTERY_DIM,       cbLowBatteryDim.isChecked());
                 editor.putBoolean(PowerSavingManager.PREF_DARK_SCHEDULE_ENABLED, cbDarkSchedule.isChecked());
@@ -528,6 +548,11 @@ public class MainActivity extends AppCompatActivity {
                 editor.apply();
                 WellnessCheckScheduler.schedule(MainActivity.this);
                 if (powerSavingManager != null) powerSavingManager.applySettings();
+                // Start or stop LAN mode depending on the new setting
+                stopLanMode();
+                if (newLanMode) {
+                    initLanModeIfEnabled();
+                }
                 refreshChatBadge();
             }
         });
@@ -780,11 +805,12 @@ public class MainActivity extends AppCompatActivity {
 
     /** Binds the chat panel views and wires up button listeners. */
     private void setupChatPanel() {
-        chatPanelOverlay    = findViewById(R.id.chat_panel_overlay);
-        chatMessageContainer = findViewById(R.id.chat_message_container);
-        tvChatBadge          = findViewById(R.id.tv_chat_badge);
-        tvChatEmpty          = findViewById(R.id.tv_chat_empty);
-        etChatInput          = findViewById(R.id.et_chat_input);
+        chatPanelOverlay         = findViewById(R.id.chat_panel_overlay);
+        chatMessageContainer     = findViewById(R.id.chat_message_container);
+        tvChatBadge              = findViewById(R.id.tv_chat_badge);
+        tvChatEmpty              = findViewById(R.id.tv_chat_empty);
+        etChatInput              = findViewById(R.id.et_chat_input);
+        tvChatRecipientSelected  = findViewById(R.id.tv_chat_recipient_selected);
 
         // Constrain the message list scroll area to ~40% screen height
         android.widget.ScrollView chatScroll = findViewById(R.id.chat_scroll_view);
@@ -811,6 +837,11 @@ public class MainActivity extends AppCompatActivity {
             btnSend.setOnClickListener(v -> sendChatMessage());
         }
 
+        // Recipient selector tap opens a picker
+        if (tvChatRecipientSelected != null) {
+            tvChatRecipientSelected.setOnClickListener(v -> showRecipientPicker());
+        }
+
         // Backdrop tap closes the panel
         if (chatPanelOverlay != null) {
             chatPanelOverlay.setOnClickListener(v -> closeChatPanel());
@@ -818,7 +849,45 @@ public class MainActivity extends AppCompatActivity {
             if (panel != null) panel.setOnClickListener(v -> { /* consume */ });
         }
 
+        // Start LAN components if LAN mode is enabled
+        initLanModeIfEnabled();
+
         refreshChatBadge();
+    }
+
+    /** Starts LAN chat server and discovery if the LAN mode preference is active. */
+    private void initLanModeIfEnabled() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        if (!prefs.getBoolean(PREF_CHAT_LAN_MODE, false)) return;
+
+        String myDeviceId   = "device_" + android.provider.Settings.Secure.getString(
+                getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
+        String myDeviceName = resolveActiveSenderName();
+
+        LanChatServer server = LanChatServer.getInstance();
+        server.setMessageReceivedListener(msg -> runOnUiThread(() -> {
+            if (chatPanelOverlay != null
+                    && chatPanelOverlay.getVisibility() == View.VISIBLE) {
+                populateChatPanel();
+            }
+            refreshChatBadge();
+        }));
+        server.start(this, myDeviceId);
+
+        lanDiscovery = new LanDiscoveryManager();
+        lanDiscovery.setPeerListListener(peers -> {
+            // Peer list changed – no immediate UI action needed; picker reads on demand
+        });
+        CHAT_EXECUTOR.submit(() -> lanDiscovery.start(myDeviceId, myDeviceName));
+    }
+
+    /** Stops LAN chat server and discovery. */
+    private void stopLanMode() {
+        LanChatServer.getInstance().stop();
+        if (lanDiscovery != null) {
+            lanDiscovery.stop();
+            lanDiscovery = null;
+        }
     }
 
     private void openChatPanel() {
@@ -855,10 +924,13 @@ public class MainActivity extends AppCompatActivity {
         if (chatMessageContainer == null) return;
         chatMessageContainer.removeAllViews();
 
+        String myDeviceId = "device_" + android.provider.Settings.Secure.getString(
+                getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
+
         ChatDatabaseHelper db = new ChatDatabaseHelper(this);
         List<ChatMessage> messages;
         try {
-            messages = db.getMessages(100);
+            messages = db.getMessages(100, myDeviceId);
         } finally {
             db.close();
         }
@@ -870,12 +942,21 @@ public class MainActivity extends AppCompatActivity {
         LayoutInflater inflater = LayoutInflater.from(this);
         for (final ChatMessage msg : messages) {
             View item = inflater.inflate(R.layout.item_chat_message, chatMessageContainer, false);
-            TextView tvSender  = item.findViewById(R.id.tv_chat_sender);
-            TextView tvText    = item.findViewById(R.id.tv_chat_message);
-            TextView tvTime    = item.findViewById(R.id.tv_chat_time);
+            TextView tvSender    = item.findViewById(R.id.tv_chat_sender);
+            TextView tvText      = item.findViewById(R.id.tv_chat_message);
+            TextView tvTime      = item.findViewById(R.id.tv_chat_time);
+            TextView tvRecipient = item.findViewById(R.id.tv_chat_recipient);
             if (tvSender != null) tvSender.setText(msg.senderName);
             if (tvText   != null) tvText.setText(msg.message);
             if (tvTime   != null) tvTime.setText(formatRelativeTime(msg.timestampMs));
+            if (tvRecipient != null) {
+                if (!msg.recipientName.isEmpty()) {
+                    tvRecipient.setText(getString(R.string.chat_to_label, msg.recipientName));
+                    tvRecipient.setVisibility(View.VISIBLE);
+                } else {
+                    tvRecipient.setVisibility(View.GONE);
+                }
+            }
 
             // Long-press to copy message to clipboard
             item.setOnLongClickListener(v -> {
@@ -895,44 +976,67 @@ public class MainActivity extends AppCompatActivity {
         if (sv != null) sv.post(() -> sv.fullScroll(View.FOCUS_DOWN));
     }
 
-    /** Reads the input field and sends the message via the backend API. */
+    /** Reads the input field and sends the message via the backend API or LAN. */
     private void sendChatMessage() {
         if (etChatInput == null) return;
         String text = etChatInput.getText().toString().trim();
         if (text.isEmpty()) return;
 
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String serverUrl = prefs.getString(PREF_SERVER_URL, "").trim();
-        if (serverUrl.isEmpty()) {
-            Toast.makeText(this, R.string.chat_send_error, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        String boardToken    = prefs.getString(PREF_BOARD_TOKEN, "").trim();
-        String apiToken      = prefs.getString(PREF_API_TOKEN,   "").trim();
-        boolean tokenFilter  = prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_TOKEN_FILTER, false);
-        String effectiveToken = tokenFilter ? boardToken : "";
+        boolean lanMode = prefs.getBoolean(PREF_CHAT_LAN_MODE, false);
 
         // Derive sender identity from active profile
         String senderId   = "device_" + android.provider.Settings.Secure.getString(
                 getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
         String senderName = resolveActiveSenderName();
 
+        // Determine recipient
+        String recipientId   = "";
+        String recipientName = "";
+        if (lanMode && selectedLanRecipient != null) {
+            recipientId   = selectedLanRecipient.deviceId;
+            recipientName = selectedLanRecipient.deviceName;
+        } else if (!lanMode && selectedPersonRecipient != null) {
+            // For server mode, use person name as recipient identifier
+            recipientId   = "person_" + selectedPersonRecipient.getId();
+            recipientName = selectedPersonRecipient.getName();
+        }
+
         etChatInput.setText("");
 
-        final String finalText   = text;
-        final String fSenderId   = senderId;
-        final String fSenderName = senderName;
-        final String fServerUrl  = serverUrl;
-        final String fEffToken   = effectiveToken;
-        final String fApiToken   = apiToken;
+        final String finalText       = text;
+        final String fSenderId       = senderId;
+        final String fSenderName     = senderName;
+        final String fRecipientId    = recipientId;
+        final String fRecipientName  = recipientName;
 
+        if (lanMode) {
+            sendChatMessageLan(fSenderId, fSenderName, fRecipientId, fRecipientName, finalText);
+        } else {
+            String serverUrl = prefs.getString(PREF_SERVER_URL, "").trim();
+            if (serverUrl.isEmpty()) {
+                Toast.makeText(this, R.string.chat_send_error, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            String boardToken    = prefs.getString(PREF_BOARD_TOKEN, "").trim();
+            String apiToken      = prefs.getString(PREF_API_TOKEN,   "").trim();
+            boolean tokenFilter  = prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_TOKEN_FILTER, false);
+            String effectiveToken = tokenFilter ? boardToken : "";
+            sendChatMessageApi(fSenderId, fSenderName, fRecipientId, fRecipientName,
+                    finalText, serverUrl, effectiveToken, apiToken);
+        }
+    }
+
+    private void sendChatMessageApi(String senderId, String senderName,
+                                    String recipientId, String recipientName,
+                                    String text, String serverUrl,
+                                    String effectiveToken, String apiToken) {
         CHAT_EXECUTOR.execute(() -> {
             try {
-                ChatApiClient client = new ChatApiClient(fServerUrl, fEffToken, fApiToken);
-                long id = client.sendMessage(fSenderId, fSenderName, finalText);
-                // Store the sent message locally too
-                ChatMessage sent = new ChatMessage(id, fSenderId, fSenderName,
-                        finalText, System.currentTimeMillis(), true);
+                ChatApiClient client = new ChatApiClient(serverUrl, effectiveToken, apiToken);
+                long id = client.sendMessage(senderId, senderName, recipientId, recipientName, text);
+                ChatMessage sent = new ChatMessage(id, senderId, senderName,
+                        recipientId, recipientName, text, System.currentTimeMillis(), true);
                 ChatDatabaseHelper db = new ChatDatabaseHelper(this);
                 try { db.upsert(sent); } finally { db.close(); }
                 runOnUiThread(() -> {
@@ -943,11 +1047,117 @@ public class MainActivity extends AppCompatActivity {
                 });
             } catch (Exception e) {
                 com.kitchenboard.update.UpdateLogger.logError(this,
-                        "ChatSend: failed to send message", e);
+                        "ChatSend: failed to send message via API", e);
                 runOnUiThread(() ->
                         Toast.makeText(this, R.string.chat_send_error, Toast.LENGTH_SHORT).show());
             }
         });
+    }
+
+    private void sendChatMessageLan(String senderId, String senderName,
+                                    String recipientId, String recipientName,
+                                    String text) {
+        if (lanDiscovery == null) {
+            Toast.makeText(this, R.string.chat_send_error, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        // Use negative IDs for locally generated LAN messages to avoid server ID collision
+        long localId = -(System.currentTimeMillis());
+        ChatMessage msg = new ChatMessage(localId, senderId, senderName,
+                recipientId, recipientName, text, System.currentTimeMillis(), true);
+
+        // Store locally first so the UI updates immediately
+        ChatDatabaseHelper db = new ChatDatabaseHelper(this);
+        try { db.upsert(msg); } finally { db.close(); }
+        runOnUiThread(() -> {
+            if (chatPanelOverlay != null
+                    && chatPanelOverlay.getVisibility() == View.VISIBLE) {
+                populateChatPanel();
+            }
+        });
+
+        CHAT_EXECUTOR.execute(() -> {
+            List<LanPeer> peers = lanDiscovery.getPeers();
+            if (peers.isEmpty()) {
+                runOnUiThread(() -> Toast.makeText(this,
+                        R.string.chat_lan_no_peers, Toast.LENGTH_SHORT).show());
+                return;
+            }
+            if (!recipientId.isEmpty()) {
+                // Directed message: send only to matching peer
+                for (LanPeer p : peers) {
+                    if (recipientId.equals(p.deviceId)) {
+                        try {
+                            LanChatClient.sendToPeer(p.ip, msg);
+                        } catch (Exception e) {
+                            com.kitchenboard.update.UpdateLogger.logError(this,
+                                    "LanChatSend: failed to reach " + p.deviceName, e);
+                            runOnUiThread(() -> Toast.makeText(this,
+                                    R.string.chat_send_error, Toast.LENGTH_SHORT).show());
+                        }
+                        break;
+                    }
+                }
+            } else {
+                LanChatClient.broadcast(peers, msg);
+            }
+        });
+    }
+
+    /**
+     * Shows a dialog to pick the chat recipient (broadcast or a specific person/LAN peer).
+     */
+    private void showRecipientPicker() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        boolean lanMode = prefs.getBoolean(PREF_CHAT_LAN_MODE, false);
+
+        java.util.List<String>  names = new ArrayList<>();
+        java.util.List<Runnable> actions = new ArrayList<>();
+
+        // First entry: broadcast / all
+        names.add(getString(R.string.chat_recipient_all));
+        actions.add(() -> {
+            selectedLanRecipient    = null;
+            selectedPersonRecipient = null;
+            if (tvChatRecipientSelected != null) {
+                tvChatRecipientSelected.setText(R.string.chat_recipient_all);
+            }
+        });
+
+        if (lanMode && lanDiscovery != null) {
+            for (LanPeer peer : lanDiscovery.getPeers()) {
+                final LanPeer p = peer;
+                names.add(peer.deviceName);
+                actions.add(() -> {
+                    selectedLanRecipient    = p;
+                    selectedPersonRecipient = null;
+                    if (tvChatRecipientSelected != null) {
+                        tvChatRecipientSelected.setText(p.deviceName);
+                    }
+                });
+            }
+        } else {
+            CalendarDatabaseHelper calDb = new CalendarDatabaseHelper(this);
+            List<Person> persons;
+            try { persons = calDb.getPersons(); } finally { calDb.close(); }
+            for (Person p : persons) {
+                names.add(p.getName());
+                actions.add(() -> {
+                    selectedPersonRecipient = p;
+                    selectedLanRecipient    = null;
+                    if (tvChatRecipientSelected != null) {
+                        tvChatRecipientSelected.setText(p.getName());
+                    }
+                });
+            }
+        }
+
+        String[] nameArr = names.toArray(new String[0]);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.chat_recipient_hint)
+                .setItems(nameArr, (d, which) -> actions.get(which).run())
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     /** Returns the name of the currently active person, or a device-based fallback. */
@@ -971,10 +1181,12 @@ public class MainActivity extends AppCompatActivity {
     /** Updates the unread-message badge on the chat button. */
     private void refreshChatBadge() {
         if (tvChatBadge == null) return;
+        String myDeviceId = "device_" + android.provider.Settings.Secure.getString(
+                getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
         CHAT_EXECUTOR.execute(() -> {
             ChatDatabaseHelper db = new ChatDatabaseHelper(this);
             int unread;
-            try { unread = db.getUnreadCount(); } finally { db.close(); }
+            try { unread = db.getUnreadCount(myDeviceId); } finally { db.close(); }
             final int u = unread;
             runOnUiThread(() -> {
                 if (tvChatBadge == null) return;
@@ -1654,6 +1866,7 @@ public class MainActivity extends AppCompatActivity {
             powerSavingManager.destroy();
             powerSavingManager = null;
         }
+        stopLanMode();
     }
 }
 

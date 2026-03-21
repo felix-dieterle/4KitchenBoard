@@ -78,18 +78,24 @@ public class ChatApiClient {
     /**
      * Sends a new chat message to the backend.
      *
-     * @param senderId   Unique ID of the sending device / user
-     * @param senderName Display name of the sender
-     * @param message    Plain-text message body
+     * @param senderId      Unique ID of the sending device / user
+     * @param senderName    Display name of the sender
+     * @param recipientId   Target device ID, or empty string for a broadcast message
+     * @param recipientName Display name of the recipient, or empty string for broadcast
+     * @param message       Plain-text message body
      * @return The server-assigned message ID
      * @throws Exception on network or server error
      */
-    public long sendMessage(String senderId, String senderName, String message) throws Exception {
+    public long sendMessage(String senderId, String senderName,
+                            String recipientId, String recipientName,
+                            String message) throws Exception {
         String body = "action=chat_send"
-                + "&board_token=" + java.net.URLEncoder.encode(boardToken, "UTF-8")
-                + "&sender_id="   + java.net.URLEncoder.encode(senderId,   "UTF-8")
-                + "&sender_name=" + java.net.URLEncoder.encode(senderName, "UTF-8")
-                + "&message="     + java.net.URLEncoder.encode(message,    "UTF-8");
+                + "&board_token="     + java.net.URLEncoder.encode(boardToken,     "UTF-8")
+                + "&sender_id="       + java.net.URLEncoder.encode(senderId,       "UTF-8")
+                + "&sender_name="     + java.net.URLEncoder.encode(senderName,     "UTF-8")
+                + "&recipient_id="    + java.net.URLEncoder.encode(recipientId,    "UTF-8")
+                + "&recipient_name="  + java.net.URLEncoder.encode(recipientName,  "UTF-8")
+                + "&message="         + java.net.URLEncoder.encode(message,        "UTF-8");
 
         HttpURLConnection conn = openPost(baseUrl, body);
         try {
