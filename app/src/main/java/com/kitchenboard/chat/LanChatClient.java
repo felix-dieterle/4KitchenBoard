@@ -2,6 +2,8 @@ package com.kitchenboard.chat;
 
 import android.util.Log;
 
+import org.json.JSONObject;
+
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.Charset;
@@ -53,6 +55,32 @@ public class LanChatClient {
                 Log.w(TAG, "broadcast: failed to reach " + peer.deviceName
                         + " (" + peer.ip + ")", e);
             }
+        }
+    }
+
+    /**
+     * Sends a delivery or read ACK to a peer.
+     * Failures are logged but not re-thrown (ACK delivery is best-effort).
+     *
+     * @param ip     IPv4 address of the original sender
+     * @param msgId  The ID of the original message being acknowledged
+     * @param status {@link ChatMessage#STATUS_DELIVERED} or {@link ChatMessage#STATUS_READ}
+     */
+    public static void sendAck(String ip, long msgId, int status) {
+        try {
+            JSONObject ack = new JSONObject();
+            ack.put("type",   "ack");
+            ack.put("msgId",  msgId);
+            ack.put("status", status);
+            try (Socket s = new Socket()) {
+                s.connect(new java.net.InetSocketAddress(ip, LanChatServer.CHAT_PORT), TIMEOUT);
+                s.setSoTimeout(TIMEOUT);
+                OutputStream out = s.getOutputStream();
+                out.write((ack.toString() + "\n").getBytes(Charset.forName("UTF-8")));
+                out.flush();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "sendAck to " + ip + " failed (msgId=" + msgId + ")", e);
         }
     }
 }

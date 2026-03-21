@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Double check mark (grey): message delivered but not read -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="16dp"
+    android:viewportWidth="28"
+    android:viewportHeight="24">
+    <!-- First tick -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="@color/msg_status_delivered"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M2,12 L7,17 L16,8"/>
+    <!-- Second tick (offset right) -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="@color/msg_status_delivered"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M8,12 L13,17 L22,8"/>
+</vector>

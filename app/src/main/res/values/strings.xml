@@ -470,6 +470,20 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. �
     <string name="chat_recipient_hint">Person wählen…</string>
     <string name="chat_to_label">An: %s</string>
     <string name="chat_lan_no_peers">Keine anderen Geräte im LAN gefunden.</string>
+    <!-- Active status -->
+    <string name="chat_active_you">Aktiv</string>
+    <string name="chat_inactive_you">Inaktiv</string>
+    <string name="chat_active_users_label">Online:</string>
+    <string name="chat_no_active_users">Niemand online</string>
+    <string name="chat_settings_active">Als aktiv (empfangsbereit) anzeigen</string>
+    <!-- Delivery status (content description for screen readers) -->
+    <string name="chat_status_sent">Gesendet</string>
+    <string name="chat_status_delivered">Empfangen</string>
+    <string name="chat_status_read">Gelesen</string>
+    <!-- Central unread popup -->
+    <string name="unread_popup_title">Ungelesene Benachrichtigungen</string>
+    <string name="unread_popup_later">Später</string>
+    <string name="unread_popup_mark_all">Alle gelesen</string>
 
     <!-- Power saving module -->
     <string name="power_saving_section">Stromspar-Einstellungen</string>

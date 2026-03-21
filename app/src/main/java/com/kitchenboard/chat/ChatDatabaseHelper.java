@@ -19,35 +19,42 @@ import java.util.List;
  *
  * <p>DB version history:<br>
  * v1 – initial schema: chat_messages table<br>
- * v2 – added recipient_id and recipient_name columns for directed messages
+ * v2 – added recipient_id and recipient_name columns for directed messages<br>
+ * v3 – added delivery_status column (0=sent, 1=delivered, 2=read)
  */
 public class ChatDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "chat.db";
-    private static final int    DB_VERSION = 2;
+    private static final int    DB_VERSION = 3;
 
     static final String TABLE  = "chat_messages";
-    static final String COL_ID             = "id";
-    static final String COL_SENDER_ID      = "sender_id";
-    static final String COL_SENDER_NAME    = "sender_name";
+    static final String COL_ID              = "id";
+    static final String COL_SENDER_ID       = "sender_id";
+    static final String COL_SENDER_NAME     = "sender_name";
     /** Recipient device ID; empty string means broadcast (visible to all). */
-    static final String COL_RECIPIENT_ID   = "recipient_id";
+    static final String COL_RECIPIENT_ID    = "recipient_id";
     /** Human-readable recipient name; empty string for broadcasts. */
-    static final String COL_RECIPIENT_NAME = "recipient_name";
-    static final String COL_MESSAGE        = "message";
-    static final String COL_TIMESTAMP_MS   = "timestamp_ms";
-    static final String COL_IS_READ        = "is_read";
+    static final String COL_RECIPIENT_NAME  = "recipient_name";
+    static final String COL_MESSAGE         = "message";
+    static final String COL_TIMESTAMP_MS    = "timestamp_ms";
+    static final String COL_IS_READ         = "is_read";
+    /**
+     * Delivery status for outgoing messages (see {@link ChatMessage#STATUS_SENT} etc.).
+     * Stored as INTEGER: 0 = sent, 1 = delivered, 2 = read.
+     */
+    static final String COL_DELIVERY_STATUS = "delivery_status";
 
     private static final String CREATE_TABLE =
             "CREATE TABLE " + TABLE + " ("
-            + COL_ID             + " INTEGER PRIMARY KEY,"
-            + COL_SENDER_ID      + " TEXT NOT NULL DEFAULT '',"
-            + COL_SENDER_NAME    + " TEXT NOT NULL DEFAULT '',"
-            + COL_RECIPIENT_ID   + " TEXT NOT NULL DEFAULT '',"
-            + COL_RECIPIENT_NAME + " TEXT NOT NULL DEFAULT '',"
-            + COL_MESSAGE        + " TEXT NOT NULL DEFAULT '',"
-            + COL_TIMESTAMP_MS   + " INTEGER NOT NULL DEFAULT 0,"
-            + COL_IS_READ        + " INTEGER NOT NULL DEFAULT 0"
+            + COL_ID              + " INTEGER PRIMARY KEY,"
+            + COL_SENDER_ID       + " TEXT NOT NULL DEFAULT '',"
+            + COL_SENDER_NAME     + " TEXT NOT NULL DEFAULT '',"
+            + COL_RECIPIENT_ID    + " TEXT NOT NULL DEFAULT '',"
+            + COL_RECIPIENT_NAME  + " TEXT NOT NULL DEFAULT '',"
+            + COL_MESSAGE         + " TEXT NOT NULL DEFAULT '',"
+            + COL_TIMESTAMP_MS    + " INTEGER NOT NULL DEFAULT 0,"
+            + COL_IS_READ         + " INTEGER NOT NULL DEFAULT 0,"
+            + COL_DELIVERY_STATUS + " INTEGER NOT NULL DEFAULT 0"
             + ")";
 
     public ChatDatabaseHelper(Context context) {
@@ -68,6 +75,11 @@ public class ChatDatabaseHelper extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN "
                     + COL_RECIPIENT_NAME + " TEXT NOT NULL DEFAULT ''");
         }
+        if (oldVersion < 3) {
+            // v3: add delivery status column (0=sent, 1=delivered, 2=read)
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN "
+                    + COL_DELIVERY_STATUS + " INTEGER NOT NULL DEFAULT 0");
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -79,14 +91,15 @@ public class ChatDatabaseHelper extends SQLiteOpenHelper {
      */
     public void upsert(ChatMessage msg) {
         ContentValues cv = new ContentValues();
-        cv.put(COL_ID,             msg.id);
-        cv.put(COL_SENDER_ID,      msg.senderId);
-        cv.put(COL_SENDER_NAME,    msg.senderName);
-        cv.put(COL_RECIPIENT_ID,   msg.recipientId);
-        cv.put(COL_RECIPIENT_NAME, msg.recipientName);
-        cv.put(COL_MESSAGE,        msg.message);
-        cv.put(COL_TIMESTAMP_MS,   msg.timestampMs);
-        cv.put(COL_IS_READ,        msg.isRead ? 1 : 0);
+        cv.put(COL_ID,              msg.id);
+        cv.put(COL_SENDER_ID,       msg.senderId);
+        cv.put(COL_SENDER_NAME,     msg.senderName);
+        cv.put(COL_RECIPIENT_ID,    msg.recipientId);
+        cv.put(COL_RECIPIENT_NAME,  msg.recipientName);
+        cv.put(COL_MESSAGE,         msg.message);
+        cv.put(COL_TIMESTAMP_MS,    msg.timestampMs);
+        cv.put(COL_IS_READ,         msg.isRead ? 1 : 0);
+        cv.put(COL_DELIVERY_STATUS, msg.deliveryStatus);
         getWritableDatabase().insertWithOnConflict(TABLE, null, cv,
                 SQLiteDatabase.CONFLICT_REPLACE);
     }
@@ -114,16 +127,17 @@ public class ChatDatabaseHelper extends SQLiteOpenHelper {
                 String.valueOf(limit));
         if (c == null) return list;
         try {
-            int iId    = c.getColumnIndexOrThrow(COL_ID);
-            int iSid   = c.getColumnIndexOrThrow(COL_SENDER_ID);
-            int iSn    = c.getColumnIndexOrThrow(COL_SENDER_NAME);
-            int iRid   = c.getColumnIndexOrThrow(COL_RECIPIENT_ID);
-            int iRn    = c.getColumnIndexOrThrow(COL_RECIPIENT_NAME);
-            int iMsg   = c.getColumnIndexOrThrow(COL_MESSAGE);
-            int iTs    = c.getColumnIndexOrThrow(COL_TIMESTAMP_MS);
-            int iRead  = c.getColumnIndexOrThrow(COL_IS_READ);
+            int iId     = c.getColumnIndexOrThrow(COL_ID);
+            int iSid    = c.getColumnIndexOrThrow(COL_SENDER_ID);
+            int iSn     = c.getColumnIndexOrThrow(COL_SENDER_NAME);
+            int iRid    = c.getColumnIndexOrThrow(COL_RECIPIENT_ID);
+            int iRn     = c.getColumnIndexOrThrow(COL_RECIPIENT_NAME);
+            int iMsg    = c.getColumnIndexOrThrow(COL_MESSAGE);
+            int iTs     = c.getColumnIndexOrThrow(COL_TIMESTAMP_MS);
+            int iRead   = c.getColumnIndexOrThrow(COL_IS_READ);
+            int iStatus = c.getColumnIndex(COL_DELIVERY_STATUS); // may be -1 on old DBs
             while (c.moveToNext()) {
-                list.add(new ChatMessage(
+                ChatMessage m = new ChatMessage(
                         c.getLong(iId),
                         c.getString(iSid),
                         c.getString(iSn),
@@ -131,7 +145,9 @@ public class ChatDatabaseHelper extends SQLiteOpenHelper {
                         c.getString(iRn),
                         c.getString(iMsg),
                         c.getLong(iTs),
-                        c.getInt(iRead) != 0));
+                        c.getInt(iRead) != 0,
+                        iStatus >= 0 ? c.getInt(iStatus) : ChatMessage.STATUS_SENT);
+                list.add(m);
             }
         } finally {
             c.close();
@@ -196,6 +212,22 @@ public class ChatDatabaseHelper extends SQLiteOpenHelper {
         ContentValues cv = new ContentValues();
         cv.put(COL_IS_READ, 1);
         getWritableDatabase().update(TABLE, cv, COL_IS_READ + "=0", null);
+    }
+
+    /**
+     * Updates the delivery status of a single outgoing message identified by its ID.
+     * Only upgrades status (sent→delivered→read), never downgrades.
+     *
+     * @param msgId     The message ID to update
+     * @param newStatus One of {@link ChatMessage#STATUS_DELIVERED} or {@link ChatMessage#STATUS_READ}
+     */
+    public void updateDeliveryStatus(long msgId, int newStatus) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_DELIVERY_STATUS, newStatus);
+        // Only upgrade: do not overwrite a higher status with a lower one
+        getWritableDatabase().update(TABLE, cv,
+                COL_ID + "=? AND " + COL_DELIVERY_STATUS + "<?",
+                new String[]{ String.valueOf(msgId), String.valueOf(newStatus) });
     }
 
     /** Deletes messages older than {@code keepCount} messages (keeps the newest ones). */

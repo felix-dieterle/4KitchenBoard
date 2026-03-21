@@ -115,7 +115,13 @@ public class MainActivity extends AppCompatActivity {
                 && notificationPanelOverlay.getVisibility() == View.VISIBLE) {
             populateNotificationList();
         }
+        maybeShowUnreadPopup();
     };
+
+    // ── Unread popup ──────────────────────────────────────────────────────────
+    private View unreadPopupOverlay;
+    private LinearLayout unreadPopupList;
+    private android.widget.ScrollView unreadPopupScroll;
 
     // ── Chat panel ────────────────────────────────────────────────────────────
     private View chatPanelOverlay;
@@ -124,6 +130,14 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvChatEmpty;
     private EditText etChatInput;
     private TextView tvChatRecipientSelected;
+    /** Active-status dot in the chat panel header. */
+    private ImageView ivChatActiveDot;
+    /** Label next to the active-status dot. */
+    private TextView tvChatActiveLabel;
+    /** Row showing currently active LAN peers. */
+    private View chatActivePeersRow;
+    /** Text showing comma-separated active peer names. */
+    private TextView tvChatActivePeers;
     private static final ExecutorService CHAT_EXECUTOR = Executors.newSingleThreadExecutor();
     /** Fraction of screen height used as the max height of the chat message list. */
     private static final float CHAT_PANEL_HEIGHT_RATIO = 0.40f;
@@ -217,6 +231,7 @@ public class MainActivity extends AppCompatActivity {
             ChatCheckScheduler.schedule(this);
         }
         setupChatPanel();
+        setupUnreadPopup();
 
         // Initialize power saving manager (dark schedule + low battery dimming)
         powerSavingManager = new PowerSavingManager(this);
@@ -459,10 +474,15 @@ public class MainActivity extends AppCompatActivity {
         cbChatLanMode.setText(R.string.chat_settings_lan_mode);
         cbChatLanMode.setChecked(prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_LAN_MODE, false));
 
+        final CheckBox cbChatActive = new CheckBox(this);
+        cbChatActive.setText(R.string.chat_settings_active);
+        cbChatActive.setChecked(prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_ACTIVE, true));
+
         layout.addView(tvChatSection);
         layout.addView(cbChatEnabled);
         layout.addView(cbChatTokenFilter);
         layout.addView(cbChatLanMode);
+        layout.addView(cbChatActive);
 
         // ── Stromspar-Einstellungen ───────────────────────────────────────────
         final TextView tvPowerSection = new TextView(this);
@@ -547,9 +567,11 @@ public class MainActivity extends AppCompatActivity {
                 editor.putInt(PREF_WELLNESS_MINUTE, wellnessTime[1]);
                 // Chat settings
                 boolean newLanMode = cbChatLanMode.isChecked();
+                boolean newActive  = cbChatActive.isChecked();
                 editor.putBoolean(ChatCheckReceiver.PREF_CHAT_ENABLED,      cbChatEnabled.isChecked());
                 editor.putBoolean(ChatCheckReceiver.PREF_CHAT_TOKEN_FILTER,  cbChatTokenFilter.isChecked());
-                editor.putBoolean(ChatCheckReceiver.PREF_CHAT_LAN_MODE,                       newLanMode);
+                editor.putBoolean(ChatCheckReceiver.PREF_CHAT_LAN_MODE,      newLanMode);
+                editor.putBoolean(ChatCheckReceiver.PREF_CHAT_ACTIVE,        newActive);
                 // Power saving settings
                 editor.putBoolean(PowerSavingManager.PREF_LOW_BATTERY_DIM,       cbLowBatteryDim.isChecked());
                 editor.putBoolean(PowerSavingManager.PREF_DARK_SCHEDULE_ENABLED, cbDarkSchedule.isChecked());
@@ -573,6 +595,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 // Always restart LAN server/discovery so it is available as fallback
                 initLanModeIfEnabled();
+                refreshActiveStatusUi();
                 refreshChatBadge();
             }
         });
@@ -831,6 +854,10 @@ public class MainActivity extends AppCompatActivity {
         tvChatEmpty              = findViewById(R.id.tv_chat_empty);
         etChatInput              = findViewById(R.id.et_chat_input);
         tvChatRecipientSelected  = findViewById(R.id.tv_chat_recipient_selected);
+        ivChatActiveDot          = findViewById(R.id.iv_chat_active_dot);
+        tvChatActiveLabel        = findViewById(R.id.tv_chat_active_label);
+        chatActivePeersRow       = findViewById(R.id.chat_active_peers_row);
+        tvChatActivePeers        = findViewById(R.id.tv_chat_active_peers);
 
         // Constrain the message list scroll area to ~40% screen height
         android.widget.ScrollView chatScroll = findViewById(R.id.chat_scroll_view);
@@ -862,12 +889,23 @@ public class MainActivity extends AppCompatActivity {
             tvChatRecipientSelected.setOnClickListener(v -> showRecipientPicker());
         }
 
+        // Active-status toggle (tap the label next to the dot)
+        if (tvChatActiveLabel != null) {
+            tvChatActiveLabel.setOnClickListener(v -> toggleChatActiveStatus());
+        }
+        if (ivChatActiveDot != null) {
+            ivChatActiveDot.setOnClickListener(v -> toggleChatActiveStatus());
+        }
+
         // Backdrop tap closes the panel
         if (chatPanelOverlay != null) {
             chatPanelOverlay.setOnClickListener(v -> closeChatPanel());
             View panel = chatPanelOverlay.findViewById(R.id.chat_panel);
             if (panel != null) panel.setOnClickListener(v -> { /* consume */ });
         }
+
+        // Reflect persisted active status in the header
+        refreshActiveStatusUi();
 
         // Start LAN components if LAN mode is enabled
         initLanModeIfEnabled();
@@ -889,12 +927,21 @@ public class MainActivity extends AppCompatActivity {
             }
             refreshChatBadge();
         }));
+        server.setAckReceivedListener((msgId, status) -> runOnUiThread(() -> {
+            // Delivery/read ACK arrived – refresh the chat panel if open
+            if (chatPanelOverlay != null
+                    && chatPanelOverlay.getVisibility() == View.VISIBLE) {
+                populateChatPanel();
+            }
+        }));
         server.start(this, myDeviceId);
 
+        boolean initialActive = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(ChatCheckReceiver.PREF_CHAT_ACTIVE, true);
+
         lanDiscovery = new LanDiscoveryManager();
-        lanDiscovery.setPeerListListener(peers -> {
-            // Peer list changed – no immediate UI action needed; picker reads on demand
-        });
+        lanDiscovery.setActiveStatus(initialActive);
+        lanDiscovery.setPeerListListener(peers -> runOnUiThread(this::updateActivePeersRow));
         CHAT_EXECUTOR.submit(() -> lanDiscovery.start(myDeviceId, myDeviceName));
     }
 
@@ -910,15 +957,42 @@ public class MainActivity extends AppCompatActivity {
     private void openChatPanel() {
         if (chatPanelOverlay == null) return;
         populateChatPanel();
+        updateActivePeersRow();
         chatPanelOverlay.setVisibility(View.VISIBLE);
         chatPanelOverlay.setAlpha(0f);
         chatPanelOverlay.animate().alpha(1f).setDuration(180).start();
         pauseAutoAdvance();
 
-        // Mark all messages as read when panel is opened
+        // Mark all messages as read and send read ACKs to LAN senders
+        String myDeviceId = "device_" + android.provider.Settings.Secure.getString(
+                getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
         CHAT_EXECUTOR.execute(() -> {
             ChatDatabaseHelper db = new ChatDatabaseHelper(this);
-            try { db.markAllRead(); } finally { db.close(); }
+            List<ChatMessage> unread;
+            try {
+                // Collect unread incoming messages before marking them read
+                unread = db.getMessages(200, myDeviceId);
+                db.markAllRead();
+            } finally {
+                db.close();
+            }
+            // Send read ACKs for LAN unread messages (best-effort)
+            if (lanDiscovery != null) {
+                List<LanPeer> peers = lanDiscovery.getPeers();
+                for (ChatMessage msg : unread) {
+                    if (!msg.isRead && !msg.senderId.equals(myDeviceId)) {
+                        // Find sender peer by ID
+                        for (LanPeer peer : peers) {
+                            if (peer.deviceId.equals(msg.senderId)) {
+                                final long msgId = msg.id;
+                                final String ip  = peer.ip;
+                                LanChatClient.sendAck(ip, msgId, ChatMessage.STATUS_READ);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
             runOnUiThread(this::refreshChatBadge);
         });
     }
@@ -963,6 +1037,7 @@ public class MainActivity extends AppCompatActivity {
             TextView tvText      = item.findViewById(R.id.tv_chat_message);
             TextView tvTime      = item.findViewById(R.id.tv_chat_time);
             TextView tvRecipient = item.findViewById(R.id.tv_chat_recipient);
+            ImageView ivStatus   = item.findViewById(R.id.iv_chat_status);
             if (tvSender != null) tvSender.setText(msg.senderName);
             if (tvText   != null) tvText.setText(msg.message);
             if (tvTime   != null) tvTime.setText(formatRelativeTime(msg.timestampMs));
@@ -972,6 +1047,28 @@ public class MainActivity extends AppCompatActivity {
                     tvRecipient.setVisibility(View.VISIBLE);
                 } else {
                     tvRecipient.setVisibility(View.GONE);
+                }
+            }
+            // Show delivery-status icon only for outgoing messages sent by this device
+            if (ivStatus != null) {
+                if (msg.senderId.equals(myDeviceId)) {
+                    ivStatus.setVisibility(View.VISIBLE);
+                    switch (msg.deliveryStatus) {
+                        case ChatMessage.STATUS_READ:
+                            ivStatus.setImageResource(R.drawable.ic_msg_read);
+                            ivStatus.setContentDescription(getString(R.string.chat_status_read));
+                            break;
+                        case ChatMessage.STATUS_DELIVERED:
+                            ivStatus.setImageResource(R.drawable.ic_msg_delivered);
+                            ivStatus.setContentDescription(getString(R.string.chat_status_delivered));
+                            break;
+                        default:
+                            ivStatus.setImageResource(R.drawable.ic_msg_sent);
+                            ivStatus.setContentDescription(getString(R.string.chat_status_sent));
+                            break;
+                    }
+                } else {
+                    ivStatus.setVisibility(View.GONE);
                 }
             }
 
@@ -1230,6 +1327,160 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    /** Toggles this device's active/ready-to-receive status and persists + broadcasts it. */
+    private void toggleChatActiveStatus() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        boolean current = prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_ACTIVE, true);
+        boolean next    = !current;
+        prefs.edit().putBoolean(ChatCheckReceiver.PREF_CHAT_ACTIVE, next).apply();
+        if (lanDiscovery != null) {
+            CHAT_EXECUTOR.submit(() -> lanDiscovery.setActiveStatus(next));
+        }
+        refreshActiveStatusUi();
+    }
+
+    /** Reflects the persisted active status on the dot and label in the chat panel header. */
+    private void refreshActiveStatusUi() {
+        if (ivChatActiveDot == null) return;
+        boolean active = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(ChatCheckReceiver.PREF_CHAT_ACTIVE, true);
+        ivChatActiveDot.setAlpha(active ? 1.0f : 0.3f);
+        if (tvChatActiveLabel != null) {
+            tvChatActiveLabel.setText(active
+                    ? R.string.chat_active_you
+                    : R.string.chat_inactive_you);
+        }
+    }
+
+    /** Refreshes the active-peers row in the chat panel based on current LAN peer list. */
+    private void updateActivePeersRow() {
+        if (chatActivePeersRow == null || tvChatActivePeers == null) return;
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        boolean lanMode = prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_LAN_MODE, false);
+        if (!lanMode || lanDiscovery == null) {
+            chatActivePeersRow.setVisibility(View.GONE);
+            return;
+        }
+        List<LanPeer> peers = lanDiscovery.getPeers();
+        List<String> activeNames = new ArrayList<>();
+        for (LanPeer peer : peers) {
+            if (peer.isActive) activeNames.add(peer.deviceName);
+        }
+        if (activeNames.isEmpty()) {
+            chatActivePeersRow.setVisibility(View.GONE);
+        } else {
+            chatActivePeersRow.setVisibility(View.VISIBLE);
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < activeNames.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(activeNames.get(i));
+            }
+            tvChatActivePeers.setText(sb.toString());
+        }
+    }
+
+    // ── Unread popup ──────────────────────────────────────────────────────────
+
+    /** Initialises the central unread-notifications popup views and button listeners. */
+    private void setupUnreadPopup() {
+        unreadPopupOverlay = findViewById(R.id.unread_popup_overlay);
+        unreadPopupScroll  = findViewById(R.id.unread_popup_scroll);
+        unreadPopupList    = findViewById(R.id.unread_popup_list);
+        View btnLater    = findViewById(R.id.btn_unread_popup_later);
+        View btnMarkAll  = findViewById(R.id.btn_unread_popup_mark_all);
+        if (btnLater != null) {
+            btnLater.setOnClickListener(v -> hideUnreadPopup(false));
+        }
+        if (btnMarkAll != null) {
+            btnMarkAll.setOnClickListener(v -> {
+                NotificationStore.getInstance(this).markAllRead();
+                hideUnreadPopup(true);
+            });
+        }
+        if (unreadPopupOverlay != null) {
+            // Constrain scroll to ~40% screen height
+            if (unreadPopupScroll != null) {
+                int maxH = (int) (getResources().getDisplayMetrics().heightPixels * 0.40f);
+                android.view.ViewGroup.LayoutParams lp = unreadPopupScroll.getLayoutParams();
+                lp.height = maxH;
+                unreadPopupScroll.setLayoutParams(lp);
+            }
+        }
+    }
+
+    /**
+     * Shows the unread popup if there are unread notifications and the popup is not already
+     * visible and no other overlay (notification panel, chat panel) is open.
+     */
+    private void maybeShowUnreadPopup() {
+        if (unreadPopupOverlay == null) return;
+        if (unreadPopupOverlay.getVisibility() == View.VISIBLE) return;
+        // Don't compete with the explicit notification or chat panels
+        if (notificationPanelOverlay != null
+                && notificationPanelOverlay.getVisibility() == View.VISIBLE) return;
+        if (chatPanelOverlay != null
+                && chatPanelOverlay.getVisibility() == View.VISIBLE) return;
+
+        int unread = NotificationStore.getInstance(this).getUnreadCount();
+        if (unread <= 0) return;
+
+        populateUnreadPopup();
+        unreadPopupOverlay.setVisibility(View.VISIBLE);
+        unreadPopupOverlay.setAlpha(0f);
+        unreadPopupOverlay.animate().alpha(1f).setDuration(200).start();
+        pauseAutoAdvance();
+    }
+
+    private void hideUnreadPopup(boolean resumeRotation) {
+        if (unreadPopupOverlay == null) return;
+        unreadPopupOverlay.animate()
+                .alpha(0f)
+                .setDuration(150)
+                .withEndAction(() -> {
+                    unreadPopupOverlay.setVisibility(View.GONE);
+                    unreadPopupOverlay.setAlpha(1f);
+                })
+                .start();
+        if (resumeRotation) resumeAutoAdvance();
+    }
+
+    /** Fills the unread popup list with currently unread notifications. */
+    private void populateUnreadPopup() {
+        if (unreadPopupList == null) return;
+        unreadPopupList.removeAllViews();
+        List<AppNotification> all = NotificationStore.getInstance(this).getAll();
+        LayoutInflater inflater = LayoutInflater.from(this);
+        boolean any = false;
+        for (AppNotification n : all) {
+            if (n.isRead) continue;
+            View item = inflater.inflate(R.layout.item_notification,
+                    unreadPopupList, false);
+            TextView tvTitle   = item.findViewById(R.id.tv_notif_title);
+            TextView tvMessage = item.findViewById(R.id.tv_notif_message);
+            TextView tvTime    = item.findViewById(R.id.tv_notif_time);
+            ImageView ivIcon   = item.findViewById(R.id.iv_notif_icon);
+            if (tvTitle   != null) tvTitle.setText(n.title);
+            if (tvMessage != null) tvMessage.setText(n.message);
+            if (tvTime    != null) tvTime.setText(formatRelativeTime(n.timestampMs));
+            if (ivIcon    != null) {
+                switch (n.type) {
+                    case AppNotification.TYPE_CHAT:
+                        ivIcon.setImageResource(R.drawable.ic_chat);
+                        break;
+                    default:
+                        ivIcon.setImageResource(R.drawable.ic_notification_bell);
+                        break;
+                }
+            }
+            unreadPopupList.addView(item);
+            any = true;
+        }
+        if (!any && unreadPopupOverlay != null) {
+            // Nothing unread – close popup immediately
+            unreadPopupOverlay.setVisibility(View.GONE);
+        }
+    }
+
     // ── Active profile ────────────────────────────────────────────────────────
 
     /** Binds the active-profile avatar view and registers a prefs change listener. */
@@ -1457,6 +1708,8 @@ public class MainActivity extends AppCompatActivity {
         NotificationStore.getInstance(this).addObserver(notificationObserver);
         refreshNotificationBadge();
         refreshActiveProfileAvatar();
+        refreshChatBadge();
+        maybeShowUnreadPopup();
 
         // Register receiver for direct wellness check trigger (e.g. from alarm)
         wellnessCheckReceiver = new BroadcastReceiver() {

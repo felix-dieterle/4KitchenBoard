@@ -46,11 +46,14 @@ public class LanDiscoveryManager {
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    /** Separate executor for ad-hoc broadcast calls (e.g. on active-status change). */
+    private final ExecutorService CHAT_BROADCAST_EXECUTOR = Executors.newSingleThreadExecutor();
     private Future<?> listenerTask;
     private DatagramSocket listenerSocket;
 
     private String myDeviceId;
     private String myDeviceName;
+    private volatile boolean myActiveStatus = true;
 
     /** Callback interface for peer list changes. */
     public interface PeerListListener {
@@ -66,6 +69,21 @@ public class LanDiscoveryManager {
     /** Sets a listener that is notified whenever the peer list changes. */
     public void setPeerListListener(PeerListListener l) {
         this.peerListListener = l;
+    }
+
+    /**
+     * Updates the local active status and immediately broadcasts it to all peers.
+     *
+     * @param active {@code true} means this device is ready to receive chat messages
+     */
+    public void setActiveStatus(boolean active) {
+        myActiveStatus = active;
+        CHAT_BROADCAST_EXECUTOR.submit(this::broadcastHello);
+    }
+
+    /** Returns the current active status of this device. */
+    public boolean getActiveStatus() {
+        return myActiveStatus;
     }
 
     /**
@@ -161,8 +179,9 @@ public class LanDiscoveryManager {
         try {
             JSONObject obj = new JSONObject(payload);
             if (!"hello".equals(obj.optString("type"))) return;
-            String deviceId   = obj.optString("deviceId",   "");
-            String deviceName = obj.optString("deviceName", "");
+            String  deviceId   = obj.optString("deviceId",   "");
+            String  deviceName = obj.optString("deviceName", "");
+            boolean active     = obj.optBoolean("active", true);
             if (deviceId.isEmpty() || deviceId.equals(myDeviceId)) return;
 
             boolean changed;
@@ -170,10 +189,13 @@ public class LanDiscoveryManager {
                 LanPeer existing = peers.get(deviceId);
                 if (existing != null) {
                     existing.lastSeenMs = System.currentTimeMillis();
-                    changed = false;
+                    boolean wasActive = existing.isActive;
+                    existing.isActive = active;
+                    // Active-status change counts as a list change even if peer was already known
+                    changed = (wasActive != active);
                 } else {
                     peers.put(deviceId, new LanPeer(deviceId, deviceName, senderIp,
-                            System.currentTimeMillis()));
+                            System.currentTimeMillis(), active));
                     changed = true;
                 }
             }
@@ -193,6 +215,7 @@ public class LanDiscoveryManager {
             obj.put("type",       "hello");
             obj.put("deviceId",   myDeviceId);
             obj.put("deviceName", myDeviceName);
+            obj.put("active",     myActiveStatus);
             return obj.toString();
         } catch (Exception e) {
             return "{}";

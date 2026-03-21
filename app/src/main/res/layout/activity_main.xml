@@ -268,6 +268,27 @@
                     android:textSize="16sp"
                     android:textStyle="bold"/>
 
+                <!-- Active-status toggle: green dot = active, grey = inactive -->
+                <ImageView
+                    android:id="@+id/iv_chat_active_dot"
+                    android:layout_width="12dp"
+                    android:layout_height="12dp"
+                    android:layout_marginEnd="4dp"
+                    android:src="@drawable/ic_online_dot"
+                    android:contentDescription="@string/chat_active_you"/>
+
+                <TextView
+                    android:id="@+id/tv_chat_active_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/chat_active_you"
+                    android:textColor="#FFFFFFBB"
+                    android:textSize="12sp"
+                    android:paddingEnd="8dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
+                    android:focusable="true"/>
+
                 <ImageButton
                     android:id="@+id/btn_close_chat_panel"
                     android:layout_width="36dp"
@@ -276,6 +297,46 @@
                     android:src="@android:drawable/ic_menu_close_clear_cancel"
                     android:contentDescription="@string/close"
                     android:tint="#FFFFFF"/>
+            </LinearLayout>
+
+            <!-- Active peers row (visible when LAN mode is on and peers are found) -->
+            <LinearLayout
+                android:id="@+id/chat_active_peers_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:background="@color/accent_light"
+                android:gravity="center_vertical"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:layout_marginEnd="6dp"
+                    android:src="@drawable/ic_online_dot"
+                    android:contentDescription=""/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/chat_active_users_label"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:layout_marginEnd="6dp"/>
+
+                <TextView
+                    android:id="@+id/tv_chat_active_peers"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="@color/text_primary"
+                    android:textSize="11sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"/>
             </LinearLayout>
 
             <!-- Message list (scrollable, ~40% screen height) -->
@@ -375,6 +436,100 @@
                     android:src="@android:drawable/ic_menu_send"
                     android:contentDescription="@string/chat_send"
                     android:tint="@color/accent"/>
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- Central unread-notifications popup (appears over content when new notifications arrive) -->
+    <FrameLayout
+        android:id="@+id/unread_popup_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:background="#66000000"
+        android:clickable="false"
+        android:focusable="false">
+
+        <LinearLayout
+            android:id="@+id/unread_popup_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginStart="32dp"
+            android:layout_marginEnd="32dp"
+            android:orientation="vertical"
+            android:background="@color/panel_bg"
+            android:elevation="16dp">
+
+            <!-- Popup header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:orientation="horizontal"
+                android:background="@color/accent"
+                android:paddingStart="16dp"
+                android:paddingEnd="8dp"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/unread_popup_title"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold"/>
+            </LinearLayout>
+
+            <!-- Scrollable notification list (max ~40% screen height) -->
+            <ScrollView
+                android:id="@+id/unread_popup_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:id="@+id/unread_popup_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:divider="@android:drawable/divider_horizontal_bright"
+                    android:showDividers="middle"/>
+            </ScrollView>
+
+            <!-- Action buttons -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="8dp"
+                android:gravity="end">
+
+                <TextView
+                    android:id="@+id/btn_unread_popup_mark_all"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/unread_popup_mark_all"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"/>
+
+                <TextView
+                    android:id="@+id/btn_unread_popup_later"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/unread_popup_later"
+                    android:textColor="@color/accent"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"/>
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
