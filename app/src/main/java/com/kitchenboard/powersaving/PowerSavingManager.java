@@ -39,7 +39,8 @@ public class PowerSavingManager {
     private static final String TAG = "PowerSavingManager";
 
     // ── SharedPreferences keys ────────────────────────────────────────────────
-    public static final String PREFS_NAME                 = "shopping_prefs";
+    /** SharedPreferences file name – same file used by the account setup dialog. */
+    public static final String PREFS_APP_SETTINGS             = "shopping_prefs";
     public static final String PREF_DARK_SCHEDULE_ENABLED = "dark_schedule_enabled";
     public static final String PREF_DARK_START_HOUR       = "dark_start_hour";
     public static final String PREF_DARK_START_MINUTE     = "dark_start_minute";
@@ -114,7 +115,7 @@ public class PowerSavingManager {
         this.window = window;
 
         // Register battery receiver
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_APP_SETTINGS, Context.MODE_PRIVATE);
         if (prefs.getBoolean(PREF_LOW_BATTERY_DIM, true)) {
             try {
                 context.registerReceiver(batteryReceiver,
@@ -154,7 +155,7 @@ public class PowerSavingManager {
      * Call after the user changes settings in the account dialog.
      */
     public void applySettings() {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_APP_SETTINGS, Context.MODE_PRIVATE);
         boolean darkEnabled = prefs.getBoolean(PREF_DARK_SCHEDULE_ENABLED, true);
         if (darkEnabled) {
             isDarkScheduleActive = isInsideDarkWindow(prefs);
