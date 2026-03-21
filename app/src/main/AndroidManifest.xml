@@ -106,6 +106,23 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".chat.ChatCheckReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.kitchenboard.action.CHAT_CHECK" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".powersaving.DarkScheduleReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.kitchenboard.action.DARK_ON" />
+                <action android:name="com.kitchenboard.action.DARK_OFF" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

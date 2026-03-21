@@ -20,6 +20,8 @@ public class AppNotification {
     public static final int TYPE_TASK = 3;
     /** Notification originates from a store geofence (nearby shopping items). */
     public static final int TYPE_SHOPPING = 4;
+    /** Notification originates from a new incoming chat message. */
+    public static final int TYPE_CHAT = 5;
 
     /** Unique identifier – creation timestamp in milliseconds. */
     public final long id;
