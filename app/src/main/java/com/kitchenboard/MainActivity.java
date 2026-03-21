@@ -476,34 +476,44 @@ public class MainActivity extends AppCompatActivity {
         cbDarkSchedule.setText(R.string.power_saving_dark_schedule_enabled);
         cbDarkSchedule.setChecked(prefs.getBoolean(PowerSavingManager.PREF_DARK_SCHEDULE_ENABLED, true));
 
-        int dsH = prefs.getInt(PowerSavingManager.PREF_DARK_START_HOUR,   PowerSavingManager.DEFAULT_DARK_START_HOUR);
-        int dsM = prefs.getInt(PowerSavingManager.PREF_DARK_START_MINUTE, PowerSavingManager.DEFAULT_DARK_START_MINUTE);
-        int deH = prefs.getInt(PowerSavingManager.PREF_DARK_END_HOUR,     PowerSavingManager.DEFAULT_DARK_END_HOUR);
-        int deM = prefs.getInt(PowerSavingManager.PREF_DARK_END_MINUTE,   PowerSavingManager.DEFAULT_DARK_END_MINUTE);
-        final int[] darkStart = {dsH, dsM};
-        final int[] darkEnd   = {deH, deM};
+        // winTimes[i] = { startH, startM, endH, endM } for active window i+1
+        final int[][] winTimes = new int[PowerSavingManager.WINDOW_COUNT][4];
+        final android.widget.Button[] winButtons = new android.widget.Button[PowerSavingManager.WINDOW_COUNT];
 
-        android.widget.Button btnDarkStart = new android.widget.Button(this);
-        btnDarkStart.setText(getString(R.string.power_saving_dark_start, dsH, dsM));
-        btnDarkStart.setOnClickListener(v -> new TimePickerDialog(this, (view1, h, m) -> {
-            darkStart[0] = h;
-            darkStart[1] = m;
-            btnDarkStart.setText(getString(R.string.power_saving_dark_start, h, m));
-        }, darkStart[0], darkStart[1], true).show());
+        for (int wi = 0; wi < PowerSavingManager.WINDOW_COUNT; wi++) {
+            final int idx = wi;
+            int sh = prefs.getInt(String.format(Locale.US, PowerSavingManager.PREF_WIN_START_HOUR,   wi + 1), PowerSavingManager.DEFAULT_WIN_START_HOUR[wi]);
+            int sm = prefs.getInt(String.format(Locale.US, PowerSavingManager.PREF_WIN_START_MINUTE, wi + 1), PowerSavingManager.DEFAULT_WIN_START_MINUTE[wi]);
+            int eh = prefs.getInt(String.format(Locale.US, PowerSavingManager.PREF_WIN_END_HOUR,     wi + 1), PowerSavingManager.DEFAULT_WIN_END_HOUR[wi]);
+            int em = prefs.getInt(String.format(Locale.US, PowerSavingManager.PREF_WIN_END_MINUTE,   wi + 1), PowerSavingManager.DEFAULT_WIN_END_MINUTE[wi]);
+            winTimes[wi][0] = sh; winTimes[wi][1] = sm;
+            winTimes[wi][2] = eh; winTimes[wi][3] = em;
 
-        android.widget.Button btnDarkEnd = new android.widget.Button(this);
-        btnDarkEnd.setText(getString(R.string.power_saving_dark_end, deH, deM));
-        btnDarkEnd.setOnClickListener(v -> new TimePickerDialog(this, (view1, h, m) -> {
-            darkEnd[0] = h;
-            darkEnd[1] = m;
-            btnDarkEnd.setText(getString(R.string.power_saving_dark_end, h, m));
-        }, darkEnd[0], darkEnd[1], true).show());
+            android.widget.Button btn = new android.widget.Button(this);
+            btn.setText(getString(R.string.power_saving_win_label, wi + 1, sh, sm, eh, em));
+            btn.setOnClickListener(v -> {
+                // First pick start time, then end time
+                new TimePickerDialog(this, (tp, h, m) -> {
+                    winTimes[idx][0] = h;
+                    winTimes[idx][1] = m;
+                    new TimePickerDialog(this, (tp2, h2, m2) -> {
+                        winTimes[idx][2] = h2;
+                        winTimes[idx][3] = m2;
+                        winButtons[idx].setText(getString(R.string.power_saving_win_label,
+                                idx + 1, winTimes[idx][0], winTimes[idx][1],
+                                winTimes[idx][2], winTimes[idx][3]));
+                    }, winTimes[idx][2], winTimes[idx][3], true).show();
+                    winButtons[idx].setText(getString(R.string.power_saving_win_label,
+                            idx + 1, h, m, winTimes[idx][2], winTimes[idx][3]));
+                }, winTimes[idx][0], winTimes[idx][1], true).show();
+            });
+            winButtons[wi] = btn;
+        }
 
         layout.addView(tvPowerSection);
         layout.addView(cbLowBatteryDim);
         layout.addView(cbDarkSchedule);
-        layout.addView(btnDarkStart);
-        layout.addView(btnDarkEnd);
+        for (android.widget.Button b : winButtons) layout.addView(b);
 
         // Track whether the user explicitly cancelled (back-press / outside tap should still save)
         final AtomicBoolean cancelClicked = new AtomicBoolean(false);
@@ -541,10 +551,12 @@ public class MainActivity extends AppCompatActivity {
                 // Power saving settings
                 editor.putBoolean(PowerSavingManager.PREF_LOW_BATTERY_DIM,       cbLowBatteryDim.isChecked());
                 editor.putBoolean(PowerSavingManager.PREF_DARK_SCHEDULE_ENABLED, cbDarkSchedule.isChecked());
-                editor.putInt(PowerSavingManager.PREF_DARK_START_HOUR,   darkStart[0]);
-                editor.putInt(PowerSavingManager.PREF_DARK_START_MINUTE, darkStart[1]);
-                editor.putInt(PowerSavingManager.PREF_DARK_END_HOUR,     darkEnd[0]);
-                editor.putInt(PowerSavingManager.PREF_DARK_END_MINUTE,   darkEnd[1]);
+                for (int wi = 0; wi < PowerSavingManager.WINDOW_COUNT; wi++) {
+                    editor.putInt(String.format(Locale.US, PowerSavingManager.PREF_WIN_START_HOUR,   wi + 1), winTimes[wi][0]);
+                    editor.putInt(String.format(Locale.US, PowerSavingManager.PREF_WIN_START_MINUTE, wi + 1), winTimes[wi][1]);
+                    editor.putInt(String.format(Locale.US, PowerSavingManager.PREF_WIN_END_HOUR,     wi + 1), winTimes[wi][2]);
+                    editor.putInt(String.format(Locale.US, PowerSavingManager.PREF_WIN_END_MINUTE,   wi + 1), winTimes[wi][3]);
+                }
                 editor.apply();
                 WellnessCheckScheduler.schedule(MainActivity.this);
                 if (powerSavingManager != null) powerSavingManager.applySettings();

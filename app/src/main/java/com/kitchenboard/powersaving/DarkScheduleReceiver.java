@@ -5,24 +5,31 @@ import android.content.Context;
 import android.content.Intent;
 
 /**
- * BroadcastReceiver triggered by the daily dark-schedule alarms.
+ * BroadcastReceiver triggered by the daily active-window schedule alarms.
  *
- * <p>Forwards the dark-on / dark-off action to any registered
+ * <p>Forwards the active-on / active-off action to any registered
  * {@link PowerSavingManager} instance running inside the app process.
- * The actual brightness change is applied by the manager's
+ * The actual brightness and screen-state change is applied by the manager's
  * internal receiver which listens for these local broadcasts.
+ *
+ * <p>Three configurable active windows are supported (defaults: 06:00–09:45,
+ * 12:00–13:45, 16:30–21:15). Outside these windows the screen is dimmed and
+ * {@code FLAG_KEEP_SCREEN_ON} is cleared so the display can sleep normally.
  */
 public class DarkScheduleReceiver extends BroadcastReceiver {
 
-    /** Broadcast action that triggers the dark (dim) state. */
-    public static final String ACTION_DARK_ON  = "com.kitchenboard.action.DARK_ON";
-    /** Broadcast action that restores normal brightness. */
+    /** Broadcast action that starts an active (bright) window. */
     public static final String ACTION_DARK_OFF = "com.kitchenboard.action.DARK_OFF";
+    /** Broadcast action that ends an active window (dims / sleeps screen). */
+    public static final String ACTION_DARK_ON  = "com.kitchenboard.action.DARK_ON";
 
-    /** PendingIntent request code for the dark-on alarm. */
-    static final int RC_DARK_ON  = 8600;
-    /** PendingIntent request code for the dark-off alarm. */
-    static final int RC_DARK_OFF = 8601;
+    /** PendingIntent request codes – one pair per active window. */
+    static final int RC_ACTIVE_ON_1  = 8600;
+    static final int RC_ACTIVE_OFF_1 = 8601;
+    static final int RC_ACTIVE_ON_2  = 8602;
+    static final int RC_ACTIVE_OFF_2 = 8603;
+    static final int RC_ACTIVE_ON_3  = 8604;
+    static final int RC_ACTIVE_OFF_3 = 8605;
 
     @Override
     public void onReceive(Context context, Intent intent) {
