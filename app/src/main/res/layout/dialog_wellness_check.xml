@@ -154,6 +154,15 @@
 
             </LinearLayout>
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/wellness_rating_legend"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:gravity="center"
+                android:paddingBottom="12dp" />
+
             <Button
                 android:id="@+id/wc_btn_next"
                 android:layout_width="match_parent"

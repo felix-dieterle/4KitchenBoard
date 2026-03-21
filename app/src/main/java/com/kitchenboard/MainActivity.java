@@ -129,6 +129,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         com.kitchenboard.update.UpdateLogger.logInfo(this, "MainActivity.onCreate: start");
+        // Keep the screen on permanently so the wall-mounted tablet never goes idle.
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_main);
 
         viewPager = findViewById(R.id.view_pager);

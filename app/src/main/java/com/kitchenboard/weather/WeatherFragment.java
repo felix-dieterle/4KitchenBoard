@@ -45,9 +45,13 @@ public class WeatherFragment extends Fragment {
 
     private static final String PREFS_NAME = "weather_prefs";
     private static final String KEY_CITY = "city_name";
+    private static final String KEY_LAST_REFRESH = "last_refresh_date";
     private static final String DEFAULT_CITY = "Berlin";
     private static final int LOCATION_PERMISSION_REQUEST = 100;
     private static final long SUB_PAGE_ADVANCE_MS = 5_000;
+    /** Date format used to track the last successful weather refresh (for daily auto-refresh). */
+    private static final SimpleDateFormat DATE_FMT_ISO =
+            new SimpleDateFormat("yyyy-MM-dd", Locale.US);
 
     private TextView tvCityLabel;
     private ProgressBar progressBar;
@@ -217,12 +221,25 @@ public class WeatherFragment extends Fragment {
     public void onResume() {
         super.onResume();
         subPageHandler.postDelayed(subPageRunnable, SUB_PAGE_ADVANCE_MS);
+        maybeRefreshDaily();
     }
 
     @Override
     public void onPause() {
         super.onPause();
         subPageHandler.removeCallbacks(subPageRunnable);
+    }
+
+    /** Triggers a weather reload if the last successful refresh was on a previous calendar day. */
+    private void maybeRefreshDaily() {
+        if (!isAdded() || getContext() == null) return;
+        SharedPreferences prefs = requireContext()
+                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String last  = prefs.getString(KEY_LAST_REFRESH, "");
+        String today = DATE_FMT_ISO.format(new Date());
+        if (!today.equals(last)) {
+            loadWeather();
+        }
     }
 
     // ── Location ──────────────────────────────────────────────────────────────
@@ -382,6 +399,12 @@ public class WeatherFragment extends Fragment {
 
         tvStatus.setVisibility(View.GONE);
         tvCityLabel.setText(data.getCityName());
+
+        // Record the date of this successful refresh for the daily auto-refresh logic.
+        if (getContext() != null) {
+            requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit().putString(KEY_LAST_REFRESH, DATE_FMT_ISO.format(new Date())).apply();
+        }
 
         displayWeekendWeather(data);
     }

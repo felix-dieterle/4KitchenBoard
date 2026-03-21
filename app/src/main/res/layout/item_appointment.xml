@@ -29,6 +29,11 @@
             android:layout_height="wrap_content"
             android:textSize="12sp"
             android:textColor="@color/text_secondary"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:paddingStart="2dp"
+            android:paddingEnd="2dp"
             android:visibility="gone"/>
 
         <TextView

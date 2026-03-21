@@ -98,7 +98,7 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
                                 pendingResult.finish();
                                 return;
                             } else {
-                                // No APK asset – inform user; no silent install possible
+                                // No APK asset – inform user; still check backend independently
                                 UpdateLogger.logError(context,
                                         "Auto-update: no APK asset found for " + result.tagName);
                                 showStatusNotification(context,
@@ -106,11 +106,10 @@ public class AutoUpdateReceiver extends BroadcastReceiver {
                                         context.getString(
                                                 R.string.auto_update_available_text,
                                                 result.tagName));
-                                pendingResult.finish();
-                                return;
+                                // Fall through: also check backend even though GitHub notified
                             }
                         }
-                        // Release exists but is not flagged for auto-update: check backend
+                        // Release not flagged for auto-update (or GitHub had no APK): check backend
                         checkBackend(context, pendingResult);
                     }
 

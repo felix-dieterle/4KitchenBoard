@@ -128,6 +128,7 @@
     <string name="calendar_timer_value">%d min vorher</string>
     <string name="calendar_timer_this_only">Nur diesen</string>
     <string name="calendar_timer_whole_series">Ganze Serie</string>
+    <string name="calendar_shift_time_title">Uhrzeit verschieben</string>
 
     <!-- Reminder notifications -->
     <string name="calendar_reminder_notification_title">Terminerinnerung</string>
@@ -447,4 +448,5 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. �
     <string name="wellness_settings_time_title">Uhrzeit für Morgen-Check</string>
     <string name="wellness_rating_low">niedrig</string>
     <string name="wellness_rating_high">hoch</string>
+    <string name="wellness_rating_legend">☹ 1 = am schlechtesten · 5 = am besten ☺</string>
 </resources>
