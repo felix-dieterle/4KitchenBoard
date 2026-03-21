@@ -36,6 +36,12 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.kitchenboard.notifications.AppNotification;
 import com.kitchenboard.notifications.NotificationStore;
+import com.kitchenboard.chat.ChatCheckScheduler;
+import com.kitchenboard.chat.ChatCheckReceiver;
+import com.kitchenboard.chat.ChatDatabaseHelper;
+import com.kitchenboard.chat.ChatMessage;
+import com.kitchenboard.chat.ChatApiClient;
+import com.kitchenboard.powersaving.PowerSavingManager;
 import com.kitchenboard.shopping.ShoppingFragment;
 import com.kitchenboard.tasks.TasksCheckScheduler;
 import com.kitchenboard.update.AutoUpdateReceiver;
@@ -56,6 +62,8 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MainActivity extends AppCompatActivity {
@@ -98,11 +106,25 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvNoNotifications;
     private final NotificationStore.Observer notificationObserver = () -> {
         refreshNotificationBadge();
+        refreshChatBadge();
         if (notificationPanelOverlay != null
                 && notificationPanelOverlay.getVisibility() == View.VISIBLE) {
             populateNotificationList();
         }
     };
+
+    // ── Chat panel ────────────────────────────────────────────────────────────
+    private View chatPanelOverlay;
+    private LinearLayout chatMessageContainer;
+    private TextView tvChatBadge;
+    private TextView tvChatEmpty;
+    private EditText etChatInput;
+    private static final ExecutorService CHAT_EXECUTOR = Executors.newSingleThreadExecutor();
+    /** Fraction of screen height used as the max height of the chat message list. */
+    private static final float CHAT_PANEL_HEIGHT_RATIO = 0.40f;
+
+    // ── Power saving ──────────────────────────────────────────────────────────
+    private PowerSavingManager powerSavingManager;
 
     private final Handler autoAdvanceHandler = new Handler(Looper.getMainLooper());
     private final Runnable autoAdvanceRunnable = new Runnable() {
@@ -176,6 +198,15 @@ public class MainActivity extends AppCompatActivity {
 
         setupNotificationPanel();
         setupActiveProfile();
+
+        // Schedule periodic chat message polling
+        ChatCheckScheduler.schedule(this);
+        setupChatPanel();
+
+        // Initialize power saving manager (dark schedule + low battery dimming)
+        powerSavingManager = new PowerSavingManager(this);
+        powerSavingManager.init(getWindow());
+
         com.kitchenboard.update.UpdateLogger.logInfo(this, "MainActivity.onCreate: complete");
     }
 
@@ -395,6 +426,67 @@ public class MainActivity extends AppCompatActivity {
         layout.addView(cbWellnessEnabled);
         layout.addView(btnWellnessTime);
 
+        // ── Chat-Einstellungen ────────────────────────────────────────────────
+        final TextView tvChatSection = new TextView(this);
+        tvChatSection.setText(R.string.chat_settings_section);
+        tvChatSection.setTextSize(12f);
+        tvChatSection.setPadding(0, padPx, 0, padPx / 4);
+
+        final CheckBox cbChatEnabled = new CheckBox(this);
+        cbChatEnabled.setText(R.string.chat_settings_enabled);
+        cbChatEnabled.setChecked(prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_ENABLED, false));
+
+        final CheckBox cbChatTokenFilter = new CheckBox(this);
+        cbChatTokenFilter.setText(R.string.chat_settings_token_filter);
+        cbChatTokenFilter.setChecked(prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_TOKEN_FILTER, false));
+
+        layout.addView(tvChatSection);
+        layout.addView(cbChatEnabled);
+        layout.addView(cbChatTokenFilter);
+
+        // ── Stromspar-Einstellungen ───────────────────────────────────────────
+        final TextView tvPowerSection = new TextView(this);
+        tvPowerSection.setText(R.string.power_saving_section);
+        tvPowerSection.setTextSize(12f);
+        tvPowerSection.setPadding(0, padPx, 0, padPx / 4);
+
+        final CheckBox cbLowBatteryDim = new CheckBox(this);
+        cbLowBatteryDim.setText(R.string.power_saving_low_battery_dim);
+        cbLowBatteryDim.setChecked(prefs.getBoolean(PowerSavingManager.PREF_LOW_BATTERY_DIM, true));
+
+        final CheckBox cbDarkSchedule = new CheckBox(this);
+        cbDarkSchedule.setText(R.string.power_saving_dark_schedule_enabled);
+        cbDarkSchedule.setChecked(prefs.getBoolean(PowerSavingManager.PREF_DARK_SCHEDULE_ENABLED, true));
+
+        int dsH = prefs.getInt(PowerSavingManager.PREF_DARK_START_HOUR,   PowerSavingManager.DEFAULT_DARK_START_HOUR);
+        int dsM = prefs.getInt(PowerSavingManager.PREF_DARK_START_MINUTE, PowerSavingManager.DEFAULT_DARK_START_MINUTE);
+        int deH = prefs.getInt(PowerSavingManager.PREF_DARK_END_HOUR,     PowerSavingManager.DEFAULT_DARK_END_HOUR);
+        int deM = prefs.getInt(PowerSavingManager.PREF_DARK_END_MINUTE,   PowerSavingManager.DEFAULT_DARK_END_MINUTE);
+        final int[] darkStart = {dsH, dsM};
+        final int[] darkEnd   = {deH, deM};
+
+        android.widget.Button btnDarkStart = new android.widget.Button(this);
+        btnDarkStart.setText(getString(R.string.power_saving_dark_start, dsH, dsM));
+        btnDarkStart.setOnClickListener(v -> new TimePickerDialog(this, (view1, h, m) -> {
+            darkStart[0] = h;
+            darkStart[1] = m;
+            btnDarkStart.setText(getString(R.string.power_saving_dark_start, h, m));
+        }, darkStart[0], darkStart[1], true).show());
+
+        android.widget.Button btnDarkEnd = new android.widget.Button(this);
+        btnDarkEnd.setText(getString(R.string.power_saving_dark_end, deH, deM));
+        btnDarkEnd.setOnClickListener(v -> new TimePickerDialog(this, (view1, h, m) -> {
+            darkEnd[0] = h;
+            darkEnd[1] = m;
+            btnDarkEnd.setText(getString(R.string.power_saving_dark_end, h, m));
+        }, darkEnd[0], darkEnd[1], true).show());
+
+        layout.addView(tvPowerSection);
+        layout.addView(cbLowBatteryDim);
+        layout.addView(cbDarkSchedule);
+        layout.addView(btnDarkStart);
+        layout.addView(btnDarkEnd);
+
         // Track whether the user explicitly cancelled (back-press / outside tap should still save)
         final AtomicBoolean cancelClicked = new AtomicBoolean(false);
 
@@ -423,8 +515,20 @@ public class MainActivity extends AppCompatActivity {
                 editor.putBoolean(PREF_WELLNESS_ENABLED, cbWellnessEnabled.isChecked());
                 editor.putInt(PREF_WELLNESS_HOUR,   wellnessTime[0]);
                 editor.putInt(PREF_WELLNESS_MINUTE, wellnessTime[1]);
+                // Chat settings
+                editor.putBoolean(ChatCheckReceiver.PREF_CHAT_ENABLED,      cbChatEnabled.isChecked());
+                editor.putBoolean(ChatCheckReceiver.PREF_CHAT_TOKEN_FILTER,  cbChatTokenFilter.isChecked());
+                // Power saving settings
+                editor.putBoolean(PowerSavingManager.PREF_LOW_BATTERY_DIM,       cbLowBatteryDim.isChecked());
+                editor.putBoolean(PowerSavingManager.PREF_DARK_SCHEDULE_ENABLED, cbDarkSchedule.isChecked());
+                editor.putInt(PowerSavingManager.PREF_DARK_START_HOUR,   darkStart[0]);
+                editor.putInt(PowerSavingManager.PREF_DARK_START_MINUTE, darkStart[1]);
+                editor.putInt(PowerSavingManager.PREF_DARK_END_HOUR,     darkEnd[0]);
+                editor.putInt(PowerSavingManager.PREF_DARK_END_MINUTE,   darkEnd[1]);
                 editor.apply();
                 WellnessCheckScheduler.schedule(MainActivity.this);
+                if (powerSavingManager != null) powerSavingManager.applySettings();
+                refreshChatBadge();
             }
         });
 
@@ -628,6 +732,12 @@ public class MainActivity extends AppCompatActivity {
                     DrawableCompat.setTint(
                             DrawableCompat.wrap(ivIcon.getDrawable()).mutate(),
                             ContextCompat.getColor(this, R.color.module_calendar));
+                } else if (n.type == AppNotification.TYPE_CHAT) {
+                    ivIcon.setImageResource(R.drawable.ic_chat);
+                    ivIcon.setContentDescription(getString(R.string.chat_title));
+                    DrawableCompat.setTint(
+                            DrawableCompat.wrap(ivIcon.getDrawable()).mutate(),
+                            ContextCompat.getColor(this, R.color.accent));
                 } else {
                     ivIcon.setImageResource(android.R.drawable.ic_dialog_info);
                     ivIcon.setContentDescription(
@@ -639,9 +749,13 @@ public class MainActivity extends AppCompatActivity {
             }
 
             final int page = n.navigateTo;
+            final int notifType = n.type;
             item.setOnClickListener(v -> {
                 closeNotificationPanel();
-                if (page >= 0 && viewPager != null && pagerAdapter != null
+                if (notifType == AppNotification.TYPE_CHAT) {
+                    // Open the chat panel instead of navigating to a page
+                    openChatPanel();
+                } else if (page >= 0 && viewPager != null && pagerAdapter != null
                         && page < pagerAdapter.getItemCount()) {
                     viewPager.setCurrentItem(page, true);
                 }
@@ -660,6 +774,218 @@ public class MainActivity extends AppCompatActivity {
         } else {
             tvNotificationBadge.setVisibility(View.GONE);
         }
+    }
+
+    // ── Chat panel ────────────────────────────────────────────────────────────
+
+    /** Binds the chat panel views and wires up button listeners. */
+    private void setupChatPanel() {
+        chatPanelOverlay    = findViewById(R.id.chat_panel_overlay);
+        chatMessageContainer = findViewById(R.id.chat_message_container);
+        tvChatBadge          = findViewById(R.id.tv_chat_badge);
+        tvChatEmpty          = findViewById(R.id.tv_chat_empty);
+        etChatInput          = findViewById(R.id.et_chat_input);
+
+        // Constrain the message list scroll area to ~40% screen height
+        android.widget.ScrollView chatScroll = findViewById(R.id.chat_scroll_view);
+        if (chatScroll != null) {
+            int maxH = (int) (getResources().getDisplayMetrics().heightPixels
+                    * CHAT_PANEL_HEIGHT_RATIO);
+            android.view.ViewGroup.LayoutParams lp = chatScroll.getLayoutParams();
+            lp.height = maxH;
+            chatScroll.setLayoutParams(lp);
+        }
+
+        ImageButton btnChat = findViewById(R.id.btn_chat);
+        if (btnChat != null) {
+            btnChat.setOnClickListener(v -> openChatPanel());
+        }
+
+        View btnCloseChat = findViewById(R.id.btn_close_chat_panel);
+        if (btnCloseChat != null) {
+            btnCloseChat.setOnClickListener(v -> closeChatPanel());
+        }
+
+        View btnSend = findViewById(R.id.btn_chat_send);
+        if (btnSend != null) {
+            btnSend.setOnClickListener(v -> sendChatMessage());
+        }
+
+        // Backdrop tap closes the panel
+        if (chatPanelOverlay != null) {
+            chatPanelOverlay.setOnClickListener(v -> closeChatPanel());
+            View panel = chatPanelOverlay.findViewById(R.id.chat_panel);
+            if (panel != null) panel.setOnClickListener(v -> { /* consume */ });
+        }
+
+        refreshChatBadge();
+    }
+
+    private void openChatPanel() {
+        if (chatPanelOverlay == null) return;
+        populateChatPanel();
+        chatPanelOverlay.setVisibility(View.VISIBLE);
+        chatPanelOverlay.setAlpha(0f);
+        chatPanelOverlay.animate().alpha(1f).setDuration(180).start();
+        pauseAutoAdvance();
+
+        // Mark all messages as read when panel is opened
+        CHAT_EXECUTOR.execute(() -> {
+            ChatDatabaseHelper db = new ChatDatabaseHelper(this);
+            try { db.markAllRead(); } finally { db.close(); }
+            runOnUiThread(this::refreshChatBadge);
+        });
+    }
+
+    private void closeChatPanel() {
+        if (chatPanelOverlay == null) return;
+        chatPanelOverlay.animate()
+                .alpha(0f)
+                .setDuration(150)
+                .withEndAction(() -> {
+                    chatPanelOverlay.setVisibility(View.GONE);
+                    chatPanelOverlay.setAlpha(1f);
+                })
+                .start();
+        resumeAutoAdvance();
+    }
+
+    /** Loads recent messages from the local DB and renders them in the panel. */
+    private void populateChatPanel() {
+        if (chatMessageContainer == null) return;
+        chatMessageContainer.removeAllViews();
+
+        ChatDatabaseHelper db = new ChatDatabaseHelper(this);
+        List<ChatMessage> messages;
+        try {
+            messages = db.getMessages(100);
+        } finally {
+            db.close();
+        }
+
+        if (tvChatEmpty != null) {
+            tvChatEmpty.setVisibility(messages.isEmpty() ? View.VISIBLE : View.GONE);
+        }
+
+        LayoutInflater inflater = LayoutInflater.from(this);
+        for (final ChatMessage msg : messages) {
+            View item = inflater.inflate(R.layout.item_chat_message, chatMessageContainer, false);
+            TextView tvSender  = item.findViewById(R.id.tv_chat_sender);
+            TextView tvText    = item.findViewById(R.id.tv_chat_message);
+            TextView tvTime    = item.findViewById(R.id.tv_chat_time);
+            if (tvSender != null) tvSender.setText(msg.senderName);
+            if (tvText   != null) tvText.setText(msg.message);
+            if (tvTime   != null) tvTime.setText(formatRelativeTime(msg.timestampMs));
+
+            // Long-press to copy message to clipboard
+            item.setOnLongClickListener(v -> {
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                if (cm != null) {
+                    cm.setPrimaryClip(ClipData.newPlainText("ChatMessage", msg.message));
+                    Toast.makeText(this, R.string.chat_copied, Toast.LENGTH_SHORT).show();
+                }
+                return true;
+            });
+
+            chatMessageContainer.addView(item);
+        }
+
+        // Scroll to bottom (newest message)
+        android.widget.ScrollView sv = findViewById(R.id.chat_scroll_view);
+        if (sv != null) sv.post(() -> sv.fullScroll(View.FOCUS_DOWN));
+    }
+
+    /** Reads the input field and sends the message via the backend API. */
+    private void sendChatMessage() {
+        if (etChatInput == null) return;
+        String text = etChatInput.getText().toString().trim();
+        if (text.isEmpty()) return;
+
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String serverUrl = prefs.getString(PREF_SERVER_URL, "").trim();
+        if (serverUrl.isEmpty()) {
+            Toast.makeText(this, R.string.chat_send_error, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String boardToken    = prefs.getString(PREF_BOARD_TOKEN, "").trim();
+        String apiToken      = prefs.getString(PREF_API_TOKEN,   "").trim();
+        boolean tokenFilter  = prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_TOKEN_FILTER, false);
+        String effectiveToken = tokenFilter ? boardToken : "";
+
+        // Derive sender identity from active profile
+        String senderId   = "device_" + android.provider.Settings.Secure.getString(
+                getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
+        String senderName = resolveActiveSenderName();
+
+        etChatInput.setText("");
+
+        final String finalText   = text;
+        final String fSenderId   = senderId;
+        final String fSenderName = senderName;
+        final String fServerUrl  = serverUrl;
+        final String fEffToken   = effectiveToken;
+        final String fApiToken   = apiToken;
+
+        CHAT_EXECUTOR.execute(() -> {
+            try {
+                ChatApiClient client = new ChatApiClient(fServerUrl, fEffToken, fApiToken);
+                long id = client.sendMessage(fSenderId, fSenderName, finalText);
+                // Store the sent message locally too
+                ChatMessage sent = new ChatMessage(id, fSenderId, fSenderName,
+                        finalText, System.currentTimeMillis(), true);
+                ChatDatabaseHelper db = new ChatDatabaseHelper(this);
+                try { db.upsert(sent); } finally { db.close(); }
+                runOnUiThread(() -> {
+                    if (chatPanelOverlay != null
+                            && chatPanelOverlay.getVisibility() == View.VISIBLE) {
+                        populateChatPanel();
+                    }
+                });
+            } catch (Exception e) {
+                com.kitchenboard.update.UpdateLogger.logError(this,
+                        "ChatSend: failed to send message", e);
+                runOnUiThread(() ->
+                        Toast.makeText(this, R.string.chat_send_error, Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
+    /** Returns the name of the currently active person, or a device-based fallback. */
+    private String resolveActiveSenderName() {
+        long activeId = getSharedPreferences(PREFS_CALENDAR, MODE_PRIVATE)
+                .getLong(PREF_ACTIVE_PERSON_ID, -1L);
+        if (activeId >= 0) {
+            com.kitchenboard.calendar.CalendarDatabaseHelper db =
+                    new com.kitchenboard.calendar.CalendarDatabaseHelper(this);
+            try {
+                for (com.kitchenboard.calendar.Person p : db.getPersons()) {
+                    if (p.getId() == activeId) return p.getName();
+                }
+            } finally {
+                db.close();
+            }
+        }
+        return getString(R.string.chat_sender_unknown);
+    }
+
+    /** Updates the unread-message badge on the chat button. */
+    private void refreshChatBadge() {
+        if (tvChatBadge == null) return;
+        CHAT_EXECUTOR.execute(() -> {
+            ChatDatabaseHelper db = new ChatDatabaseHelper(this);
+            int unread;
+            try { unread = db.getUnreadCount(); } finally { db.close(); }
+            final int u = unread;
+            runOnUiThread(() -> {
+                if (tvChatBadge == null) return;
+                if (u > 0) {
+                    tvChatBadge.setVisibility(View.VISIBLE);
+                    tvChatBadge.setText(u > MAX_BADGE_COUNT ? "99+" : String.valueOf(u));
+                } else {
+                    tvChatBadge.setVisibility(View.GONE);
+                }
+            });
+        });
     }
 
     // ── Active profile ────────────────────────────────────────────────────────
@@ -1323,6 +1649,10 @@ public class MainActivity extends AppCompatActivity {
             getSharedPreferences(PREFS_CALENDAR, MODE_PRIVATE)
                     .unregisterOnSharedPreferenceChangeListener(activeProfileListener);
             activeProfileListener = null;
+        }
+        if (powerSavingManager != null) {
+            powerSavingManager.destroy();
+            powerSavingManager = null;
         }
     }
 }

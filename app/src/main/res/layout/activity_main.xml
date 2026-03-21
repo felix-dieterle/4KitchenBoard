@@ -71,6 +71,41 @@
             android:focusable="true"/>
     </FrameLayout>
 
+    <!-- Chat button with unread-count badge (top-end, left of notification bell) -->
+    <FrameLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="50dp">
+
+        <ImageButton
+            android:id="@+id/btn_chat"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_chat"
+            android:contentDescription="@string/chat_title"
+            android:alpha="0.45"/>
+
+        <TextView
+            android:id="@+id/tv_chat_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:background="@drawable/bg_notification_badge"
+            android:textColor="#FFFFFF"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:paddingStart="3dp"
+            android:paddingEnd="3dp"
+            android:paddingTop="1dp"
+            android:paddingBottom="1dp"
+            android:minWidth="14dp"
+            android:gravity="center"
+            android:visibility="gone"/>
+    </FrameLayout>
+
     <!-- Global notification bell with unread-count badge (top-end corner) -->
     <FrameLayout
         android:layout_width="wrap_content"
@@ -193,6 +228,117 @@
                 android:gravity="center"
                 android:padding="20dp"
                 android:visibility="gone"/>
+        </LinearLayout>
+    </FrameLayout>
+    <!-- Chat panel overlay (hidden until chat button is tapped) -->
+    <FrameLayout
+        android:id="@+id/chat_panel_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:background="#99000000"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:id="@+id/chat_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:orientation="vertical"
+            android:background="@color/panel_bg"
+            android:elevation="8dp">
+
+            <!-- Chat panel header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:orientation="horizontal"
+                android:background="@color/accent"
+                android:paddingStart="16dp"
+                android:paddingEnd="8dp"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/chat_title"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp"
+                    android:textStyle="bold"/>
+
+                <ImageButton
+                    android:id="@+id/btn_close_chat_panel"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    android:contentDescription="@string/close"
+                    android:tint="#FFFFFF"/>
+            </LinearLayout>
+
+            <!-- Message list (scrollable, ~40% screen height) -->
+            <ScrollView
+                android:id="@+id/chat_scroll_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:id="@+id/chat_message_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:divider="@android:drawable/divider_horizontal_bright"
+                    android:showDividers="middle"/>
+            </ScrollView>
+
+            <!-- Empty state -->
+            <TextView
+                android:id="@+id/tv_chat_empty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/chat_empty"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:padding="16dp"
+                android:visibility="gone"/>
+
+            <!-- Send message row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="8dp"
+                android:background="@color/panel_bg"
+                android:gravity="center_vertical">
+
+                <EditText
+                    android:id="@+id/et_chat_input"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="@string/chat_input_hint"
+                    android:textSize="14sp"
+                    android:background="@drawable/bg_input"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:maxLines="3"
+                    android:inputType="textMultiLine|textCapSentences"/>
+
+                <ImageButton
+                    android:id="@+id/btn_chat_send"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="8dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_send"
+                    android:contentDescription="@string/chat_send"
+                    android:tint="@color/accent"/>
+            </LinearLayout>
         </LinearLayout>
     </FrameLayout>
 

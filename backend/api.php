@@ -47,6 +47,10 @@
  *   GET  ?action=list_updates       → returns all update entries sorted newest-first
  *   POST ?action=delete_update      → body: id → {"success":true}
  *
+ * Chat endpoints (action= GET or POST parameter):
+ *   GET  ?action=chat_list  → ?board_token=...&since_id=N → {"messages": [{id, senderId, senderName, message, timestampMs}, ...]}
+ *   POST ?action=chat_send  → body: board_token, sender_id, sender_name, message → {"success":true, "id":N}
+ *
  * Storage: MySQL database.  Connection credentials are read from config.php
  * (DB_HOST, DB_NAME, DB_USER, DB_PASS).  Run generate_token.php to create
  * config.php with a secure API token and database credentials.
@@ -284,6 +288,12 @@ switch ($action) {
         break;
     case 'delete_update':
         deleteUpdate($db);
+        break;
+    case 'chat_list':
+        chatList($db, $boardId);
+        break;
+    case 'chat_send':
+        chatSend($db, $boardId);
         break;
     default:
         http_response_code(400);
@@ -883,4 +893,125 @@ function deleteUpdate(PDO $db): void
     $stmt->execute();
 
     echo json_encode(['success' => true]);
+}
+
+
+// ── Chat endpoints ────────────────────────────────────────────────────────────
+
+/**
+ * Ensures the chat_messages table exists.
+ *
+ * Schema:
+ *   id          – auto-increment primary key
+ *   board_token – optional token to scope messages per board
+ *   sender_id   – opaque string identifying the sending device/account
+ *   sender_name – human-readable name of the sender
+ *   message     – plain-text message body
+ *   timestamp_ms – Unix timestamp in milliseconds (server-set)
+ */
+function ensureChatTable(PDO $db): void
+{
+    $db->exec(
+        'CREATE TABLE IF NOT EXISTS chat_messages (
+            id           BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            board_token  VARCHAR(255) NOT NULL DEFAULT \'\',
+            sender_id    VARCHAR(255) NOT NULL DEFAULT \'\',
+            sender_name  VARCHAR(255) NOT NULL DEFAULT \'\',
+            message      TEXT         NOT NULL,
+            timestamp_ms BIGINT       NOT NULL DEFAULT 0,
+            INDEX idx_chat_board_token (board_token),
+            INDEX idx_chat_id         (id)
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
+    );
+}
+
+/**
+ * GET ?action=chat_list&board_token=...&since_id=N
+ *
+ * Returns messages with id > since_id (default 0), scoped to the board_token
+ * if a non-empty token is supplied.  Returns up to 100 most recent messages.
+ *
+ * Response: {"messages": [{id, senderId, senderName, message, timestampMs}, ...]}
+ */
+function chatList(PDO $db, string $boardToken): void
+{
+    ensureChatTable($db);
+    $sinceId = max(0, (int)($_GET['since_id'] ?? 0));
+
+    if ($boardToken !== '') {
+        $stmt = $db->prepare(
+            'SELECT id, sender_id, sender_name, message, timestamp_ms
+               FROM chat_messages
+              WHERE board_token = :bt AND id > :sid
+              ORDER BY id ASC
+              LIMIT 100'
+        );
+        $stmt->bindValue(':bt',  $boardToken);
+        $stmt->bindValue(':sid', $sinceId,   PDO::PARAM_INT);
+    } else {
+        $stmt = $db->prepare(
+            'SELECT id, sender_id, sender_name, message, timestamp_ms
+               FROM chat_messages
+              WHERE id > :sid
+              ORDER BY id ASC
+              LIMIT 100'
+        );
+        $stmt->bindValue(':sid', $sinceId, PDO::PARAM_INT);
+    }
+    $stmt->execute();
+
+    $messages = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $messages[] = [
+            'id'          => (int)$row['id'],
+            'senderId'    => (string)$row['sender_id'],
+            'senderName'  => (string)$row['sender_name'],
+            'message'     => (string)$row['message'],
+            'timestampMs' => (int)$row['timestamp_ms'],
+        ];
+    }
+    echo json_encode(['messages' => $messages]);
+}
+
+/**
+ * POST ?action=chat_send
+ *
+ * Body parameters:
+ *   board_token  – optional board token
+ *   sender_id    – opaque sender identifier (required)
+ *   sender_name  – human-readable sender name (required)
+ *   message      – plain-text message body (required, max 2000 chars)
+ *
+ * Response: {"success": true, "id": N}
+ */
+function chatSend(PDO $db, string $boardToken): void
+{
+    ensureChatTable($db);
+    $senderId   = trim($_POST['sender_id']   ?? '');
+    $senderName = trim($_POST['sender_name'] ?? '');
+    $message    = trim($_POST['message']     ?? '');
+
+    if ($senderId === '' || $senderName === '' || $message === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameters sender_id, sender_name and message are required']);
+        return;
+    }
+    if (mb_strlen($message) > 2000) {
+        $message = mb_substr($message, 0, 2000);
+    }
+
+    $nowMs = (int)(microtime(true) * 1000);
+
+    $stmt = $db->prepare(
+        'INSERT INTO chat_messages (board_token, sender_id, sender_name, message, timestamp_ms)
+         VALUES (:bt, :sid, :sn, :msg, :ts)'
+    );
+    $stmt->bindValue(':bt',  $boardToken);
+    $stmt->bindValue(':sid', $senderId);
+    $stmt->bindValue(':sn',  $senderName);
+    $stmt->bindValue(':msg', $message);
+    $stmt->bindValue(':ts',  $nowMs, PDO::PARAM_INT);
+    $stmt->execute();
+
+    echo json_encode(['success' => true, 'id' => (int)$db->lastInsertId()]);
 }
