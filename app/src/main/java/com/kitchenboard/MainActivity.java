@@ -1398,9 +1398,10 @@ public class MainActivity extends AppCompatActivity {
             });
         }
         if (unreadPopupOverlay != null) {
-            // Constrain scroll to ~40% screen height
+            // Constrain scroll to the same max height as other panels
             if (unreadPopupScroll != null) {
-                int maxH = (int) (getResources().getDisplayMetrics().heightPixels * 0.40f);
+                int maxH = (int) (getResources().getDisplayMetrics().heightPixels
+                        * CHAT_PANEL_HEIGHT_RATIO);
                 android.view.ViewGroup.LayoutParams lp = unreadPopupScroll.getLayoutParams();
                 lp.height = maxH;
                 unreadPopupScroll.setLayoutParams(lp);

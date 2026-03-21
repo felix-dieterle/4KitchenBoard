@@ -282,7 +282,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/chat_active_you"
-                    android:textColor="#FFFFFFBB"
+                    android:textColor="@color/chat_panel_label_dim"
                     android:textSize="12sp"
                     android:paddingEnd="8dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
@@ -447,8 +447,8 @@
         android:layout_height="match_parent"
         android:visibility="gone"
         android:background="#66000000"
-        android:clickable="false"
-        android:focusable="false">
+        android:clickable="true"
+        android:focusable="true">
 
         <LinearLayout
             android:id="@+id/unread_popup_card"

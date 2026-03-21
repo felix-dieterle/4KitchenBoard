@@ -195,7 +195,9 @@ public class LanChatServer {
                 db.close();
             }
 
-            // Send delivered-ACK back to the sender using the original message ID
+            // Send delivered-ACK back to the sender using the original message ID.
+            // Skip messages with id=0 (unknown) or id=-1 (locally-generated LAN messages
+            // without a stable ID that the sender can look up in their own DB).
             final long originalId = msg.id;
             if (senderIp != null && originalId != 0 && originalId != -1) {
                 ioExecutor.submit(() -> LanChatClient.sendAck(senderIp, originalId,

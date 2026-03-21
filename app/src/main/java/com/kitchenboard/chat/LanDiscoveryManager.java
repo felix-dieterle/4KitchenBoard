@@ -47,7 +47,7 @@ public class LanDiscoveryManager {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     /** Separate executor for ad-hoc broadcast calls (e.g. on active-status change). */
-    private final ExecutorService CHAT_BROADCAST_EXECUTOR = Executors.newSingleThreadExecutor();
+    private final ExecutorService chatBroadcastExecutor = Executors.newSingleThreadExecutor();
     private Future<?> listenerTask;
     private DatagramSocket listenerSocket;
 
@@ -78,7 +78,7 @@ public class LanDiscoveryManager {
      */
     public void setActiveStatus(boolean active) {
         myActiveStatus = active;
-        CHAT_BROADCAST_EXECUTOR.submit(this::broadcastHello);
+        chatBroadcastExecutor.submit(this::broadcastHello);
     }
 
     /** Returns the current active status of this device. */
