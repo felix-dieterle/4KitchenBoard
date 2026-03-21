@@ -10,6 +10,7 @@ import com.kitchenboard.notifications.AppNotification;
 import com.kitchenboard.notifications.NotificationStore;
 import com.kitchenboard.update.UpdateLogger;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -80,6 +81,10 @@ public class ChatCheckReceiver extends BroadcastReceiver {
         // When the token filter is off, send an empty token so the backend returns all messages.
         String effectiveToken = tokenFilter ? boardToken : "";
 
+        // This device's ID – used to filter directed messages
+        String thisDeviceId = "device_" + android.provider.Settings.Secure.getString(
+                context.getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
+
         ChatDatabaseHelper db = new ChatDatabaseHelper(context);
         try {
             long sinceId = db.getMaxId();
@@ -88,18 +93,25 @@ public class ChatCheckReceiver extends BroadcastReceiver {
 
             if (newMessages.isEmpty()) return;
 
+            // Keep only broadcast messages and messages directed to this device
+            List<ChatMessage> relevant = new ArrayList<>();
             for (ChatMessage msg : newMessages) {
+                boolean forUs = msg.recipientId.isEmpty()
+                        || msg.recipientId.equals(thisDeviceId);
                 db.upsert(msg);
+                if (forUs) relevant.add(msg);
             }
             db.pruneOldMessages(MAX_MESSAGES);
 
-            // Post a single summary notification for all new messages
-            int count = newMessages.size();
+            if (relevant.isEmpty()) return;
+
+            // Post a single summary notification for all relevant new messages
+            int count = relevant.size();
             String title = count == 1
                     ? context.getString(R.string.chat_notif_new_singular, count)
                     : context.getString(R.string.chat_notif_new_plural, count);
-            // Build a short preview from the last message
-            ChatMessage last = newMessages.get(newMessages.size() - 1);
+            // Build a short preview from the last relevant message
+            ChatMessage last = relevant.get(relevant.size() - 1);
             String preview = last.senderName + ": " + last.message;
             if (preview.length() > 80) preview = preview.substring(0, 80) + "…";
 

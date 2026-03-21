@@ -33,6 +33,17 @@
             android:layout_marginStart="8dp"/>
     </LinearLayout>
 
+    <!-- Recipient label (visible only for directed messages) -->
+    <TextView
+        android:id="@+id/tv_chat_recipient"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        android:fontFamily="sans-serif-light"
+        android:layout_marginTop="1dp"
+        android:visibility="gone"/>
+
     <!-- Message body -->
     <TextView
         android:id="@+id/tv_chat_message"

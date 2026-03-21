@@ -18,29 +18,36 @@ import java.util.List;
  * the backend.
  *
  * <p>DB version history:<br>
- * v1 – initial schema: chat_messages table
+ * v1 – initial schema: chat_messages table<br>
+ * v2 – added recipient_id and recipient_name columns for directed messages
  */
 public class ChatDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME    = "chat.db";
-    private static final int    DB_VERSION = 1;
+    private static final int    DB_VERSION = 2;
 
     static final String TABLE  = "chat_messages";
-    static final String COL_ID           = "id";
-    static final String COL_SENDER_ID    = "sender_id";
-    static final String COL_SENDER_NAME  = "sender_name";
-    static final String COL_MESSAGE      = "message";
-    static final String COL_TIMESTAMP_MS = "timestamp_ms";
-    static final String COL_IS_READ      = "is_read";
+    static final String COL_ID             = "id";
+    static final String COL_SENDER_ID      = "sender_id";
+    static final String COL_SENDER_NAME    = "sender_name";
+    /** Recipient device ID; empty string means broadcast (visible to all). */
+    static final String COL_RECIPIENT_ID   = "recipient_id";
+    /** Human-readable recipient name; empty string for broadcasts. */
+    static final String COL_RECIPIENT_NAME = "recipient_name";
+    static final String COL_MESSAGE        = "message";
+    static final String COL_TIMESTAMP_MS   = "timestamp_ms";
+    static final String COL_IS_READ        = "is_read";
 
     private static final String CREATE_TABLE =
             "CREATE TABLE " + TABLE + " ("
-            + COL_ID           + " INTEGER PRIMARY KEY,"
-            + COL_SENDER_ID    + " TEXT NOT NULL DEFAULT '',"
-            + COL_SENDER_NAME  + " TEXT NOT NULL DEFAULT '',"
-            + COL_MESSAGE      + " TEXT NOT NULL DEFAULT '',"
-            + COL_TIMESTAMP_MS + " INTEGER NOT NULL DEFAULT 0,"
-            + COL_IS_READ      + " INTEGER NOT NULL DEFAULT 0"
+            + COL_ID             + " INTEGER PRIMARY KEY,"
+            + COL_SENDER_ID      + " TEXT NOT NULL DEFAULT '',"
+            + COL_SENDER_NAME    + " TEXT NOT NULL DEFAULT '',"
+            + COL_RECIPIENT_ID   + " TEXT NOT NULL DEFAULT '',"
+            + COL_RECIPIENT_NAME + " TEXT NOT NULL DEFAULT '',"
+            + COL_MESSAGE        + " TEXT NOT NULL DEFAULT '',"
+            + COL_TIMESTAMP_MS   + " INTEGER NOT NULL DEFAULT 0,"
+            + COL_IS_READ        + " INTEGER NOT NULL DEFAULT 0"
             + ")";
 
     public ChatDatabaseHelper(Context context) {
@@ -54,7 +61,13 @@ public class ChatDatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // No migrations needed for v1
+        if (oldVersion < 2) {
+            // v2: add recipient columns (empty = broadcast)
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN "
+                    + COL_RECIPIENT_ID   + " TEXT NOT NULL DEFAULT ''");
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN "
+                    + COL_RECIPIENT_NAME + " TEXT NOT NULL DEFAULT ''");
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -66,40 +79,56 @@ public class ChatDatabaseHelper extends SQLiteOpenHelper {
      */
     public void upsert(ChatMessage msg) {
         ContentValues cv = new ContentValues();
-        cv.put(COL_ID,           msg.id);
-        cv.put(COL_SENDER_ID,    msg.senderId);
-        cv.put(COL_SENDER_NAME,  msg.senderName);
-        cv.put(COL_MESSAGE,      msg.message);
-        cv.put(COL_TIMESTAMP_MS, msg.timestampMs);
-        cv.put(COL_IS_READ,      msg.isRead ? 1 : 0);
+        cv.put(COL_ID,             msg.id);
+        cv.put(COL_SENDER_ID,      msg.senderId);
+        cv.put(COL_SENDER_NAME,    msg.senderName);
+        cv.put(COL_RECIPIENT_ID,   msg.recipientId);
+        cv.put(COL_RECIPIENT_NAME, msg.recipientName);
+        cv.put(COL_MESSAGE,        msg.message);
+        cv.put(COL_TIMESTAMP_MS,   msg.timestampMs);
+        cv.put(COL_IS_READ,        msg.isRead ? 1 : 0);
         getWritableDatabase().insertWithOnConflict(TABLE, null, cv,
                 SQLiteDatabase.CONFLICT_REPLACE);
     }
 
     /**
-     * Returns all messages ordered by timestamp ascending (oldest first).
+     * Returns all messages visible to this device ordered by timestamp ascending (oldest first).
+     * Includes broadcast messages and messages directed to {@code thisDeviceId}.
      *
-     * @param limit Maximum number of messages to return (most recent)
+     * @param limit        Maximum number of messages to return (most recent)
+     * @param thisDeviceId This device's sender ID; used to filter directed messages.
+     *                     Pass an empty string to show all messages.
      */
-    public List<ChatMessage> getMessages(int limit) {
+    public List<ChatMessage> getMessages(int limit, String thisDeviceId) {
         List<ChatMessage> list = new ArrayList<>();
+        // Show broadcast messages (recipientId='') and messages directed to this device
+        String selection = null;
+        String[] selectionArgs = null;
+        if (thisDeviceId != null && !thisDeviceId.isEmpty()) {
+            selection = COL_RECIPIENT_ID + "='' OR " + COL_RECIPIENT_ID + "=?";
+            selectionArgs = new String[]{ thisDeviceId };
+        }
         Cursor c = getReadableDatabase().query(
-                TABLE, null, null, null, null, null,
+                TABLE, null, selection, selectionArgs, null, null,
                 COL_TIMESTAMP_MS + " DESC",
                 String.valueOf(limit));
         if (c == null) return list;
         try {
-            int iId   = c.getColumnIndexOrThrow(COL_ID);
-            int iSid  = c.getColumnIndexOrThrow(COL_SENDER_ID);
-            int iSn   = c.getColumnIndexOrThrow(COL_SENDER_NAME);
-            int iMsg  = c.getColumnIndexOrThrow(COL_MESSAGE);
-            int iTs   = c.getColumnIndexOrThrow(COL_TIMESTAMP_MS);
-            int iRead = c.getColumnIndexOrThrow(COL_IS_READ);
+            int iId    = c.getColumnIndexOrThrow(COL_ID);
+            int iSid   = c.getColumnIndexOrThrow(COL_SENDER_ID);
+            int iSn    = c.getColumnIndexOrThrow(COL_SENDER_NAME);
+            int iRid   = c.getColumnIndexOrThrow(COL_RECIPIENT_ID);
+            int iRn    = c.getColumnIndexOrThrow(COL_RECIPIENT_NAME);
+            int iMsg   = c.getColumnIndexOrThrow(COL_MESSAGE);
+            int iTs    = c.getColumnIndexOrThrow(COL_TIMESTAMP_MS);
+            int iRead  = c.getColumnIndexOrThrow(COL_IS_READ);
             while (c.moveToNext()) {
                 list.add(new ChatMessage(
                         c.getLong(iId),
                         c.getString(iSid),
                         c.getString(iSn),
+                        c.getString(iRid),
+                        c.getString(iRn),
                         c.getString(iMsg),
                         c.getLong(iTs),
                         c.getInt(iRead) != 0));
@@ -110,6 +139,17 @@ public class ChatDatabaseHelper extends SQLiteOpenHelper {
         // Reverse so oldest message is first (conversation order)
         java.util.Collections.reverse(list);
         return list;
+    }
+
+    /**
+     * Returns all messages ordered by timestamp ascending (oldest first).
+     *
+     * @param limit Maximum number of messages to return (most recent)
+     * @deprecated Use {@link #getMessages(int, String)} to respect directed messages.
+     */
+    @Deprecated
+    public List<ChatMessage> getMessages(int limit) {
+        return getMessages(limit, "");
     }
 
     /** Returns the highest message ID stored locally, or 0 if the table is empty. */
@@ -125,16 +165,30 @@ public class ChatDatabaseHelper extends SQLiteOpenHelper {
         return 0L;
     }
 
-    /** Returns the number of messages that have not been read yet. */
-    public int getUnreadCount() {
+    /**
+     * Returns the number of unread messages visible to {@code thisDeviceId}.
+     * Includes unread broadcasts and directed messages to this device.
+     */
+    public int getUnreadCount(String thisDeviceId) {
+        String where = COL_IS_READ + "=0";
+        String[] args = null;
+        if (thisDeviceId != null && !thisDeviceId.isEmpty()) {
+            where += " AND (" + COL_RECIPIENT_ID + "='' OR " + COL_RECIPIENT_ID + "=?)";
+            args = new String[]{ thisDeviceId };
+        }
         Cursor c = getReadableDatabase().rawQuery(
-                "SELECT COUNT(*) FROM " + TABLE + " WHERE " + COL_IS_READ + "=0", null);
+                "SELECT COUNT(*) FROM " + TABLE + " WHERE " + where, args);
         if (c == null) return 0;
         try {
             return c.moveToFirst() ? c.getInt(0) : 0;
         } finally {
             c.close();
         }
+    }
+
+    /** Returns the number of messages that have not been read yet (all messages). */
+    public int getUnreadCount() {
+        return getUnreadCount("");
     }
 
     /** Marks all messages as read. */
