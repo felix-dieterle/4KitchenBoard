@@ -9,7 +9,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.BatteryManager;
 import android.os.Build;
-import android.provider.Settings;
+import android.os.PowerManager;
 import android.util.Log;
 import android.view.Window;
 import android.view.WindowManager;
@@ -17,6 +17,7 @@ import android.view.WindowManager;
 import com.kitchenboard.update.UpdateLogger;
 
 import java.util.Calendar;
+import java.util.Locale;
 
 /**
  * Manages device power-saving features for the wall-mounted KitchenBoard.
@@ -25,10 +26,14 @@ import java.util.Calendar;
  * <ul>
  *   <li><b>Low-battery brightness</b>: when the battery level drops below
  *       {@value #LOW_BATTERY_THRESHOLD_PCT}%, the window brightness is dimmed
- *       to {@value #LOW_BATTERY_BRIGHTNESS} (≈ 10%).</li>
- *   <li><b>Dark schedule</b>: two daily AlarmManager alarms dim the screen to
- *       near-zero at the configured "dark start" time and restore it at "dark
- *       end" time.  Defaults are 23:00 (dark) and 05:30 (restore).</li>
+ *       to {@value #LOW_BATTERY_BRIGHTNESS} (≈ 8%).</li>
+ *   <li><b>Active-window schedule</b>: three configurable daily time windows
+ *       during which the screen is bright and {@code FLAG_KEEP_SCREEN_ON} is
+ *       active.  Outside these windows the display is dimmed to near-zero and
+ *       the keep-screen-on flag is cleared so the OS screen timeout can switch
+ *       the panel off.  A brief wake lock is acquired when the first active
+ *       window of the day starts so the screen turns back on automatically.
+ *       Defaults: 06:00–09:45, 12:00–13:45, 16:30–21:15.</li>
  * </ul>
  *
  * <p>Call {@link #init(Window)} once from {@code MainActivity.onCreate()} and
@@ -38,33 +43,55 @@ public class PowerSavingManager {
 
     private static final String TAG = "PowerSavingManager";
 
+    // ── SharedPreferences file ────────────────────────────────────────────────
+    /** SharedPreferences file name – shared with other modules. */
+    public static final String PREFS_APP_SETTINGS = "shopping_prefs";
+
     // ── SharedPreferences keys ────────────────────────────────────────────────
-    /** SharedPreferences file name – same file used by the account setup dialog. */
-    public static final String PREFS_APP_SETTINGS             = "shopping_prefs";
     public static final String PREF_DARK_SCHEDULE_ENABLED = "dark_schedule_enabled";
-    public static final String PREF_DARK_START_HOUR       = "dark_start_hour";
-    public static final String PREF_DARK_START_MINUTE     = "dark_start_minute";
-    public static final String PREF_DARK_END_HOUR         = "dark_end_hour";
-    public static final String PREF_DARK_END_MINUTE       = "dark_end_minute";
     public static final String PREF_LOW_BATTERY_DIM       = "low_battery_dim";
 
-    // ── Defaults ──────────────────────────────────────────────────────────────
-    public static final int  DEFAULT_DARK_START_HOUR   = 23;
-    public static final int  DEFAULT_DARK_START_MINUTE =  0;
-    public static final int  DEFAULT_DARK_END_HOUR     =  5;
-    public static final int  DEFAULT_DARK_END_MINUTE   = 30;
+    /**
+     * Format strings for active-window start/end times stored in SharedPreferences.
+     * Use {@code String.format(Locale.US, PREF_WIN_START_HOUR, windowIndex)} where
+     * {@code windowIndex} is 1, 2, or 3 to obtain the concrete preference key.
+     */
+    public static final String PREF_WIN_START_HOUR   = "active_win%d_start_hour";
+    public static final String PREF_WIN_START_MINUTE = "active_win%d_start_minute";
+    public static final String PREF_WIN_END_HOUR     = "active_win%d_end_hour";
+    public static final String PREF_WIN_END_MINUTE   = "active_win%d_end_minute";
 
+    /** Number of configurable active windows. */
+    public static final int WINDOW_COUNT = 3;
+
+    // ── Default active-window times ───────────────────────────────────────────
+    /** Default start hours for active windows 1–3. */
+    public static final int[] DEFAULT_WIN_START_HOUR   = {  6, 12, 16 };
+    /** Default start minutes for active windows 1–3. */
+    public static final int[] DEFAULT_WIN_START_MINUTE = {  0,  0, 30 };
+    /** Default end hours for active windows 1–3. */
+    public static final int[] DEFAULT_WIN_END_HOUR     = {  9, 13, 21 };
+    /** Default end minutes for active windows 1–3. */
+    public static final int[] DEFAULT_WIN_END_MINUTE   = { 45, 45, 15 };
+
+    // ── Brightness constants ──────────────────────────────────────────────────
     /** Battery level (percent) below which the screen is dimmed. */
     private static final int   LOW_BATTERY_THRESHOLD_PCT = 15;
-    /** WindowManager brightness for low-battery mode (0–1, -1 = system default). */
+    /** Window brightness for low-battery mode (0–1). */
     private static final float LOW_BATTERY_BRIGHTNESS    = 0.08f;
-    /** WindowManager brightness for dark-schedule mode. */
-    private static final float DARK_SCHEDULE_BRIGHTNESS  = 0.01f;
-    /** WindowManager brightness for normal operation (system default). */
-    private static final float NORMAL_BRIGHTNESS         = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+    /** Window brightness for inactive (dark) mode. */
+    private static final float DARK_SCHEDULE_BRIGHTNESS  = 0.005f;
+    /** Window brightness for normal operation (system default). */
+    private static final float NORMAL_BRIGHTNESS =
+            WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+
+    // ── Wake lock tag ─────────────────────────────────────────────────────────
+    private static final String WAKE_LOCK_TAG = "com.kitchenboard:screenWakeup";
+    /** Duration (ms) for the screen-wake wake lock. */
+    private static final long WAKE_LOCK_DURATION_MS = 3_000L;
 
     private final Context context;
-    private Window window;
+    private Window  window;
     private boolean isDarkScheduleActive = false;
     private boolean isLowBattery         = false;
 
@@ -85,22 +112,26 @@ public class PowerSavingManager {
         }
     };
 
-    // ── Dark-schedule receiver ────────────────────────────────────────────────
+    // ── Active-window receiver ────────────────────────────────────────────────
 
     private final BroadcastReceiver darkScheduleReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context ctx, Intent intent) {
             String action = intent.getAction();
             if (DarkScheduleReceiver.ACTION_DARK_ON.equals(action)) {
+                // Active window ended → go dark
                 isDarkScheduleActive = true;
-                applyBrightness();
+                applyScreenState(false);
             } else if (DarkScheduleReceiver.ACTION_DARK_OFF.equals(action)) {
+                // Active window started → wake up
                 isDarkScheduleActive = false;
-                applyBrightness();
+                acquireWakeLock();
+                applyScreenState(true);
             }
         }
     };
 
+    /** Creates a new instance bound to the application context. */
     public PowerSavingManager(Context context) {
         this.context = context.getApplicationContext();
     }
@@ -114,8 +145,10 @@ public class PowerSavingManager {
     public void init(Window window) {
         this.window = window;
 
+        SharedPreferences prefs =
+                context.getSharedPreferences(PREFS_APP_SETTINGS, Context.MODE_PRIVATE);
+
         // Register battery receiver
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_APP_SETTINGS, Context.MODE_PRIVATE);
         if (prefs.getBoolean(PREF_LOW_BATTERY_DIM, true)) {
             try {
                 context.registerReceiver(batteryReceiver,
@@ -125,7 +158,7 @@ public class PowerSavingManager {
             }
         }
 
-        // Register dark schedule action receivers
+        // Register dark-schedule action receivers
         IntentFilter darkFilter = new IntentFilter();
         darkFilter.addAction(DarkScheduleReceiver.ACTION_DARK_ON);
         darkFilter.addAction(DarkScheduleReceiver.ACTION_DARK_OFF);
@@ -136,18 +169,18 @@ public class PowerSavingManager {
             context.registerReceiver(darkScheduleReceiver, darkFilter);
         }
 
-        // Apply dark schedule immediately if we are inside the dark window
+        // Apply correct state immediately based on current time
         if (prefs.getBoolean(PREF_DARK_SCHEDULE_ENABLED, true)) {
-            isDarkScheduleActive = isInsideDarkWindow(prefs);
-            applyBrightness();
-            scheduleDarkAlarms(prefs);
+            isDarkScheduleActive = !isInsideActiveWindow(prefs);
+            applyScreenState(!isDarkScheduleActive);
+            scheduleActiveAlarms(prefs);
         }
     }
 
     /** Releases resources – call from {@code MainActivity.onDestroy()}. */
     public void destroy() {
-        try { context.unregisterReceiver(batteryReceiver);     } catch (Exception ignored) {}
-        try { context.unregisterReceiver(darkScheduleReceiver);} catch (Exception ignored) {}
+        try { context.unregisterReceiver(batteryReceiver);      } catch (Exception ignored) {}
+        try { context.unregisterReceiver(darkScheduleReceiver); } catch (Exception ignored) {}
     }
 
     /**
@@ -155,21 +188,46 @@ public class PowerSavingManager {
      * Call after the user changes settings in the account dialog.
      */
     public void applySettings() {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_APP_SETTINGS, Context.MODE_PRIVATE);
+        SharedPreferences prefs =
+                context.getSharedPreferences(PREFS_APP_SETTINGS, Context.MODE_PRIVATE);
         boolean darkEnabled = prefs.getBoolean(PREF_DARK_SCHEDULE_ENABLED, true);
         if (darkEnabled) {
-            isDarkScheduleActive = isInsideDarkWindow(prefs);
-            scheduleDarkAlarms(prefs);
+            isDarkScheduleActive = !isInsideActiveWindow(prefs);
+            applyScreenState(!isDarkScheduleActive);
+            scheduleActiveAlarms(prefs);
         } else {
             isDarkScheduleActive = false;
-            cancelDarkAlarms();
+            cancelActiveAlarms();
+            applyScreenState(true);
         }
-        applyBrightness();
     }
 
-    // ── Brightness helpers ────────────────────────────────────────────────────
+    // ── Screen-state helpers ──────────────────────────────────────────────────
 
-    /** Applies the correct brightness based on current state to the activity window. */
+    /**
+     * Applies the correct brightness and {@code FLAG_KEEP_SCREEN_ON} state.
+     *
+     * @param keepOn {@code true} during active windows; {@code false} during dark periods
+     */
+    private void applyScreenState(boolean keepOn) {
+        applyBrightness();
+        if (window == null) return;
+        android.os.Handler mainHandler =
+                new android.os.Handler(android.os.Looper.getMainLooper());
+        mainHandler.post(() -> {
+            try {
+                if (keepOn) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Could not update FLAG_KEEP_SCREEN_ON", e);
+            }
+        });
+    }
+
+    /** Applies the correct brightness level to the activity window. */
     private void applyBrightness() {
         if (window == null) return;
         float brightness;
@@ -181,8 +239,8 @@ public class PowerSavingManager {
             brightness = NORMAL_BRIGHTNESS;
         }
         final float finalBrightness = brightness;
-        // Must be called on the main thread
-        android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        android.os.Handler mainHandler =
+                new android.os.Handler(android.os.Looper.getMainLooper());
         mainHandler.post(() -> {
             try {
                 WindowManager.LayoutParams lp = window.getAttributes();
@@ -194,54 +252,116 @@ public class PowerSavingManager {
         });
     }
 
-    // ── Dark schedule ─────────────────────────────────────────────────────────
-
     /**
-     * Returns {@code true} if the current time is within the configured dark window.
-     * Handles overnight ranges (e.g. 23:00–05:30).
+     * Acquires a brief {@code FULL_WAKE_LOCK | ACQUIRE_CAUSES_WAKEUP} to turn
+     * the screen back on when an active window starts.
      */
-    private boolean isInsideDarkWindow(SharedPreferences prefs) {
-        int startH = prefs.getInt(PREF_DARK_START_HOUR,   DEFAULT_DARK_START_HOUR);
-        int startM = prefs.getInt(PREF_DARK_START_MINUTE, DEFAULT_DARK_START_MINUTE);
-        int endH   = prefs.getInt(PREF_DARK_END_HOUR,     DEFAULT_DARK_END_HOUR);
-        int endM   = prefs.getInt(PREF_DARK_END_MINUTE,   DEFAULT_DARK_END_MINUTE);
-
-        Calendar now = Calendar.getInstance();
-        int nowMinutes   = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
-        int startMinutes = startH * 60 + startM;
-        int endMinutes   = endH   * 60 + endM;
-
-        if (startMinutes <= endMinutes) {
-            // Same-day range (e.g. 01:00–06:00)
-            return nowMinutes >= startMinutes && nowMinutes < endMinutes;
-        } else {
-            // Overnight range (e.g. 23:00–05:30)
-            return nowMinutes >= startMinutes || nowMinutes < endMinutes;
+    @SuppressWarnings("deprecation")
+    private void acquireWakeLock() {
+        try {
+            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (pm == null) return;
+            PowerManager.WakeLock wl = pm.newWakeLock(
+                    PowerManager.FULL_WAKE_LOCK
+                            | PowerManager.ACQUIRE_CAUSES_WAKEUP
+                            | PowerManager.ON_AFTER_RELEASE,
+                    WAKE_LOCK_TAG);
+            wl.acquire(WAKE_LOCK_DURATION_MS);
+        } catch (Exception e) {
+            UpdateLogger.logError(context, "PowerSavingManager: wake lock error", e);
         }
     }
 
-    /** Schedules (or replaces) the daily dark-on and dark-off alarms. */
-    private void scheduleDarkAlarms(SharedPreferences prefs) {
-        int startH = prefs.getInt(PREF_DARK_START_HOUR,   DEFAULT_DARK_START_HOUR);
-        int startM = prefs.getInt(PREF_DARK_START_MINUTE, DEFAULT_DARK_START_MINUTE);
-        int endH   = prefs.getInt(PREF_DARK_END_HOUR,     DEFAULT_DARK_END_HOUR);
-        int endM   = prefs.getInt(PREF_DARK_END_MINUTE,   DEFAULT_DARK_END_MINUTE);
+    // ── Active-window schedule ────────────────────────────────────────────────
 
-        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (am == null) return;
+    /**
+     * Returns {@code true} if the current time falls inside any of the
+     * configured active windows.
+     */
+    private boolean isInsideActiveWindow(SharedPreferences prefs) {
+        Calendar now = Calendar.getInstance();
+        int nowMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
 
-        scheduleDaily(am, DarkScheduleReceiver.ACTION_DARK_ON,
-                DarkScheduleReceiver.RC_DARK_ON, startH, startM);
-        scheduleDaily(am, DarkScheduleReceiver.ACTION_DARK_OFF,
-                DarkScheduleReceiver.RC_DARK_OFF, endH, endM);
+        for (int i = 0; i < WINDOW_COUNT; i++) {
+            int startH = prefs.getInt(
+                    String.format(Locale.US, PREF_WIN_START_HOUR, i + 1),
+                    DEFAULT_WIN_START_HOUR[i]);
+            int startM = prefs.getInt(
+                    String.format(Locale.US, PREF_WIN_START_MINUTE, i + 1),
+                    DEFAULT_WIN_START_MINUTE[i]);
+            int endH = prefs.getInt(
+                    String.format(Locale.US, PREF_WIN_END_HOUR, i + 1),
+                    DEFAULT_WIN_END_HOUR[i]);
+            int endM = prefs.getInt(
+                    String.format(Locale.US, PREF_WIN_END_MINUTE, i + 1),
+                    DEFAULT_WIN_END_MINUTE[i]);
+
+            int startMinutes = startH * 60 + startM;
+            int endMinutes   = endH   * 60 + endM;
+
+            // Support overnight windows (e.g. 22:00–02:00)
+            boolean inside;
+            if (endMinutes < startMinutes) {
+                inside = nowMinutes >= startMinutes || nowMinutes < endMinutes;
+            } else {
+                inside = nowMinutes >= startMinutes && nowMinutes < endMinutes;
+            }
+            if (inside) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    /** Cancels both dark alarms. */
-    private void cancelDarkAlarms() {
+    /** Schedules (or replaces) the six daily active-window alarms. */
+    private void scheduleActiveAlarms(SharedPreferences prefs) {
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
-        cancelAlarm(am, DarkScheduleReceiver.ACTION_DARK_ON,  DarkScheduleReceiver.RC_DARK_ON);
-        cancelAlarm(am, DarkScheduleReceiver.ACTION_DARK_OFF, DarkScheduleReceiver.RC_DARK_OFF);
+
+        int[] rcOn  = { DarkScheduleReceiver.RC_ACTIVE_ON_1,
+                        DarkScheduleReceiver.RC_ACTIVE_ON_2,
+                        DarkScheduleReceiver.RC_ACTIVE_ON_3  };
+        int[] rcOff = { DarkScheduleReceiver.RC_ACTIVE_OFF_1,
+                        DarkScheduleReceiver.RC_ACTIVE_OFF_2,
+                        DarkScheduleReceiver.RC_ACTIVE_OFF_3 };
+
+        for (int i = 0; i < WINDOW_COUNT; i++) {
+            int startH = prefs.getInt(
+                    String.format(Locale.US, PREF_WIN_START_HOUR, i + 1),
+                    DEFAULT_WIN_START_HOUR[i]);
+            int startM = prefs.getInt(
+                    String.format(Locale.US, PREF_WIN_START_MINUTE, i + 1),
+                    DEFAULT_WIN_START_MINUTE[i]);
+            int endH = prefs.getInt(
+                    String.format(Locale.US, PREF_WIN_END_HOUR, i + 1),
+                    DEFAULT_WIN_END_HOUR[i]);
+            int endM = prefs.getInt(
+                    String.format(Locale.US, PREF_WIN_END_MINUTE, i + 1),
+                    DEFAULT_WIN_END_MINUTE[i]);
+
+            // DARK_OFF = start of active window (screen on)
+            scheduleDaily(am, DarkScheduleReceiver.ACTION_DARK_OFF, rcOn[i],  startH, startM);
+            // DARK_ON  = end of active window (screen dims)
+            scheduleDaily(am, DarkScheduleReceiver.ACTION_DARK_ON,  rcOff[i], endH,   endM);
+        }
+    }
+
+    /** Cancels all six active-window alarms. */
+    private void cancelActiveAlarms() {
+        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (am == null) return;
+
+        int[] rcOn  = { DarkScheduleReceiver.RC_ACTIVE_ON_1,
+                        DarkScheduleReceiver.RC_ACTIVE_ON_2,
+                        DarkScheduleReceiver.RC_ACTIVE_ON_3  };
+        int[] rcOff = { DarkScheduleReceiver.RC_ACTIVE_OFF_1,
+                        DarkScheduleReceiver.RC_ACTIVE_OFF_2,
+                        DarkScheduleReceiver.RC_ACTIVE_OFF_3 };
+
+        for (int i = 0; i < WINDOW_COUNT; i++) {
+            cancelAlarm(am, DarkScheduleReceiver.ACTION_DARK_OFF, rcOn[i]);
+            cancelAlarm(am, DarkScheduleReceiver.ACTION_DARK_ON,  rcOff[i]);
+        }
     }
 
     private void scheduleDaily(AlarmManager am, String action, int rc, int hour, int minute) {

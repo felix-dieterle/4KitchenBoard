@@ -474,7 +474,11 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. �
     <!-- Power saving module -->
     <string name="power_saving_section">Stromspar-Einstellungen</string>
     <string name="power_saving_low_battery_dim">Helligkeit bei niedrigem Akku reduzieren (unter 15%%)</string>
-    <string name="power_saving_dark_schedule_enabled">Bildschirm nach Zeitplan abdunkeln</string>
+    <string name="power_saving_dark_schedule_enabled">Aktiv-Zeitfenster aktivieren (außerhalb abdunkeln)</string>
+    <string name="power_saving_win_label">Aktiv-Fenster %d: %02d:%02d – %02d:%02d</string>
+    <string name="power_saving_win_start_title">Fenster %d – Beginn (Uhrzeit)</string>
+    <string name="power_saving_win_end_title">Fenster %d – Ende (Uhrzeit)</string>
+    <!-- kept for migration compatibility -->
     <string name="power_saving_dark_start">Abdunkeln ab: %02d:%02d</string>
     <string name="power_saving_dark_end">Aufhellen ab: %02d:%02d</string>
     <string name="power_saving_dark_start_title">Abdunkeln ab (Uhrzeit)</string>
