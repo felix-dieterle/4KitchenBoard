@@ -127,8 +127,6 @@ public class MainActivity extends AppCompatActivity {
     private static final ExecutorService CHAT_EXECUTOR = Executors.newSingleThreadExecutor();
     /** Fraction of screen height used as the max height of the chat message list. */
     private static final float CHAT_PANEL_HEIGHT_RATIO = 0.40f;
-    /** SharedPreferences key: whether LAN direct mode is enabled for chat. */
-    static final String PREF_CHAT_LAN_MODE = "chat_lan_mode";
     /** Currently selected chat recipient, or {@code null} for broadcast. */
     private LanPeer selectedLanRecipient;
     /** Active person chosen as recipient (from persons DB), or {@code null} for broadcast. */
@@ -212,8 +210,12 @@ public class MainActivity extends AppCompatActivity {
         setupNotificationPanel();
         setupActiveProfile();
 
-        // Schedule periodic chat message polling
-        ChatCheckScheduler.schedule(this);
+        // Schedule periodic chat message polling only when not in LAN mode.
+        // In LAN mode, messages arrive directly via LanChatServer (TCP) – no backend polling needed.
+        SharedPreferences chatPrefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        if (!chatPrefs.getBoolean(ChatCheckReceiver.PREF_CHAT_LAN_MODE, false)) {
+            ChatCheckScheduler.schedule(this);
+        }
         setupChatPanel();
 
         // Initialize power saving manager (dark schedule + low battery dimming)
@@ -455,7 +457,7 @@ public class MainActivity extends AppCompatActivity {
 
         final CheckBox cbChatLanMode = new CheckBox(this);
         cbChatLanMode.setText(R.string.chat_settings_lan_mode);
-        cbChatLanMode.setChecked(prefs.getBoolean(PREF_CHAT_LAN_MODE, false));
+        cbChatLanMode.setChecked(prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_LAN_MODE, false));
 
         layout.addView(tvChatSection);
         layout.addView(cbChatEnabled);
@@ -537,7 +539,7 @@ public class MainActivity extends AppCompatActivity {
                 boolean newLanMode = cbChatLanMode.isChecked();
                 editor.putBoolean(ChatCheckReceiver.PREF_CHAT_ENABLED,      cbChatEnabled.isChecked());
                 editor.putBoolean(ChatCheckReceiver.PREF_CHAT_TOKEN_FILTER,  cbChatTokenFilter.isChecked());
-                editor.putBoolean(PREF_CHAT_LAN_MODE,                       newLanMode);
+                editor.putBoolean(ChatCheckReceiver.PREF_CHAT_LAN_MODE,                       newLanMode);
                 // Power saving settings
                 editor.putBoolean(PowerSavingManager.PREF_LOW_BATTERY_DIM,       cbLowBatteryDim.isChecked());
                 editor.putBoolean(PowerSavingManager.PREF_DARK_SCHEDULE_ENABLED, cbDarkSchedule.isChecked());
@@ -551,7 +553,12 @@ public class MainActivity extends AppCompatActivity {
                 // Start or stop LAN mode depending on the new setting
                 stopLanMode();
                 if (newLanMode) {
+                    // LAN mode: cancel backend polling – messages arrive via LanChatServer
+                    ChatCheckScheduler.cancel(MainActivity.this);
                     initLanModeIfEnabled();
+                } else {
+                    // Backend mode: ensure the polling alarm is active
+                    ChatCheckScheduler.schedule(MainActivity.this);
                 }
                 refreshChatBadge();
             }
@@ -858,7 +865,7 @@ public class MainActivity extends AppCompatActivity {
     /** Starts LAN chat server and discovery if the LAN mode preference is active. */
     private void initLanModeIfEnabled() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        if (!prefs.getBoolean(PREF_CHAT_LAN_MODE, false)) return;
+        if (!prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_LAN_MODE, false)) return;
 
         String myDeviceId   = "device_" + android.provider.Settings.Secure.getString(
                 getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
@@ -983,7 +990,7 @@ public class MainActivity extends AppCompatActivity {
         if (text.isEmpty()) return;
 
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        boolean lanMode = prefs.getBoolean(PREF_CHAT_LAN_MODE, false);
+        boolean lanMode = prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_LAN_MODE, false);
 
         // Derive sender identity from active profile
         String senderId   = "device_" + android.provider.Settings.Secure.getString(
@@ -1109,7 +1116,7 @@ public class MainActivity extends AppCompatActivity {
      */
     private void showRecipientPicker() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        boolean lanMode = prefs.getBoolean(PREF_CHAT_LAN_MODE, false);
+        boolean lanMode = prefs.getBoolean(ChatCheckReceiver.PREF_CHAT_LAN_MODE, false);
 
         java.util.List<String>  names = new ArrayList<>();
         java.util.List<Runnable> actions = new ArrayList<>();

@@ -41,6 +41,9 @@ public class ChatCheckReceiver extends BroadcastReceiver {
     public static final String PREF_CHAT_TOKEN_FILTER = "chat_token_filter";
     /** Whether the chat polling is enabled at all. */
     public static final String PREF_CHAT_ENABLED      = "chat_enabled";
+    /** When {@code true}, messages are exchanged directly over the local network
+     *  using {@link LanChatServer}; no backend polling is performed. */
+    public static final String PREF_CHAT_LAN_MODE     = "chat_lan_mode";
 
     /** Maximum number of messages retained in the local DB. */
     private static final int MAX_MESSAGES = 200;
@@ -71,6 +74,11 @@ public class ChatCheckReceiver extends BroadcastReceiver {
 
     private void runCheck(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+
+        // In LAN mode messages arrive via TCP (LanChatServer) – backend polling is not needed
+        // and must not be attempted when the backend may be unreachable.
+        if (prefs.getBoolean(PREF_CHAT_LAN_MODE, false)) return;
+
         String serverUrl        = prefs.getString(PREF_SERVER_URL,  "").trim();
         String boardToken       = prefs.getString(PREF_BOARD_TOKEN, "").trim();
         String apiToken         = prefs.getString(PREF_API_TOKEN,   "").trim();
