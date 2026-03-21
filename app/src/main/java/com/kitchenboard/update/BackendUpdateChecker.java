@@ -241,7 +241,7 @@ public class BackendUpdateChecker {
      * @return {@code true} when {@code (newBuild, newSub)} is strictly newer than
      *         {@code (currentBuild, currentSub)}
      */
-    static boolean isNewer(int newBuild, int newSub, int currentBuild, int currentSub) {
+    public static boolean isNewer(int newBuild, int newSub, int currentBuild, int currentSub) {
         if (newBuild != currentBuild) {
             return newBuild > currentBuild;
         }
