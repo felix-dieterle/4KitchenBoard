@@ -71,6 +71,19 @@
             android:focusable="true"/>
     </FrameLayout>
 
+    <!-- Dark phase toggle button (top-end, left of chat button) -->
+    <ImageButton
+        android:id="@+id/btn_dark_phase_toggle"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="92dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@drawable/ic_active_phase"
+        android:contentDescription="@string/dark_phase_toggle_desc"
+        android:alpha="0.45"/>
+
     <!-- Chat button with unread-count badge (top-end, left of notification bell) -->
     <FrameLayout
         android:layout_width="wrap_content"

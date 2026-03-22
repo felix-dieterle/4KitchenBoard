@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.wifi.WifiManager;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.PowerManager;
@@ -50,6 +51,8 @@ public class PowerSavingManager {
     // ── SharedPreferences keys ────────────────────────────────────────────────
     public static final String PREF_DARK_SCHEDULE_ENABLED = "dark_schedule_enabled";
     public static final String PREF_LOW_BATTERY_DIM       = "low_battery_dim";
+    /** Whether WiFi should be turned off during the dark phase and back on during active windows. */
+    public static final String PREF_WIFI_CONTROL          = "wifi_off_during_dark";
 
     /**
      * Format strings for active-window start/end times stored in SharedPreferences.
@@ -94,6 +97,10 @@ public class PowerSavingManager {
     private Window  window;
     private boolean isDarkScheduleActive = false;
     private boolean isLowBattery         = false;
+    /** True if we disabled WiFi ourselves so we know to re-enable it on active phase. */
+    private boolean wifiDisabledByUs     = false;
+    /** Optional callback invoked on the main thread whenever the dark-phase state changes. */
+    private Runnable onDarkPhaseChangedCallback;
 
     // ── Battery receiver ──────────────────────────────────────────────────────
 
@@ -128,6 +135,7 @@ public class PowerSavingManager {
                 acquireWakeLock();
                 applyScreenState(true);
             }
+            notifyDarkPhaseChanged();
         }
     };
 
@@ -174,6 +182,7 @@ public class PowerSavingManager {
             isDarkScheduleActive = !isInsideActiveWindow(prefs);
             applyScreenState(!isDarkScheduleActive);
             scheduleActiveAlarms(prefs);
+            notifyDarkPhaseChanged();
         }
     }
 
@@ -200,6 +209,37 @@ public class PowerSavingManager {
             cancelActiveAlarms();
             applyScreenState(true);
         }
+        notifyDarkPhaseChanged();
+    }
+
+    /**
+     * Returns {@code true} if the display is currently in the dark (dimmed) phase.
+     * This reflects both scheduled and manually overridden states.
+     */
+    public boolean isDarkPhase() {
+        return isDarkScheduleActive;
+    }
+
+    /**
+     * Manually forces the dark-phase state until the next scheduled alarm fires.
+     * Useful for a quick on-screen toggle.
+     *
+     * @param dark {@code true} to enter dark phase immediately; {@code false} to enter active phase
+     */
+    public void setManualDark(boolean dark) {
+        isDarkScheduleActive = dark;
+        applyScreenState(!dark);
+        notifyDarkPhaseChanged();
+    }
+
+    /**
+     * Registers a callback that is invoked on the main thread whenever the dark-phase
+     * state changes (scheduled alarm or manual override).
+     *
+     * @param callback the {@link Runnable} to invoke, or {@code null} to clear it
+     */
+    public void setOnDarkPhaseChangedCallback(Runnable callback) {
+        this.onDarkPhaseChangedCallback = callback;
     }
 
     // ── Screen-state helpers ──────────────────────────────────────────────────
@@ -211,6 +251,7 @@ public class PowerSavingManager {
      */
     private void applyScreenState(boolean keepOn) {
         applyBrightness();
+        applyWifiState(keepOn);
         if (window == null) return;
         android.os.Handler mainHandler =
                 new android.os.Handler(android.os.Looper.getMainLooper());
@@ -225,6 +266,48 @@ public class PowerSavingManager {
                 Log.w(TAG, "Could not update FLAG_KEEP_SCREEN_ON", e);
             }
         });
+    }
+
+    /**
+     * Turns WiFi off when entering dark phase and back on when entering active phase,
+     * but only if the {@link #PREF_WIFI_CONTROL} preference is enabled.
+     * On Android 10+ (API 29+) {@code WifiManager.setWifiEnabled()} is restricted to
+     * system apps and will silently return {@code false}; the call is skipped on those
+     * versions to avoid unnecessary log noise.
+     */
+    @SuppressWarnings("deprecation")
+    private void applyWifiState(boolean activePhase) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return;
+        SharedPreferences prefs =
+                context.getSharedPreferences(PREFS_APP_SETTINGS, Context.MODE_PRIVATE);
+        if (!prefs.getBoolean(PREF_WIFI_CONTROL, false)) return;
+        try {
+            WifiManager wm = (WifiManager)
+                    context.getSystemService(Context.WIFI_SERVICE);
+            if (wm == null) return;
+            if (!activePhase) {
+                // Entering dark phase – disable WiFi if it is currently on
+                if (wm.isWifiEnabled()) {
+                    boolean disabled = wm.setWifiEnabled(false);
+                    if (disabled) wifiDisabledByUs = true;
+                }
+            } else {
+                // Entering active phase – re-enable WiFi only if we turned it off
+                if (wifiDisabledByUs) {
+                    wm.setWifiEnabled(true);
+                    wifiDisabledByUs = false;
+                }
+            }
+        } catch (Exception e) {
+            UpdateLogger.logError(context, "PowerSavingManager: WiFi control error", e);
+        }
+    }
+
+    /** Dispatches the dark-phase-changed callback on the main thread, if one is set. */
+    private void notifyDarkPhaseChanged() {
+        if (onDarkPhaseChangedCallback == null) return;
+        new android.os.Handler(android.os.Looper.getMainLooper())
+                .post(onDarkPhaseChangedCallback);
     }
 
     /** Applies the correct brightness level to the activity window. */

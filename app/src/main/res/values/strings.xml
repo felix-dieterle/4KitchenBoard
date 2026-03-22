@@ -497,4 +497,6 @@ Die App wechselt alle 20 Sekunden automatisch zwischen den aktivierten Seiten. √
     <string name="power_saving_dark_end">Aufhellen ab: %02d:%02d</string>
     <string name="power_saving_dark_start_title">Abdunkeln ab (Uhrzeit)</string>
     <string name="power_saving_dark_end_title">Aufhellen ab (Uhrzeit)</string>
+    <string name="power_saving_wifi_control">WLAN w√§hrend Dunkelphase ausschalten</string>
+    <string name="dark_phase_toggle_desc">Dunkelphase umschalten</string>
 </resources>

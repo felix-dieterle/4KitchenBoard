@@ -150,6 +150,7 @@ public class MainActivity extends AppCompatActivity {
 
     // ── Power saving ──────────────────────────────────────────────────────────
     private PowerSavingManager powerSavingManager;
+    private ImageButton btnDarkPhaseToggle;
 
     private final Handler autoAdvanceHandler = new Handler(Looper.getMainLooper());
     private final Runnable autoAdvanceRunnable = new Runnable() {
@@ -235,7 +236,9 @@ public class MainActivity extends AppCompatActivity {
 
         // Initialize power saving manager (dark schedule + low battery dimming)
         powerSavingManager = new PowerSavingManager(this);
+        powerSavingManager.setOnDarkPhaseChangedCallback(this::updateDarkPhaseButton);
         powerSavingManager.init(getWindow());
+        setupDarkPhaseToggle();
 
         com.kitchenboard.update.UpdateLogger.logInfo(this, "MainActivity.onCreate: complete");
     }
@@ -498,6 +501,10 @@ public class MainActivity extends AppCompatActivity {
         cbDarkSchedule.setText(R.string.power_saving_dark_schedule_enabled);
         cbDarkSchedule.setChecked(prefs.getBoolean(PowerSavingManager.PREF_DARK_SCHEDULE_ENABLED, true));
 
+        final CheckBox cbWifiControl = new CheckBox(this);
+        cbWifiControl.setText(R.string.power_saving_wifi_control);
+        cbWifiControl.setChecked(prefs.getBoolean(PowerSavingManager.PREF_WIFI_CONTROL, false));
+
         // winTimes[i] = { startH, startM, endH, endM } for active window i+1
         final int[][] winTimes = new int[PowerSavingManager.WINDOW_COUNT][4];
         final android.widget.Button[] winButtons = new android.widget.Button[PowerSavingManager.WINDOW_COUNT];
@@ -535,6 +542,7 @@ public class MainActivity extends AppCompatActivity {
         layout.addView(tvPowerSection);
         layout.addView(cbLowBatteryDim);
         layout.addView(cbDarkSchedule);
+        layout.addView(cbWifiControl);
         for (android.widget.Button b : winButtons) layout.addView(b);
 
         // Track whether the user explicitly cancelled (back-press / outside tap should still save)
@@ -575,6 +583,7 @@ public class MainActivity extends AppCompatActivity {
                 // Power saving settings
                 editor.putBoolean(PowerSavingManager.PREF_LOW_BATTERY_DIM,       cbLowBatteryDim.isChecked());
                 editor.putBoolean(PowerSavingManager.PREF_DARK_SCHEDULE_ENABLED, cbDarkSchedule.isChecked());
+                editor.putBoolean(PowerSavingManager.PREF_WIFI_CONTROL,          cbWifiControl.isChecked());
                 for (int wi = 0; wi < PowerSavingManager.WINDOW_COUNT; wi++) {
                     editor.putInt(String.format(Locale.US, PowerSavingManager.PREF_WIN_START_HOUR,   wi + 1), winTimes[wi][0]);
                     editor.putInt(String.format(Locale.US, PowerSavingManager.PREF_WIN_START_MINUTE, wi + 1), winTimes[wi][1]);
@@ -694,6 +703,28 @@ public class MainActivity extends AppCompatActivity {
         R.color.module_tasks,       // page 3: TaskFragment
         R.color.module_immobilien   // page 4: ImmobilienFragment
     };
+
+    // ── Dark phase toggle ─────────────────────────────────────────────────────
+
+    /** Initialises the dark-phase toggle button (moon/sun icon in the top-end toolbar area). */
+    private void setupDarkPhaseToggle() {
+        btnDarkPhaseToggle = findViewById(R.id.btn_dark_phase_toggle);
+        if (btnDarkPhaseToggle == null) return;
+        updateDarkPhaseButton();
+        btnDarkPhaseToggle.setOnClickListener(v -> {
+            if (powerSavingManager != null) {
+                powerSavingManager.setManualDark(!powerSavingManager.isDarkPhase());
+            }
+        });
+    }
+
+    /** Updates the dark-phase toggle button icon to reflect the current state. */
+    private void updateDarkPhaseButton() {
+        if (btnDarkPhaseToggle == null) return;
+        boolean dark = powerSavingManager != null && powerSavingManager.isDarkPhase();
+        btnDarkPhaseToggle.setImageResource(
+                dark ? R.drawable.ic_dark_phase : R.drawable.ic_active_phase);
+    }
 
     // ── In-app notification panel ─────────────────────────────────────────────
 
