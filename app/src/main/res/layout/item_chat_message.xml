@@ -53,4 +53,15 @@
         android:textSize="13sp"
         android:layout_marginTop="2dp"/>
 
+    <!-- Delivery-status icon (visible only for outgoing messages sent by this device) -->
+    <ImageView
+        android:id="@+id/iv_chat_status"
+        android:layout_width="wrap_content"
+        android:layout_height="16dp"
+        android:layout_gravity="end"
+        android:layout_marginTop="2dp"
+        android:scaleType="fitEnd"
+        android:visibility="gone"
+        android:contentDescription="@string/chat_status_sent"/>
+
 </LinearLayout>

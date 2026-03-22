@@ -14,12 +14,23 @@ public class LanPeer {
     public final String ip;
     /** Timestamp (ms) when this peer was last seen. */
     public long lastSeenMs;
+    /**
+     * Whether the remote device has declared itself as active / ready to receive messages.
+     * Updated every time a discovery hello arrives from this peer.
+     */
+    public boolean isActive;
 
     /** Creates a peer record. */
-    public LanPeer(String deviceId, String deviceName, String ip, long lastSeenMs) {
+    public LanPeer(String deviceId, String deviceName, String ip, long lastSeenMs, boolean isActive) {
         this.deviceId   = deviceId;
         this.deviceName = deviceName;
         this.ip         = ip;
         this.lastSeenMs = lastSeenMs;
+        this.isActive   = isActive;
+    }
+
+    /** Convenience constructor with {@code isActive} defaulting to {@code true}. */
+    public LanPeer(String deviceId, String deviceName, String ip, long lastSeenMs) {
+        this(deviceId, deviceName, ip, lastSeenMs, true);
     }
 }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Single check mark: message sent -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp"
+    android:height="16dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="@color/msg_status_sent"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5,12 L10,17 L19,8"/>
+</vector>

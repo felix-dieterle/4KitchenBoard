@@ -33,6 +33,13 @@
     <color name="past_time_overlay">#26000000</color>
     <color name="current_time_line">#1565C0</color>
 
+    <!-- Online / chat status -->
+    <color name="online_active">#43A047</color>
+    <color name="msg_status_sent">#9E9E9E</color>
+    <color name="msg_status_delivered">#9E9E9E</color>
+    <color name="msg_status_read">#1565C0</color>
+    <color name="chat_panel_label_dim">#FFFFFFBB</color>
+
     <!-- State -->
     <color name="error">#B71C1C</color>
     <color name="drag_slot_overlay">#CC1565C0</color>

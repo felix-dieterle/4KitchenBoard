@@ -26,10 +26,15 @@ import java.util.concurrent.atomic.AtomicLong;
  * by other KitchenBoard devices running in LAN mode.
  *
  * <p>The server listens on {@value #CHAT_PORT}.  Each connection carries
- * exactly one UTF-8 JSON line representing a {@link ChatMessage} (serialised
- * with {@link ChatMessage#toJson()}).  Received messages are stored in the
- * local {@link ChatDatabaseHelper} and a summary notification is posted via
- * {@link NotificationStore}.
+ * exactly one UTF-8 JSON line.  The payload is either a regular
+ * {@link ChatMessage} (no {@code type} field) or an ACK packet:
+ * <pre>{@code {"type":"ack","msgId":12345,"status":1}}</pre>
+ * where status is {@link ChatMessage#STATUS_DELIVERED} (1) or
+ * {@link ChatMessage#STATUS_READ} (2).
+ *
+ * <p>Received messages are stored in the local {@link ChatDatabaseHelper} and
+ * a delivered-ACK is sent back to the sender automatically. A summary
+ * notification is posted via {@link NotificationStore}.
  *
  * <p>Start the server with {@link #start(Context, String)} and stop it with
  * {@link #stop()}.  It is safe to call {@link #start} multiple times; a
@@ -48,12 +53,19 @@ public class LanChatServer {
         void onMessageReceived(ChatMessage msg);
     }
 
+    /** Listener notified when an ACK (delivered or read receipt) arrives. */
+    public interface AckReceivedListener {
+        /** Called with the original message ID and its new delivery status. */
+        void onAckReceived(long msgId, int status);
+    }
+
     private final AtomicBoolean running  = new AtomicBoolean(false);
     private final AtomicLong    lanIdSeq = new AtomicLong(
             -(System.currentTimeMillis() / 1000L));   // negative IDs avoid collision with server IDs
 
     private ServerSocket serverSocket;
     private MessageReceivedListener messageListener;
+    private AckReceivedListener ackListener;
     private final ExecutorService acceptExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService ioExecutor     = Executors.newCachedThreadPool();
 
@@ -71,6 +83,11 @@ public class LanChatServer {
     /** Sets a listener notified (on an IO thread) when a new message arrives. */
     public void setMessageReceivedListener(MessageReceivedListener l) {
         this.messageListener = l;
+    }
+
+    /** Sets a listener notified (on an IO thread) when a delivery/read ACK arrives. */
+    public void setAckReceivedListener(AckReceivedListener l) {
+        this.ackListener = l;
     }
 
     /**
@@ -122,12 +139,32 @@ public class LanChatServer {
     private void handleClient(Context context, Socket client) {
         try (Socket s = client) {
             s.setSoTimeout(10_000);
+            String senderIp = s.getInetAddress().getHostAddress();
             BufferedReader reader = new BufferedReader(
                     new InputStreamReader(s.getInputStream(), Charset.forName("UTF-8")));
             String line = reader.readLine();
             if (line == null || line.trim().isEmpty()) return;
 
-            JSONObject obj  = new JSONObject(line.trim());
+            JSONObject obj = new JSONObject(line.trim());
+
+            // ── ACK packet ──────────────────────────────────────────────────
+            if ("ack".equals(obj.optString("type"))) {
+                long msgId  = obj.optLong("msgId", 0L);
+                int  status = obj.optInt("status", ChatMessage.STATUS_DELIVERED);
+                if (msgId != 0) {
+                    ChatDatabaseHelper db = new ChatDatabaseHelper(context);
+                    try {
+                        db.updateDeliveryStatus(msgId, status);
+                    } finally {
+                        db.close();
+                    }
+                    AckReceivedListener al = ackListener;
+                    if (al != null) al.onAckReceived(msgId, status);
+                }
+                return;
+            }
+
+            // ── Regular chat message ─────────────────────────────────────
             ChatMessage msg = ChatMessage.fromJson(obj);
 
             // Ignore messages apparently sent by ourselves (loop-back)
@@ -156,6 +193,15 @@ public class LanChatServer {
                 db.pruneOldMessages(200);
             } finally {
                 db.close();
+            }
+
+            // Send delivered-ACK back to the sender using the original message ID.
+            // Skip messages with id=0 (unknown) or id=-1 (locally-generated LAN messages
+            // without a stable ID that the sender can look up in their own DB).
+            final long originalId = msg.id;
+            if (senderIp != null && originalId != 0 && originalId != -1) {
+                ioExecutor.submit(() -> LanChatClient.sendAck(senderIp, originalId,
+                        ChatMessage.STATUS_DELIVERED));
             }
 
             // Post in-app notification

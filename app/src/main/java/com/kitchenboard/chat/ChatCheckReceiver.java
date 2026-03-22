@@ -44,6 +44,11 @@ public class ChatCheckReceiver extends BroadcastReceiver {
     /** When {@code true}, messages are exchanged directly over the local network
      *  using {@link LanChatServer}; no backend polling is performed. */
     public static final String PREF_CHAT_LAN_MODE     = "chat_lan_mode";
+    /**
+     * When {@code true} the device announces itself as active (ready to receive messages)
+     * in LAN discovery broadcasts.  Other peers show this device as online.
+     */
+    public static final String PREF_CHAT_ACTIVE        = "chat_active";
 
     /** Maximum number of messages retained in the local DB. */
     private static final int MAX_MESSAGES = 200;
