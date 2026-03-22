@@ -7,7 +7,7 @@
     android:viewportHeight="24">
     <path
         android:fillColor="@android:color/transparent"
-        android:strokeColor="@color/msg_status_sent"
+        android:strokeColor="#9E9E9E"
         android:strokeWidth="2.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
