@@ -7,6 +7,7 @@ import org.json.JSONObject;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -144,7 +145,9 @@ public class LanDiscoveryManager {
 
     private void listenLoop() {
         try {
-            listenerSocket = new DatagramSocket(DISCOVERY_PORT);
+            listenerSocket = new DatagramSocket(null);
+            listenerSocket.setReuseAddress(true);
+            listenerSocket.bind(new InetSocketAddress(DISCOVERY_PORT));
             listenerSocket.setBroadcast(true);
             listenerSocket.setSoTimeout(30_000);
 
@@ -172,6 +175,8 @@ public class LanDiscoveryManager {
             if (listenerSocket != null && !listenerSocket.isClosed()) {
                 listenerSocket.close();
             }
+            // Always reset running so start() can be retried after a failure.
+            running.set(false);
         }
     }
 
@@ -191,6 +196,8 @@ public class LanDiscoveryManager {
                     existing.lastSeenMs = System.currentTimeMillis();
                     boolean wasActive = existing.isActive;
                     existing.isActive = active;
+                    // Update IP in case it changed (DHCP reassignment)
+                    existing.ip = senderIp;
                     // Active-status change counts as a list change even if peer was already known
                     changed = (wasActive != active);
                 } else {
@@ -199,9 +206,11 @@ public class LanDiscoveryManager {
                     changed = true;
                 }
             }
+            // Always reply so the sender can rediscover us immediately after a restart.
+            // Without this, a restarted device waits up to 30 s (the broadcast interval)
+            // before it hears our next broadcast and finally learns about us.
+            sendUnicast(senderIp, buildHelloPayload());
             if (changed) {
-                // Reply so the new peer learns about us too
-                sendUnicast(senderIp, buildHelloPayload());
                 notifyPeersChanged();
             }
         } catch (Exception e) {
