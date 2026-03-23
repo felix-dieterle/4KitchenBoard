@@ -167,6 +167,9 @@
     <string name="weekend_dry_hours">Dry: %.0f h</string>
     <string name="weekend_wind">Wind: %.0f / %.0f km/h</string>
     <string name="weekend_no_data">No weekend data available.</string>
+    <string name="weather_wind">Wind: %.0f km/h</string>
+    <string name="weather_rain_start">Rain from %02d:00</string>
+    <string name="weather_rain_start_with_amount">Rain from %02d:00 (%.1f mm)</string>
     <!-- Cooking / Dishes page -->
     <string name="cooking_title">Gerichte</string>
     <string name="cooking_recently_cooked">Zuletzt gekocht</string>

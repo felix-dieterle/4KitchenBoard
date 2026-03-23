@@ -10,31 +10,40 @@ public class WeatherData {
         public final double dryHours;
         public final double maxWind;
         public final double meanWind;
+        /** Hour of day (0–23) when rain first starts; -1 if no rain expected. */
+        public final int rainStartHour;
 
         public WeekendDay(String dayName, double maxTemp, double dryHours,
-                          double maxWind, double meanWind) {
+                          double maxWind, double meanWind, int rainStartHour) {
             this.dayName = dayName;
             this.maxTemp = maxTemp;
             this.dryHours = dryHours;
             this.maxWind = maxWind;
             this.meanWind = meanWind;
+            this.rainStartHour = rainStartHour;
         }
     }
 
     private final double currentTemperature;
+    private final double currentWindSpeed;
     private final double highTemperature;
     private final double precipitationMm;
+    /** Hour of day (0–23) when rain next starts today (from current time); -1 if none. */
+    private final int todayRainStartHour;
     private final int weatherCode;
     private final String cityName;
     private final WeekendDay nextSaturday;
     private final WeekendDay nextSunday;
 
-    public WeatherData(double currentTemperature, double highTemperature,
-                       double precipitationMm, int weatherCode, String cityName,
+    public WeatherData(double currentTemperature, double currentWindSpeed,
+                       double highTemperature, double precipitationMm, int todayRainStartHour,
+                       int weatherCode, String cityName,
                        WeekendDay nextSaturday, WeekendDay nextSunday) {
         this.currentTemperature = currentTemperature;
+        this.currentWindSpeed = currentWindSpeed;
         this.highTemperature = highTemperature;
         this.precipitationMm = precipitationMm;
+        this.todayRainStartHour = todayRainStartHour;
         this.weatherCode = weatherCode;
         this.cityName = cityName;
         this.nextSaturday = nextSaturday;
@@ -42,8 +51,10 @@ public class WeatherData {
     }
 
     public double getCurrentTemperature() { return currentTemperature; }
+    public double getCurrentWindSpeed() { return currentWindSpeed; }
     public double getHighTemperature() { return highTemperature; }
     public double getPrecipitationMm() { return precipitationMm; }
+    public int getTodayRainStartHour() { return todayRainStartHour; }
     public int getWeatherCode() { return weatherCode; }
     public String getCityName() { return cityName; }
     public WeekendDay getNextSaturday() { return nextSaturday; }
