@@ -143,7 +143,13 @@ public class PowerSavingManager {
                 isDarkScheduleActive = true;
                 applyScreenState(false);
             } else if (DarkScheduleReceiver.ACTION_DARK_OFF.equals(action)) {
-                // Active window started → wake up
+                // Active window started → wake up.
+                // Cancel any deferred startup screen-off so it does not fire
+                // after the active phase has already begun.
+                if (pendingDarkPhaseRunnable != null) {
+                    startupHandler.removeCallbacks(pendingDarkPhaseRunnable);
+                    pendingDarkPhaseRunnable = null;
+                }
                 isDarkScheduleActive = false;
                 acquireWakeLock();
                 applyScreenState(true);
