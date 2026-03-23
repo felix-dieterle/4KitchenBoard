@@ -29,7 +29,7 @@ public class WeatherApiClient {
             "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s" +
             "&current_weather=true" +
             "&daily=temperature_2m_max,precipitation_sum,precipitation_hours,windspeed_10m_max" +
-            "&hourly=windspeed_10m" +
+            "&hourly=windspeed_10m,precipitation" +
             "&timezone=auto&forecast_days=14";
 
     public interface WeatherCallback {
@@ -54,6 +54,7 @@ public class WeatherApiClient {
 
                     JSONObject current = weatherJson.getJSONObject("current_weather");
                     double currentTemp = current.getDouble("temperature");
+                    double currentWind = current.optDouble("windspeed", 0.0);
                     int weatherCode = current.getInt("weathercode");
 
                     JSONObject daily = weatherJson.getJSONObject("daily");
@@ -62,11 +63,14 @@ public class WeatherApiClient {
                     double highTemp = maxTemps.getDouble(0);
                     double precipMm = precip.isNull(0) ? 0.0 : precip.getDouble(0);
 
-                    WeatherData.WeekendDay[] weekend = parseWeekendDays(daily,
-                            weatherJson.optJSONObject("hourly"));
+                    JSONObject hourly = weatherJson.optJSONObject("hourly");
+                    int todayRainStartHour = findTodayRainStartHour(hourly);
+
+                    WeatherData.WeekendDay[] weekend = parseWeekendDays(daily, hourly);
 
                     final WeatherData data = new WeatherData(
-                            currentTemp, highTemp, precipMm, weatherCode, cityName,
+                            currentTemp, currentWind, highTemp, precipMm, todayRainStartHour,
+                            weatherCode, cityName,
                             weekend[0], weekend[1]);
                     mainHandler.post(new Runnable() {
                         @Override public void run() { callback.onSuccess(data); }
@@ -112,6 +116,7 @@ public class WeatherApiClient {
 
                     JSONObject current = weatherJson.getJSONObject("current_weather");
                     double currentTemp = current.getDouble("temperature");
+                    double currentWind = current.optDouble("windspeed", 0.0);
                     int weatherCode = current.getInt("weathercode");
 
                     JSONObject daily = weatherJson.getJSONObject("daily");
@@ -120,11 +125,14 @@ public class WeatherApiClient {
                     double highTemp = maxTemps.getDouble(0);
                     double precipMm = precip.isNull(0) ? 0.0 : precip.getDouble(0);
 
-                    WeatherData.WeekendDay[] weekend = parseWeekendDays(daily,
-                            weatherJson.optJSONObject("hourly"));
+                    JSONObject hourly = weatherJson.optJSONObject("hourly");
+                    int todayRainStartHour = findTodayRainStartHour(hourly);
+
+                    WeatherData.WeekendDay[] weekend = parseWeekendDays(daily, hourly);
 
                     final WeatherData data = new WeatherData(
-                            currentTemp, highTemp, precipMm, weatherCode, resolvedCity,
+                            currentTemp, currentWind, highTemp, precipMm, todayRainStartHour,
+                            weatherCode, resolvedCity,
                             weekend[0], weekend[1]);
                     mainHandler.post(new Runnable() {
                         @Override public void run() { callback.onSuccess(data); }
@@ -154,6 +162,7 @@ public class WeatherApiClient {
             JSONArray precipHoursArr = daily.optJSONArray("precipitation_hours");
             JSONArray maxWindArr = daily.optJSONArray("windspeed_10m_max");
             JSONArray hourlyWindArr = hourly != null ? hourly.optJSONArray("windspeed_10m") : null;
+            JSONArray hourlyPrecipArr = hourly != null ? hourly.optJSONArray("precipitation") : null;
 
             SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
 
@@ -188,9 +197,21 @@ public class WeatherApiClient {
                         if (count > 0) meanWind /= count;
                     }
 
+                    // Find the first hour of rain for this day
+                    int rainStartHour = -1;
+                    if (hourlyPrecipArr != null) {
+                        int base = i * 24;
+                        for (int h = base; h < base + 24 && h < hourlyPrecipArr.length(); h++) {
+                            if (!hourlyPrecipArr.isNull(h) && hourlyPrecipArr.getDouble(h) > 0.0) {
+                                rainStartHour = h - base;
+                                break;
+                            }
+                        }
+                    }
+
                     String dayName = isSat ? "Saturday" : "Sunday";
                     WeatherData.WeekendDay wd = new WeatherData.WeekendDay(
-                            dayName, maxTemp, dryHours, maxWind, meanWind);
+                            dayName, maxTemp, dryHours, maxWind, meanWind, rainStartHour);
                     if (isSat && result[0] == null) result[0] = wd;
                     if (isSun && result[1] == null) result[1] = wd;
                 }
@@ -198,6 +219,25 @@ public class WeatherApiClient {
             }
         } catch (Exception ignored) {}
         return result;
+    }
+
+    /**
+     * Finds the first hour today (from the current hour onwards) where precipitation is > 0.
+     * Returns the hour (0–23), or -1 if no rain is expected for the rest of today.
+     */
+    private static int findTodayRainStartHour(JSONObject hourly) {
+        if (hourly == null) return -1;
+        try {
+            JSONArray hourlyPrecipArr = hourly.optJSONArray("precipitation");
+            if (hourlyPrecipArr == null) return -1;
+            int currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+            for (int h = currentHour; h < 24 && h < hourlyPrecipArr.length(); h++) {
+                if (!hourlyPrecipArr.isNull(h) && hourlyPrecipArr.getDouble(h) > 0.0) {
+                    return h;
+                }
+            }
+        } catch (Exception ignored) {}
+        return -1;
     }
 
     private static String httpGet(String urlString) throws Exception {

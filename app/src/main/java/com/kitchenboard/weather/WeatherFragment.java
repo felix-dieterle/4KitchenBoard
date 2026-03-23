@@ -65,6 +65,7 @@ public class WeatherFragment extends Fragment {
     private TextView tvDescription;
     private TextView tvHighTemp;
     private TextView tvRain;
+    private TextView tvWind;
     private TextView tvDate;
     private TextView tvStatus;
 
@@ -72,9 +73,13 @@ public class WeatherFragment extends Fragment {
     private TextView tvSatMaxTemp;
     private TextView tvSatDryHours;
     private TextView tvSatWind;
+    private View llSatRainStart;
+    private TextView tvSatRainStart;
     private TextView tvSunMaxTemp;
     private TextView tvSunDryHours;
     private TextView tvSunWind;
+    private View llSunRainStart;
+    private TextView tvSunRainStart;
     private TextView tvWeekendStatus;
 
     private ViewPager2 weatherViewPager;
@@ -122,6 +127,7 @@ public class WeatherFragment extends Fragment {
         tvDescription = currentPage.findViewById(R.id.tv_weather_desc);
         tvHighTemp = currentPage.findViewById(R.id.tv_high_temp);
         tvRain = currentPage.findViewById(R.id.tv_rain);
+        tvWind = currentPage.findViewById(R.id.tv_wind);
         tvDate = currentPage.findViewById(R.id.tv_date);
         tvStatus = currentPage.findViewById(R.id.tv_status);
 
@@ -129,9 +135,13 @@ public class WeatherFragment extends Fragment {
         tvSatMaxTemp = weekendPage.findViewById(R.id.tv_sat_max_temp);
         tvSatDryHours = weekendPage.findViewById(R.id.tv_sat_dry_hours);
         tvSatWind = weekendPage.findViewById(R.id.tv_sat_wind);
+        llSatRainStart = weekendPage.findViewById(R.id.ll_sat_rain_start);
+        tvSatRainStart = weekendPage.findViewById(R.id.tv_sat_rain_start);
         tvSunMaxTemp = weekendPage.findViewById(R.id.tv_sun_max_temp);
         tvSunDryHours = weekendPage.findViewById(R.id.tv_sun_dry_hours);
         tvSunWind = weekendPage.findViewById(R.id.tv_sun_wind);
+        llSunRainStart = weekendPage.findViewById(R.id.ll_sun_rain_start);
+        tvSunRainStart = weekendPage.findViewById(R.id.tv_sun_rain_start);
         tvWeekendStatus = weekendPage.findViewById(R.id.tv_weekend_status);
 
         // Dot indicators
@@ -388,10 +398,18 @@ public class WeatherFragment extends Fragment {
         tvHighTemp.setText(String.format("High: %.0f°C", data.getHighTemperature()));
 
         if (data.getPrecipitationMm() > 0) {
-            tvRain.setText(String.format("Rain: %.1f mm", data.getPrecipitationMm()));
+            int rainStart = data.getTodayRainStartHour();
+            if (rainStart >= 0) {
+                tvRain.setText(String.format(getString(R.string.weather_rain_start_with_amount),
+                        rainStart, data.getPrecipitationMm()));
+            } else {
+                tvRain.setText(String.format("Rain: %.1f mm", data.getPrecipitationMm()));
+            }
         } else {
             tvRain.setText("No rain expected");
         }
+
+        tvWind.setText(String.format(getString(R.string.weather_wind), data.getCurrentWindSpeed()));
 
         SimpleDateFormat sdf = new SimpleDateFormat("EEEE, dd. MMMM yyyy", Locale.getDefault());
         tvDate.setText(sdf.format(new Date()));
@@ -424,20 +442,34 @@ public class WeatherFragment extends Fragment {
             tvSatMaxTemp.setText(String.format(getString(R.string.weekend_max_temp), sat.maxTemp));
             tvSatDryHours.setText(String.format(getString(R.string.weekend_dry_hours), sat.dryHours));
             tvSatWind.setText(String.format(getString(R.string.weekend_wind), sat.maxWind, sat.meanWind));
+            if (sat.rainStartHour >= 0) {
+                tvSatRainStart.setText(String.format(getString(R.string.weather_rain_start), sat.rainStartHour));
+                llSatRainStart.setVisibility(View.VISIBLE);
+            } else {
+                llSatRainStart.setVisibility(View.GONE);
+            }
         } else {
             tvSatMaxTemp.setText("--");
             tvSatDryHours.setText("--");
             tvSatWind.setText("--");
+            llSatRainStart.setVisibility(View.GONE);
         }
 
         if (sun != null) {
             tvSunMaxTemp.setText(String.format(getString(R.string.weekend_max_temp), sun.maxTemp));
             tvSunDryHours.setText(String.format(getString(R.string.weekend_dry_hours), sun.dryHours));
             tvSunWind.setText(String.format(getString(R.string.weekend_wind), sun.maxWind, sun.meanWind));
+            if (sun.rainStartHour >= 0) {
+                tvSunRainStart.setText(String.format(getString(R.string.weather_rain_start), sun.rainStartHour));
+                llSunRainStart.setVisibility(View.VISIBLE);
+            } else {
+                llSunRainStart.setVisibility(View.GONE);
+            }
         } else {
             tvSunMaxTemp.setText("--");
             tvSunDryHours.setText("--");
             tvSunWind.setText("--");
+            llSunRainStart.setVisibility(View.GONE);
         }
     }
 

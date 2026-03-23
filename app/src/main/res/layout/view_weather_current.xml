@@ -88,7 +88,8 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:layout_marginBottom="@dimen/spacing_normal">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -101,6 +102,27 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Rain: --"
+                android:textSize="@dimen/body_text_size"
+                android:textColor="@color/text_primary"/>
+        </LinearLayout>
+
+        <!-- Wind -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💨  "
+                android:textSize="@dimen/body_text_size"/>
+
+            <TextView
+                android:id="@+id/tv_wind"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Wind: -- km/h"
                 android:textSize="@dimen/body_text_size"
                 android:textColor="@color/text_primary"/>
         </LinearLayout>

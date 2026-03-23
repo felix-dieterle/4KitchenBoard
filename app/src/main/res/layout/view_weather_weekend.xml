@@ -75,6 +75,28 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/ll_sat_rain_start"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="@dimen/spacing_small"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🌧  "
+                android:textSize="@dimen/body_text_size"/>
+
+            <TextView
+                android:id="@+id/tv_sat_rain_start"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="@dimen/body_text_size"
+                android:textColor="@color/text_primary"/>
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -151,6 +173,28 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Dry: -- h"
+                android:textSize="@dimen/body_text_size"
+                android:textColor="@color/text_primary"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ll_sun_rain_start"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="@dimen/spacing_small"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🌧  "
+                android:textSize="@dimen/body_text_size"/>
+
+            <TextView
+                android:id="@+id/tv_sun_rain_start"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:textSize="@dimen/body_text_size"
                 android:textColor="@color/text_primary"/>
         </LinearLayout>
