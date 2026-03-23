@@ -13,20 +13,26 @@ public class ShoppingItem {
     private int quantity;
     private String shop;
     private int priority;
+    /** Manual sort position within the active list – lower value appears first. */
+    private int sortOrder;
 
     public ShoppingItem(long id, String name, String category, boolean checked) {
-        this(id, name, category, checked, 1, "", PRIORITY_NORMAL);
+        this(id, name, category, checked, 1, "", PRIORITY_NORMAL, 0);
     }
 
     public ShoppingItem(long id, String name, String category, boolean checked, int quantity) {
-        this(id, name, category, checked, quantity, "", PRIORITY_NORMAL);
+        this(id, name, category, checked, quantity, "", PRIORITY_NORMAL, 0);
     }
 
     public ShoppingItem(long id, String name, String category, boolean checked, int quantity, String shop) {
-        this(id, name, category, checked, quantity, shop, PRIORITY_NORMAL);
+        this(id, name, category, checked, quantity, shop, PRIORITY_NORMAL, 0);
     }
 
     public ShoppingItem(long id, String name, String category, boolean checked, int quantity, String shop, int priority) {
+        this(id, name, category, checked, quantity, shop, priority, 0);
+    }
+
+    public ShoppingItem(long id, String name, String category, boolean checked, int quantity, String shop, int priority, int sortOrder) {
         this.id = id;
         this.name = name;
         this.category = category;
@@ -34,6 +40,7 @@ public class ShoppingItem {
         this.quantity = quantity < 1 ? 1 : quantity;
         this.shop = shop != null ? shop : "";
         this.priority = (priority < PRIORITY_HIGH || priority > PRIORITY_LOW) ? PRIORITY_NORMAL : priority;
+        this.sortOrder = sortOrder;
     }
 
     public long getId() { return id; }
@@ -49,4 +56,6 @@ public class ShoppingItem {
     public void setPriority(int priority) {
         this.priority = (priority < PRIORITY_HIGH || priority > PRIORITY_LOW) ? PRIORITY_NORMAL : priority;
     }
+    public int getSortOrder() { return sortOrder; }
+    public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
 }

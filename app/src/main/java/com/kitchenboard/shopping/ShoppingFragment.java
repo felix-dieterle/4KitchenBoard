@@ -34,6 +34,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -123,6 +124,24 @@ public class ShoppingFragment extends Fragment {
         RecyclerView recyclerView = view.findViewById(R.id.rv_shopping);
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
         recyclerView.setAdapter(adapter);
+
+        // Set up drag-to-reorder via ItemTouchHelper
+        final ItemTouchHelper itemTouchHelper = new ItemTouchHelper(
+                new ShoppingItemTouchCallback(adapter, new ShoppingItemTouchCallback.OnDropListener() {
+                    @Override
+                    public void onDrop() {
+                        // Persist the new order to the database
+                        db.batchUpdateSortOrders(adapter.getItems());
+                    }
+                }));
+        itemTouchHelper.attachToRecyclerView(recyclerView);
+
+        adapter.setOnStartDragListener(new ShoppingAdapter.OnStartDragListener() {
+            @Override
+            public void onStartDrag(RecyclerView.ViewHolder viewHolder) {
+                itemTouchHelper.startDrag(viewHolder);
+            }
+        });
 
         FloatingActionButton fab = view.findViewById(R.id.fab_add);
         fab.setOnClickListener(new View.OnClickListener() {
