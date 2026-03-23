@@ -971,9 +971,13 @@ public class MainActivity extends AppCompatActivity {
                 .getBoolean(ChatCheckReceiver.PREF_CHAT_ACTIVE, true);
 
         lanDiscovery = new LanDiscoveryManager();
-        lanDiscovery.setActiveStatus(initialActive);
         lanDiscovery.setPeerListListener(peers -> runOnUiThread(this::updateActivePeersRow));
-        CHAT_EXECUTOR.submit(() -> lanDiscovery.start(myDeviceId, myDeviceName));
+        // Pass active status into the start() call so the first broadcast inside listenLoop
+        // already contains a valid deviceId and the correct active flag.
+        CHAT_EXECUTOR.submit(() -> {
+            lanDiscovery.start(myDeviceId, myDeviceName);
+            lanDiscovery.setActiveStatus(initialActive);
+        });
     }
 
     /** Stops LAN chat server and discovery. */

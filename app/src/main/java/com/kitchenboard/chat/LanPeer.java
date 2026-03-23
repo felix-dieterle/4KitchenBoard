@@ -10,8 +10,8 @@ public class LanPeer {
     public final String deviceId;
     /** Human-readable display name of the remote device / person. */
     public final String deviceName;
-    /** IPv4 address of the remote device on the LAN. */
-    public final String ip;
+    /** IPv4 address of the remote device on the LAN. Updated when the peer sends a fresh hello. */
+    public String ip;
     /** Timestamp (ms) when this peer was last seen. */
     public long lastSeenMs;
     /**
