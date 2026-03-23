@@ -7,10 +7,13 @@ import android.content.Intent;
 /**
  * BroadcastReceiver triggered by the daily active-window schedule alarms.
  *
- * <p>Forwards the active-on / active-off action to any registered
- * {@link PowerSavingManager} instance running inside the app process.
- * The actual brightness and screen-state change is applied by the manager's
- * internal receiver which listens for these local broadcasts.
+ * <p>This manifest-declared receiver serves as the concrete target for the
+ * AlarmManager {@link android.app.PendingIntent}s so that the alarm can wake
+ * the app process even if it was killed.  Because the alarm intent is sent
+ * with {@code setPackage()} targeting this app, the dynamically-registered
+ * receiver inside {@link PowerSavingManager} also receives every alarm
+ * broadcast directly and handles the actual brightness / screen-state change.
+ * {@code DarkScheduleReceiver} therefore does not need to do anything itself.
  *
  * <p>Three configurable active windows are supported (defaults: 06:00–09:45,
  * 12:00–13:45, 16:30–21:15). Outside these windows the screen is dimmed and
@@ -33,11 +36,12 @@ public class DarkScheduleReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        // Re-broadcast locally so PowerSavingManager's registered receiver picks it up.
-        String action = intent.getAction();
-        if (ACTION_DARK_ON.equals(action) || ACTION_DARK_OFF.equals(action)) {
-            Intent local = new Intent(action).setPackage(context.getPackageName());
-            context.sendBroadcast(local);
-        }
+        // The alarm broadcast already targets this package (via setPackage), so
+        // PowerSavingManager's dynamically-registered darkScheduleReceiver also
+        // receives it directly.  No re-broadcast is needed here, and doing so
+        // would cause DarkScheduleReceiver to receive its own re-broadcast and
+        // re-broadcast again, creating an infinite broadcast loop that floods the
+        // main thread with window.setAttributes() calls and causes continuous
+        // screen flickering on older hardware (e.g. Galaxy Tab 10.1, API 15).
     }
 }
