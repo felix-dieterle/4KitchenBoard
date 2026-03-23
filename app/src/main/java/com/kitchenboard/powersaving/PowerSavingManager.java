@@ -93,6 +93,13 @@ public class PowerSavingManager {
     /** Duration (ms) for the screen-wake wake lock. */
     private static final long WAKE_LOCK_DURATION_MS = 3_000L;
 
+    /**
+     * Grace period (ms) applied once at app startup when the device is already in a dark phase.
+     * Screen blackout and WiFi-off are deferred by this amount so that the update check
+     * (and any pending downloads) can complete over the network before connectivity is cut.
+     */
+    private static final long STARTUP_DARK_GRACE_PERIOD_MS = 60_000L;
+
     private final Context context;
     private Window  window;
     private boolean isDarkScheduleActive = false;
@@ -101,6 +108,12 @@ public class PowerSavingManager {
     private boolean wifiDisabledByUs     = false;
     /** Optional callback invoked on the main thread whenever the dark-phase state changes. */
     private Runnable onDarkPhaseChangedCallback;
+
+    /** Handler used to post the deferred dark-phase application at startup. */
+    private final android.os.Handler startupHandler =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    /** Deferred runnable that applies the dark phase after the startup grace period. */
+    private Runnable pendingDarkPhaseRunnable;
 
     // ── Battery receiver ──────────────────────────────────────────────────────
 
@@ -177,10 +190,26 @@ public class PowerSavingManager {
             context.registerReceiver(darkScheduleReceiver, darkFilter);
         }
 
-        // Apply correct state immediately based on current time
+        // Apply correct state based on current time.
+        // When the app starts inside a dark phase, defer screen-blackout and WiFi-off by
+        // STARTUP_DARK_GRACE_PERIOD_MS so that the update check (launched earlier in
+        // MainActivity.onCreate) has enough time to complete over the network before
+        // connectivity is cut.
         if (prefs.getBoolean(PREF_DARK_SCHEDULE_ENABLED, true)) {
             isDarkScheduleActive = !isInsideActiveWindow(prefs);
-            applyScreenState(!isDarkScheduleActive);
+            if (isDarkScheduleActive) {
+                // Dark phase: honour the grace period so updates are not blocked.
+                UpdateLogger.logInfo(context,
+                        "PowerSavingManager: dark phase at startup – deferring screen-off "
+                        + "and WiFi-off by "
+                        + (STARTUP_DARK_GRACE_PERIOD_MS / 1000) + " s");
+                pendingDarkPhaseRunnable = () -> applyScreenState(false);
+                startupHandler.postDelayed(pendingDarkPhaseRunnable,
+                        STARTUP_DARK_GRACE_PERIOD_MS);
+            } else {
+                // Active phase: apply immediately (screen on, WiFi on).
+                applyScreenState(true);
+            }
             scheduleActiveAlarms(prefs);
             notifyDarkPhaseChanged();
         }
@@ -188,6 +217,10 @@ public class PowerSavingManager {
 
     /** Releases resources – call from {@code MainActivity.onDestroy()}. */
     public void destroy() {
+        if (pendingDarkPhaseRunnable != null) {
+            startupHandler.removeCallbacks(pendingDarkPhaseRunnable);
+            pendingDarkPhaseRunnable = null;
+        }
         try { context.unregisterReceiver(batteryReceiver);      } catch (Exception ignored) {}
         try { context.unregisterReceiver(darkScheduleReceiver); } catch (Exception ignored) {}
     }
