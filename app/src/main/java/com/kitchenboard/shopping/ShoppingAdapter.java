@@ -2,6 +2,7 @@ package com.kitchenboard.shopping;
 
 import android.graphics.Paint;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -16,11 +17,12 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.kitchenboard.R;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
- * Displays shopping items grouped by category.
- * Each list entry is either a category header or a shopping item.
+ * Displays shopping items grouped by category or shop.
+ * Supports drag-to-reorder via a drag handle on each item row.
  */
 public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
@@ -43,12 +45,18 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         void onShowQr(ShoppingItem item);
     }
 
+    /** Called when a drag gesture starts from the drag handle of an item row. */
+    public interface OnStartDragListener {
+        void onStartDrag(RecyclerView.ViewHolder viewHolder);
+    }
+
     // Each list entry is either a String (category/shop header) or ShoppingItem
     private final List<Object> rows = new ArrayList<>();
     private OnItemCheckedListener checkedListener;
     private OnItemLongClickListener longClickListener;
     private OnQuantityChangedListener quantityChangedListener;
     private OnShowQrListener showQrListener;
+    private OnStartDragListener startDragListener;
     private boolean groupByShop = false;
     private String noShopLabel = "Kein Shop";
     /** Optional DB helper – used to look up saved category icons. May be null. */
@@ -58,6 +66,8 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
     public void setOnItemLongClickListener(OnItemLongClickListener l) { longClickListener = l; }
     public void setOnQuantityChangedListener(OnQuantityChangedListener l) { quantityChangedListener = l; }
     public void setOnShowQrListener(OnShowQrListener l) { showQrListener = l; }
+    /** Provide the listener that starts a drag operation (usually the ItemTouchHelper). */
+    public void setOnStartDragListener(OnStartDragListener l) { startDragListener = l; }
 
     /** Provide the database helper so category icons can be resolved. */
     public void setDatabase(ShoppingDatabaseHelper database) { this.db = database; }
@@ -72,18 +82,16 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
     public void setItems(List<ShoppingItem> items) {
         rows.clear();
         if (groupByShop) {
-            // Sort by shop (empty shop goes last), then by priority, then by name
+            // Sort by shop (empty shop goes last), then by manual sort order
             List<ShoppingItem> sorted = new ArrayList<>(items);
-            java.util.Collections.sort(sorted, new java.util.Comparator<ShoppingItem>() {
+            Collections.sort(sorted, new java.util.Comparator<ShoppingItem>() {
                 @Override
                 public int compare(ShoppingItem a, ShoppingItem b) {
                     String shopA = a.getShop().isEmpty() ? "\uffff" : a.getShop();
                     String shopB = b.getShop().isEmpty() ? "\uffff" : b.getShop();
                     int c = shopA.compareToIgnoreCase(shopB);
                     if (c != 0) return c;
-                    int pc = Integer.compare(a.getPriority(), b.getPriority());
-                    if (pc != 0) return pc;
-                    return a.getName().compareToIgnoreCase(b.getName());
+                    return Integer.compare(a.getSortOrder(), b.getSortOrder());
                 }
             });
             String lastShop = null;
@@ -96,6 +104,7 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
                 rows.add(item);
             }
         } else {
+            // Items already ordered by sort_order from the DB query; group by category preserving that order
             String lastCategory = null;
             for (ShoppingItem item : items) {
                 if (!item.getCategory().equals(lastCategory)) {
@@ -108,13 +117,33 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         notifyDataSetChanged();
     }
 
-    /** Returns only the ShoppingItem entries (no header strings). */
+    /** Returns only the ShoppingItem entries (no header strings) in current display order. */
     public List<ShoppingItem> getItems() {
         List<ShoppingItem> result = new ArrayList<>();
         for (Object o : rows) {
             if (o instanceof ShoppingItem) result.add((ShoppingItem) o);
         }
         return result;
+    }
+
+    /**
+     * Moves an item row from {@code fromPos} to {@code toPos} within the {@code rows} list.
+     * Only item-to-item moves are allowed; header rows must not be passed as either position.
+     */
+    public void moveItem(int fromPos, int toPos) {
+        if (fromPos == toPos) return;
+        if (!(rows.get(fromPos) instanceof ShoppingItem)) return;
+        if (!(rows.get(toPos) instanceof ShoppingItem)) return;
+        if (fromPos < toPos) {
+            for (int i = fromPos; i < toPos; i++) {
+                Collections.swap(rows, i, i + 1);
+            }
+        } else {
+            for (int i = fromPos; i > toPos; i--) {
+                Collections.swap(rows, i, i - 1);
+            }
+        }
+        notifyItemMoved(fromPos, toPos);
     }
 
     @Override
@@ -191,6 +220,7 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         final TextView tvQuantity;
         final Button btnPlus;
         final Button btnShowQr;
+        final ImageView ivDragHandle;
 
         ItemViewHolder(View v) {
             super(v);
@@ -201,6 +231,7 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
             tvQuantity = v.findViewById(R.id.tv_quantity);
             btnPlus = v.findViewById(R.id.btn_qty_plus);
             btnShowQr = v.findViewById(R.id.btn_show_qr);
+            ivDragHandle = v.findViewById(R.id.iv_drag_handle);
         }
 
         void bind(final ShoppingItem item) {
@@ -270,6 +301,20 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
                     if (longClickListener != null) {
                         longClickListener.onItemLongClick(item);
                         return true;
+                    }
+                    return false;
+                }
+            });
+
+            // Drag handle: touching it starts a drag-to-reorder gesture
+            ivDragHandle.setOnTouchListener(new View.OnTouchListener() {
+                @Override
+                public boolean onTouch(View v, MotionEvent event) {
+                    if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                        if (startDragListener != null) {
+                            startDragListener.onStartDrag(ItemViewHolder.this);
+                            return true;
+                        }
                     }
                     return false;
                 }

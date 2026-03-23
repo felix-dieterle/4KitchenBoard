@@ -13,7 +13,7 @@ import java.util.List;
 public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "shopping.db";
-    private static final int DB_VERSION = 9;
+    private static final int DB_VERSION = 10;
 
     static final String TABLE = "shopping_items";
     static final String COL_ID = "_id";
@@ -24,6 +24,8 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     static final String COL_QUANTITY = "quantity";
     static final String COL_SHOP = "shop";
     static final String COL_PRIORITY = "priority";
+    /** Manual sort position – lower value appears first in the list. */
+    static final String COL_SORT_ORDER = "sort_order";
 
     static final String TABLE_CATEGORIES = "categories";
     static final String COL_CAT_ID = "_id";
@@ -59,7 +61,8 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
                 COL_CREATED + " INTEGER DEFAULT 0, " +
                 COL_QUANTITY + " INTEGER DEFAULT 1, " +
                 COL_SHOP + " TEXT DEFAULT '', " +
-                COL_PRIORITY + " INTEGER DEFAULT 2)");
+                COL_PRIORITY + " INTEGER DEFAULT 2, " +
+                COL_SORT_ORDER + " INTEGER DEFAULT 0)");
         db.execSQL("CREATE TABLE " + TABLE_CATEGORIES + " (" +
                 COL_CAT_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COL_CAT_NAME + " TEXT NOT NULL UNIQUE, " +
@@ -142,10 +145,29 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
                     " WHERE " + TABLE + "." + COL_NAME + " = " + TABLE_ITEM_HISTORY + "." + COL_HIST_NAME +
                     " LIMIT 1), '')");
         }
+        if (oldVersion < 10) {
+            try {
+                db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " + COL_SORT_ORDER + " INTEGER DEFAULT 0");
+            } catch (SQLiteException ignored) {
+                // Column may already exist if upgrade runs twice; ignore.
+            }
+            // Initialise sort_order using row-insertion order (_id), which is an efficient
+            // O(n) operation and preserves the relative order items were added.
+            db.execSQL("UPDATE " + TABLE + " SET " + COL_SORT_ORDER +
+                    " = (SELECT COUNT(*) FROM " + TABLE + " AS t2" +
+                    " WHERE t2." + COL_ID + " < " + TABLE + "." + COL_ID + ")");
+        }
     }
 
     /** Insert a new unchecked item. Returns the new row id. */
     public long addItem(String name, String category, int quantity, String shop, int priority) {
+        SQLiteDatabase write = getWritableDatabase();
+        // Assign sort_order as one more than the current maximum so the new item appears last
+        Cursor c = write.rawQuery("SELECT COALESCE(MAX(" + COL_SORT_ORDER + "), -1) FROM " + TABLE, null);
+        int nextOrder = 0;
+        if (c.moveToFirst()) nextOrder = c.getInt(0) + 1;
+        c.close();
+
         ContentValues cv = new ContentValues();
         cv.put(COL_NAME, name);
         cv.put(COL_CATEGORY, category);
@@ -154,7 +176,8 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
         cv.put(COL_QUANTITY, quantity < 1 ? 1 : quantity);
         cv.put(COL_SHOP, shop != null ? shop : "");
         cv.put(COL_PRIORITY, priority);
-        return getWritableDatabase().insert(TABLE, null, cv);
+        cv.put(COL_SORT_ORDER, nextOrder);
+        return write.insert(TABLE, null, cv);
     }
 
     /** Insert a new unchecked item. Returns the new row id. */
@@ -210,17 +233,46 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
                 new String[]{String.valueOf(id)});
     }
 
-    /** Returns all unchecked items, ordered by category then priority then name. */
+    /** Update the manual sort order of a single item. */
+    public void updateItemSortOrder(long id, int sortOrder) {
+        ContentValues cv = new ContentValues();
+        cv.put(COL_SORT_ORDER, sortOrder);
+        getWritableDatabase().update(TABLE, cv, COL_ID + "=?",
+                new String[]{String.valueOf(id)});
+    }
+
+    /**
+     * Batch-persist new sort orders for a list of items in a single transaction.
+     * The sort_order for each item is derived from its index in the list (0, 1, 2, …).
+     */
+    public void batchUpdateSortOrders(List<ShoppingItem> items) {
+        SQLiteDatabase write = getWritableDatabase();
+        write.beginTransaction();
+        try {
+            for (int i = 0; i < items.size(); i++) {
+                items.get(i).setSortOrder(i);
+                ContentValues cv = new ContentValues();
+                cv.put(COL_SORT_ORDER, i);
+                write.update(TABLE, cv, COL_ID + "=?",
+                        new String[]{String.valueOf(items.get(i).getId())});
+            }
+            write.setTransactionSuccessful();
+        } finally {
+            write.endTransaction();
+        }
+    }
+
+    /** Returns all unchecked items ordered by their manual sort position. */
     public List<ShoppingItem> getActiveItems() {
         List<ShoppingItem> items = new ArrayList<>();
         Cursor c = getReadableDatabase().query(TABLE,
-                new String[]{COL_ID, COL_NAME, COL_CATEGORY, COL_CHECKED, COL_QUANTITY, COL_SHOP, COL_PRIORITY},
+                new String[]{COL_ID, COL_NAME, COL_CATEGORY, COL_CHECKED, COL_QUANTITY, COL_SHOP, COL_PRIORITY, COL_SORT_ORDER},
                 COL_CHECKED + "=?", new String[]{"0"}, null, null,
-                COL_CATEGORY + " ASC, " + COL_PRIORITY + " ASC, " + COL_NAME + " ASC");
+                COL_SORT_ORDER + " ASC");
         while (c.moveToNext()) {
             items.add(new ShoppingItem(
                     c.getLong(0), c.getString(1), c.getString(2), false,
-                    c.getInt(4), c.getString(5), c.getInt(6)));
+                    c.getInt(4), c.getString(5), c.getInt(6), c.getInt(7)));
         }
         c.close();
         return items;
@@ -495,21 +547,21 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
 
     /**
      * Returns all unchecked items whose {@code shop} matches the given store name,
-     * ordered by priority then name.
+     * ordered by manual sort position.
      */
     public List<ShoppingItem> getActiveItemsForShop(String shopName) {
         List<ShoppingItem> items = new ArrayList<>();
         if (shopName == null || shopName.isEmpty()) return items;
         Cursor c = getReadableDatabase().query(TABLE,
-                new String[]{COL_ID, COL_NAME, COL_CATEGORY, COL_CHECKED, COL_QUANTITY, COL_SHOP, COL_PRIORITY},
+                new String[]{COL_ID, COL_NAME, COL_CATEGORY, COL_CHECKED, COL_QUANTITY, COL_SHOP, COL_PRIORITY, COL_SORT_ORDER},
                 COL_CHECKED + "=? AND " + COL_SHOP + "=?",
                 new String[]{"0", shopName}, null, null,
-                COL_PRIORITY + " ASC, " + COL_NAME + " ASC");
+                COL_SORT_ORDER + " ASC");
         try {
             while (c.moveToNext()) {
                 items.add(new ShoppingItem(
                         c.getLong(0), c.getString(1), c.getString(2), false,
-                        c.getInt(4), c.getString(5), c.getInt(6)));
+                        c.getInt(4), c.getString(5), c.getInt(6), c.getInt(7)));
             }
         } finally {
             c.close();
