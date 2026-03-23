@@ -151,6 +151,8 @@ public class MainActivity extends AppCompatActivity {
     // ── Power saving ──────────────────────────────────────────────────────────
     private PowerSavingManager powerSavingManager;
     private ImageButton btnDarkPhaseToggle;
+    /** Full-screen black overlay shown during the dark phase (replaces simple brightness dimming). */
+    private View darkPhaseOverlay;
 
     private final Handler autoAdvanceHandler = new Handler(Looper.getMainLooper());
     private final Runnable autoAdvanceRunnable = new Runnable() {
@@ -710,6 +712,15 @@ public class MainActivity extends AppCompatActivity {
     private void setupDarkPhaseToggle() {
         btnDarkPhaseToggle = findViewById(R.id.btn_dark_phase_toggle);
         if (btnDarkPhaseToggle == null) return;
+        darkPhaseOverlay = findViewById(R.id.dark_phase_overlay);
+        if (darkPhaseOverlay != null) {
+            // Tapping the overlay exits dark phase (same as pressing the toggle button)
+            darkPhaseOverlay.setOnClickListener(v -> {
+                if (powerSavingManager != null) {
+                    powerSavingManager.setManualDark(false);
+                }
+            });
+        }
         updateDarkPhaseButton();
         btnDarkPhaseToggle.setOnClickListener(v -> {
             if (powerSavingManager != null) {
@@ -718,12 +729,15 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /** Updates the dark-phase toggle button icon to reflect the current state. */
+    /** Updates the dark-phase toggle button icon and the full-screen overlay to reflect the current state. */
     private void updateDarkPhaseButton() {
         if (btnDarkPhaseToggle == null) return;
         boolean dark = powerSavingManager != null && powerSavingManager.isDarkPhase();
         btnDarkPhaseToggle.setImageResource(
                 dark ? R.drawable.ic_dark_phase : R.drawable.ic_active_phase);
+        if (darkPhaseOverlay != null) {
+            darkPhaseOverlay.setVisibility(dark ? View.VISIBLE : View.GONE);
+        }
     }
 
     // ── In-app notification panel ─────────────────────────────────────────────

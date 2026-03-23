@@ -547,4 +547,25 @@
         </LinearLayout>
     </FrameLayout>
 
+    <!-- Dark-phase overlay: full-screen black background with centered white app icon.
+         Shown instead of just dimming the screen when the dark schedule is active. -->
+    <FrameLayout
+        android:id="@+id/dark_phase_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_launcher_foreground"
+            android:tint="#FFFFFF"
+            android:scaleType="fitCenter"
+            android:contentDescription="@string/app_name" />
+    </FrameLayout>
+
 </FrameLayout>
