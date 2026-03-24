@@ -482,6 +482,27 @@ public class ShoppingFragment extends Fragment {
     }
 
     /**
+     * Fetches item history from the server and merges it into the local history database.
+     * Failures are silently ignored as history sync is non-critical.
+     */
+    private void syncHistoryFromServer() {
+        if (apiClient == null || !isAdded()) return;
+        apiClient.fetchHistory(new ShoppingApiClient.Callback<List<ShoppingApiClient.HistoryEntry>>() {
+            @Override
+            public void onSuccess(List<ShoppingApiClient.HistoryEntry> entries) {
+                if (!isAdded()) return;
+                for (ShoppingApiClient.HistoryEntry entry : entries) {
+                    db.addItemNameToHistory(entry.name, entry.category);
+                }
+            }
+            @Override
+            public void onError(String message) {
+                // History sync failure is non-critical; silently ignore
+            }
+        });
+    }
+
+    /**
      * Fetches the current item list from the server and updates the displayed list.
      * Falls back to the currently displayed data on error so the UI remains functional.
      */
@@ -514,6 +535,7 @@ public class ShoppingFragment extends Fragment {
                     showSyncOk();
                     adapter.setItems(items);
                     tvEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+                    syncHistoryFromServer();
                 }
                 @Override
                 public void onError(String message) {
@@ -668,6 +690,11 @@ public class ShoppingFragment extends Fragment {
                                     // Save category and name locally for autocomplete suggestions
                                     db.addCategory(category);
                                     db.addItemNameToHistory(name, category);
+                                    apiClient.addHistoryItem(name, category, new ShoppingApiClient.Callback<Void>() {
+                                        @Override public void onSuccess(Void r) { }
+                                        // Failure already logged inside ShoppingApiClient; non-critical here
+                                        @Override public void onError(String msg) { }
+                                    });
                                     saveStoreLocationIfPresent(shop,
                                             selectedShopLat[0], selectedShopLon[0]);
                                     refreshList();
@@ -1240,6 +1267,11 @@ public class ShoppingFragment extends Fragment {
                             public void onSuccess(ShoppingItem item) {
                                 db.addCategory(itemCategory);
                                 db.addItemNameToHistory(itemName, itemCategory);
+                                apiClient.addHistoryItem(itemName, itemCategory, new ShoppingApiClient.Callback<Void>() {
+                                    @Override public void onSuccess(Void r) { }
+                                    // Failure already logged inside ShoppingApiClient; non-critical here
+                                    @Override public void onError(String msg) { }
+                                });
                                 saveStoreLocationIfPresent(shop,
                                         selectedShopLat[0], selectedShopLon[0]);
                                 refreshList();

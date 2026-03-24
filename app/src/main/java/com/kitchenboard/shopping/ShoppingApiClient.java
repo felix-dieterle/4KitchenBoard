@@ -34,6 +34,17 @@ public class ShoppingApiClient {
         void onError(String message);
     }
 
+    /** A single item-history entry consisting of a name and its associated category. */
+    public static final class HistoryEntry {
+        public final String name;
+        public final String category;
+
+        public HistoryEntry(String name, String category) {
+            this.name = name;
+            this.category = category;
+        }
+    }
+
     private final Context context;
     private final String baseUrl;
     private final String boardToken;
@@ -184,6 +195,50 @@ public class ShoppingApiClient {
                     postSuccess(callback, null);
                 } catch (final Exception e) {
                     UpdateLogger.logError(context, "Sync shopping delete failed (id=" + id + ")", e);
+                    postError(callback, e.getMessage());
+                }
+            }
+        });
+    }
+
+    /** Fetch all item-history entries for the configured board from the server. */
+    public void fetchHistory(final Callback<List<HistoryEntry>> callback) {
+        runAsync(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    String response = httpGet(baseUrl + "?action=history_list&board_token=" + encode(boardToken));
+                    JSONObject json = new JSONObject(response);
+                    JSONArray arr = json.getJSONArray("history");
+                    final List<HistoryEntry> entries = new ArrayList<>();
+                    for (int i = 0; i < arr.length(); i++) {
+                        JSONObject obj = arr.getJSONObject(i);
+                        entries.add(new HistoryEntry(
+                                obj.getString("name"),
+                                obj.optString("category", "")));
+                    }
+                    postSuccess(callback, entries);
+                } catch (final Exception e) {
+                    UpdateLogger.logError(context, "Fetch item history failed", e);
+                    postError(callback, e.getMessage());
+                }
+            }
+        });
+    }
+
+    /** Push a single item-history entry to the server for the configured board. */
+    public void addHistoryItem(final String name, final String category, final Callback<Void> callback) {
+        runAsync(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    httpPost(baseUrl, "action=history_add"
+                            + "&board_token=" + encode(boardToken)
+                            + "&name="        + encode(name)
+                            + "&category="    + encode(category));
+                    postSuccess(callback, null);
+                } catch (final Exception e) {
+                    UpdateLogger.logError(context, "Push item history failed", e);
                     postError(callback, e.getMessage());
                 }
             }
