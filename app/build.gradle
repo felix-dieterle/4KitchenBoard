@@ -15,6 +15,7 @@ android {
         multiDexEnabled true
         buildConfigField "String", "GITHUB_ISSUE_TOKEN",
                 "\"${System.getenv('GITHUB_ISSUE_TOKEN') ?: project.findProperty('GITHUB_ISSUE_TOKEN') ?: ''}\""
+        buildConfigField "int", "API_VERSION", "1"
     }
 
     signingConfigs {
