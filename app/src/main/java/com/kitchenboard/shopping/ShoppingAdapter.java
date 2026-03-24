@@ -18,11 +18,14 @@ import com.kitchenboard.R;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Displays shopping items grouped by category or shop.
  * Supports drag-to-reorder via a drag handle on each item row.
+ * Group headers can be tapped to collapse/expand the items beneath them.
  */
 public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
@@ -52,6 +55,10 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
 
     // Each list entry is either a String (category/shop header) or ShoppingItem
     private final List<Object> rows = new ArrayList<>();
+    /** Full unfiltered item list, kept for rebuilding rows when collapse state changes. */
+    private List<ShoppingItem> lastItems = new ArrayList<>();
+    /** Group keys (category or shop name) that are currently collapsed. */
+    private final Set<String> collapsedGroups = new HashSet<>();
     private OnItemCheckedListener checkedListener;
     private OnItemLongClickListener longClickListener;
     private OnQuantityChangedListener quantityChangedListener;
@@ -78,12 +85,32 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
     /** Label for items that have no shop assigned (used in shop-grouping mode). */
     public void setNoShopLabel(String label) { this.noShopLabel = label != null ? label : "Kein Shop"; }
 
+    /**
+     * Restores the set of collapsed group keys (e.g. from SharedPreferences) so that
+     * collapsed state survives configuration changes and fragment resumes.
+     */
+    public void setCollapsedGroups(Set<String> collapsed) {
+        collapsedGroups.clear();
+        if (collapsed != null) collapsedGroups.addAll(collapsed);
+    }
+
+    /** Returns a copy of the currently collapsed group keys for persistence. */
+    public Set<String> getCollapsedGroups() {
+        return new HashSet<>(collapsedGroups);
+    }
+
     /** Replaces the current data with a fresh grouped list. */
     public void setItems(List<ShoppingItem> items) {
+        lastItems = new ArrayList<>(items);
+        rebuildRows();
+    }
+
+    /** Rebuilds the visible rows list from lastItems, respecting current collapse state. */
+    private void rebuildRows() {
         rows.clear();
         if (groupByShop) {
             // Sort by shop (empty shop goes last), then by manual sort order
-            List<ShoppingItem> sorted = new ArrayList<>(items);
+            List<ShoppingItem> sorted = new ArrayList<>(lastItems);
             Collections.sort(sorted, new java.util.Comparator<ShoppingItem>() {
                 @Override
                 public int compare(ShoppingItem a, ShoppingItem b) {
@@ -101,20 +128,39 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
                     rows.add(shopKey);
                     lastShop = shopKey;
                 }
-                rows.add(item);
+                if (!isCollapsed(shopKey)) {
+                    rows.add(item);
+                }
             }
         } else {
             // Items already ordered by sort_order from the DB query; group by category preserving that order
             String lastCategory = null;
-            for (ShoppingItem item : items) {
+            for (ShoppingItem item : lastItems) {
                 if (!item.getCategory().equals(lastCategory)) {
                     rows.add(item.getCategory()); // header
                     lastCategory = item.getCategory();
                 }
-                rows.add(item);
+                if (!isCollapsed(item.getCategory())) {
+                    rows.add(item);
+                }
             }
         }
         notifyDataSetChanged();
+    }
+
+    /** Returns true if the given group key is currently collapsed. */
+    private boolean isCollapsed(String groupKey) {
+        return collapsedGroups.contains(groupKey);
+    }
+
+    /** Toggles the collapsed state of a group and refreshes the list. */
+    private void toggleCollapsed(String groupKey) {
+        if (collapsedGroups.contains(groupKey)) {
+            collapsedGroups.remove(groupKey);
+        } else {
+            collapsedGroups.add(groupKey);
+        }
+        rebuildRows();
     }
 
     /** Returns only the ShoppingItem entries (no header strings) in current display order. */
@@ -122,6 +168,42 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         List<ShoppingItem> result = new ArrayList<>();
         for (Object o : rows) {
             if (o instanceof ShoppingItem) result.add((ShoppingItem) o);
+        }
+        return result;
+    }
+
+    /**
+     * Returns ALL items (visible and from collapsed groups) in a stable global order suitable
+     * for persisting sort positions after a drag-to-reorder.  Collapsed-group items are inserted
+     * at the position of their group header so the relative order between groups is preserved.
+     */
+    public List<ShoppingItem> getAllItemsInDisplayOrder() {
+        // Collect collapsed items per group key in their current lastItems order
+        java.util.Map<String, List<ShoppingItem>> collapsedMap =
+                new java.util.LinkedHashMap<>();
+        for (ShoppingItem item : lastItems) {
+            String key = groupByShop
+                    ? (item.getShop().isEmpty() ? noShopLabel : item.getShop())
+                    : item.getCategory();
+            if (isCollapsed(key)) {
+                List<ShoppingItem> bucket = collapsedMap.get(key);
+                if (bucket == null) {
+                    bucket = new ArrayList<>();
+                    collapsedMap.put(key, bucket);
+                }
+                bucket.add(item);
+            }
+        }
+        // Walk rows in display order, injecting collapsed items at their header position
+        List<ShoppingItem> result = new ArrayList<>();
+        for (Object row : rows) {
+            if (row instanceof String) {
+                String key = (String) row;
+                List<ShoppingItem> hidden = collapsedMap.get(key);
+                if (hidden != null) result.addAll(hidden);
+            } else if (row instanceof ShoppingItem) {
+                result.add((ShoppingItem) row);
+            }
         }
         return result;
     }
@@ -181,14 +263,16 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
     class HeaderViewHolder extends RecyclerView.ViewHolder {
         final ImageView ivIcon;
         final TextView tvCategory;
+        final ImageView ivCollapseIndicator;
 
         HeaderViewHolder(View v) {
             super(v);
             ivIcon = v.findViewById(R.id.iv_category_icon);
             tvCategory = v.findViewById(R.id.tv_category_header);
+            ivCollapseIndicator = v.findViewById(R.id.iv_collapse_indicator);
         }
 
-        void bind(String category) {
+        void bind(final String category) {
             tvCategory.setText(category);
             // Resolve icon: prefer user-saved icon, auto-detect from category name as fallback
             int iconRes = R.drawable.ic_cat_other;
@@ -204,6 +288,22 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
             }
             ivIcon.setImageResource(iconRes);
             ivIcon.setVisibility(View.VISIBLE);
+
+            // Update collapse indicator – icon shows the *action*, not the current state:
+            // collapsed → ic_expand_more (chevron ▼ = "tap to expand")
+            // expanded  → ic_expand_less (chevron ▲ = "tap to collapse")
+            if (ivCollapseIndicator != null) {
+                ivCollapseIndicator.setImageResource(
+                        isCollapsed(category) ? R.drawable.ic_expand_more : R.drawable.ic_expand_less);
+            }
+
+            // Toggle collapse on header click
+            itemView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    toggleCollapsed(category);
+                }
+            });
         }
 
         private int resolveDrawableByName(String name, android.content.Context ctx) {
@@ -322,3 +422,4 @@ public class ShoppingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolde
         }
     }
 }
+
