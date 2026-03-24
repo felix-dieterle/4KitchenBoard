@@ -51,6 +51,11 @@
  *   GET  ?action=chat_list  → ?board_token=...&since_id=N → {"messages": [{id, senderId, senderName, message, timestampMs}, ...]}
  *   POST ?action=chat_send  → body: board_token, sender_id, sender_name, message → {"success":true, "id":N}
  *
+ * Item-history endpoints (action= GET or POST parameter):
+ *   GET  ?action=history_list   → ?board_token=... → {"history": [{name, category}, ...]}
+ *   POST ?action=history_add    → body: name, category → {"success":true}
+ *   POST ?action=history_delete → body: name           → {"success":true}
+ *
  * Storage: MySQL database.  Connection credentials are read from config.php
  * (DB_HOST, DB_NAME, DB_USER, DB_PASS).  Run generate_token.php to create
  * config.php with a secure API token and database credentials.
@@ -217,6 +222,14 @@ $db->exec("CREATE TABLE IF NOT EXISTS app_updates (
     created_at   BIGINT       NOT NULL DEFAULT 0
 )");
 
+$db->exec("CREATE TABLE IF NOT EXISTS item_history (
+    id       INT          AUTO_INCREMENT PRIMARY KEY,
+    board_id VARCHAR(255) NOT NULL DEFAULT '',
+    name     VARCHAR(255) NOT NULL,
+    category VARCHAR(255) NOT NULL DEFAULT '',
+    UNIQUE KEY uq_board_name (board_id, name)
+)");
+
 // ── Dispatch ──────────────────────────────────────────────────────────────────
 
 $action  = trim((string)($_GET['action']     ?? $_POST['action']     ?? ''));
@@ -294,6 +307,15 @@ switch ($action) {
         break;
     case 'chat_send':
         chatSend($db, $boardId);
+        break;
+    case 'history_list':
+        historyList($db, $boardId);
+        break;
+    case 'history_add':
+        historyAdd($db, $boardId);
+        break;
+    case 'history_delete':
+        historyDelete($db, $boardId);
         break;
     default:
         http_response_code(400);
@@ -1014,4 +1036,94 @@ function chatSend(PDO $db, string $boardToken): void
     $stmt->execute();
 
     echo json_encode(['success' => true, 'id' => (int)$db->lastInsertId()]);
+}
+
+// ── Item-history action handlers ──────────────────────────────────────────────
+
+/**
+ * GET ?action=history_list
+ *
+ * Returns all item-history entries for the board, ordered by name.
+ * Response: {"history": [{name, category}, ...]}
+ */
+function historyList(PDO $db, string $boardId): void
+{
+    $stmt = $db->prepare(
+        'SELECT name, category FROM item_history
+          WHERE board_id = :board_id
+          ORDER BY name ASC'
+    );
+    $stmt->bindValue(':board_id', $boardId, PDO::PARAM_STR);
+    $stmt->execute();
+    $history = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $history[] = [
+            'name'     => (string)$row['name'],
+            'category' => (string)$row['category'],
+        ];
+    }
+    echo json_encode(['history' => $history]);
+}
+
+/**
+ * POST ?action=history_add
+ *
+ * Body parameters:
+ *   name     – item name (required)
+ *   category – item category (optional, default '')
+ *
+ * Inserts a new entry or updates the category of an existing one.
+ * Response: {"success": true}
+ */
+function historyAdd(PDO $db, string $boardId): void
+{
+    $name     = trim((string)($_POST['name']     ?? ''));
+    $category = trim((string)($_POST['category'] ?? ''));
+
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameter "name" is required']);
+        return;
+    }
+
+    $stmt = $db->prepare(
+        'INSERT INTO item_history (board_id, name, category)
+              VALUES (:board_id, :name, :category)
+         ON DUPLICATE KEY UPDATE category = VALUES(category)'
+    );
+    $stmt->bindValue(':board_id', $boardId,  PDO::PARAM_STR);
+    $stmt->bindValue(':name',     $name,     PDO::PARAM_STR);
+    $stmt->bindValue(':category', $category, PDO::PARAM_STR);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+/**
+ * POST ?action=history_delete
+ *
+ * Body parameters:
+ *   name – item name to remove (required)
+ *
+ * Deletes the history entry for the given name scoped to the board.
+ * Response: {"success": true}
+ */
+function historyDelete(PDO $db, string $boardId): void
+{
+    $name = trim((string)($_POST['name'] ?? ''));
+
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameter "name" is required']);
+        return;
+    }
+
+    $stmt = $db->prepare(
+        'DELETE FROM item_history WHERE board_id = :board_id AND name = :name'
+    );
+    $stmt->bindValue(':board_id', $boardId, PDO::PARAM_STR);
+    $stmt->bindValue(':name',     $name,    PDO::PARAM_STR);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
 }

@@ -1,10 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/tv_history_child"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:textSize="@dimen/body_text_size"
-    android:paddingStart="@dimen/spacing_large"
-    android:paddingEnd="@dimen/panel_padding"
-    android:paddingTop="@dimen/spacing_normal"
-    android:paddingBottom="@dimen/spacing_normal" />
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+
+    <TextView
+        android:id="@+id/tv_history_child"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="@dimen/body_text_size"
+        android:paddingStart="@dimen/spacing_large"
+        android:paddingTop="@dimen/spacing_normal"
+        android:paddingBottom="@dimen/spacing_normal" />
+
+    <ImageButton
+        android:id="@+id/btn_delete_history"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@android:drawable/ic_menu_delete"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/history_delete_desc"
+        android:paddingEnd="@dimen/spacing_normal"
+        android:scaleType="center" />
+
+</LinearLayout>
