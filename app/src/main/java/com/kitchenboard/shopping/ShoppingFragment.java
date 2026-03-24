@@ -788,7 +788,8 @@ public class ShoppingFragment extends Fragment {
                 .setNegativeButton(R.string.cancel, null)
                 .create();
 
-        elv.setAdapter(new android.widget.BaseExpandableListAdapter() {
+        final android.widget.BaseExpandableListAdapter[] adapterHolder = {null};
+        adapterHolder[0] = new android.widget.BaseExpandableListAdapter() {
             @Override public int getGroupCount() { return groupList.size(); }
             @Override public int getChildrenCount(int g) {
                 return grouped.get(groupList.get(g)).size();
@@ -816,17 +817,64 @@ public class ShoppingFragment extends Fragment {
             }
 
             @Override
-            public View getChildView(int g, int ch, boolean isLast, View convertView,
-                                     ViewGroup parent) {
+            public View getChildView(final int g, final int ch, boolean isLast,
+                                     View convertView, ViewGroup parent) {
                 if (convertView == null) {
                     convertView = LayoutInflater.from(requireContext())
                             .inflate(R.layout.item_history_child, parent, false);
                 }
+                final String itemName = grouped.get(groupList.get(g)).get(ch);
                 ((TextView) convertView.findViewById(R.id.tv_history_child))
-                        .setText(grouped.get(groupList.get(g)).get(ch));
+                        .setText(itemName);
+
+                convertView.findViewById(R.id.btn_delete_history)
+                        .setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        new AlertDialog.Builder(requireContext())
+                                .setTitle(R.string.history_delete_title)
+                                .setMessage(getString(R.string.history_delete_confirm, itemName))
+                                .setPositiveButton(R.string.delete, new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface d, int which) {
+                                        // Delete locally
+                                        db.deleteItemFromHistory(itemName);
+                                        // Delete on server (best-effort, non-critical)
+                                        if (apiClient != null) {
+                                            apiClient.deleteHistoryItem(itemName,
+                                                    new ShoppingApiClient.Callback<Void>() {
+                                                @Override public void onSuccess(Void r) { }
+                                                // Failure already logged inside ShoppingApiClient
+                                                @Override public void onError(String msg) { }
+                                            });
+                                        }
+                                        // Refresh the list in-place (remove by name, not index,
+                                        // to avoid stale-index issues from re-use).
+                                        List<String> siblings =
+                                                grouped.get(groupList.get(g));
+                                        siblings.remove(itemName);
+                                        if (siblings.isEmpty()) {
+                                            grouped.remove(groupList.get(g));
+                                            groupList.remove(g);
+                                        }
+                                        if (grouped.isEmpty()) {
+                                            dialog.dismiss();
+                                        } else {
+                                            adapterHolder[0].notifyDataSetChanged();
+                                            for (int i = 0; i < groupList.size(); i++) {
+                                                elv.expandGroup(i);
+                                            }
+                                        }
+                                    }
+                                })
+                                .setNegativeButton(R.string.cancel, null)
+                                .show();
+                    }
+                });
                 return convertView;
             }
-        });
+        };
+        elv.setAdapter(adapterHolder[0]);
 
         elv.setOnChildClickListener(new android.widget.ExpandableListView.OnChildClickListener() {
             @Override

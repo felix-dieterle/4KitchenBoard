@@ -245,6 +245,24 @@ public class ShoppingApiClient {
         });
     }
 
+    /** Delete a single item-history entry from the server for the configured board. */
+    public void deleteHistoryItem(final String name, final Callback<Void> callback) {
+        runAsync(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    httpPost(baseUrl, "action=history_delete"
+                            + "&board_token=" + encode(boardToken)
+                            + "&name="        + encode(name));
+                    postSuccess(callback, null);
+                } catch (final Exception e) {
+                    UpdateLogger.logError(context, "Delete item history failed", e);
+                    postError(callback, e.getMessage());
+                }
+            }
+        });
+    }
+
     // ── HTTP helpers ──────────────────────────────────────────────────────────
 
     private String httpGet(String urlString) throws Exception {

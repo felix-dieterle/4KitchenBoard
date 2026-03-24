@@ -18,6 +18,9 @@
     <string name="item_history_button_desc">Select from previously used items</string>
     <string name="item_history_title">Previously used items</string>
     <string name="item_history_empty">No items used yet.</string>
+    <string name="history_delete_desc">Remove from history</string>
+    <string name="history_delete_title">Remove from history</string>
+    <string name="history_delete_confirm">Remove \"%s\" from history?</string>
     <string name="category_label">Category</string>
     <string name="category_hint">e.g. Fruits &amp; Vegetables</string>
     <string name="locate_me">📍 Locate</string>

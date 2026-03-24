@@ -374,6 +374,16 @@ public class ShoppingDatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
+     * Removes a single entry from the persistent item history.
+     * Silently ignored if {@code name} is empty.
+     */
+    public void deleteItemFromHistory(String name) {
+        if (name == null || name.isEmpty()) return;
+        getWritableDatabase().delete(
+                TABLE_ITEM_HISTORY, COL_HIST_NAME + " = ?", new String[]{name});
+    }
+
+    /**
      * Returns all history items grouped by category, with both categories and item names
      * sorted alphabetically.  The returned map preserves insertion order so the sorted
      * categories are iterated in the correct order.

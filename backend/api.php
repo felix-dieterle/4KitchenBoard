@@ -52,8 +52,9 @@
  *   POST ?action=chat_send  → body: board_token, sender_id, sender_name, message → {"success":true, "id":N}
  *
  * Item-history endpoints (action= GET or POST parameter):
- *   GET  ?action=history_list → ?board_token=... → {"history": [{name, category}, ...]}
- *   POST ?action=history_add  → body: name, category → {"success":true}
+ *   GET  ?action=history_list   → ?board_token=... → {"history": [{name, category}, ...]}
+ *   POST ?action=history_add    → body: name, category → {"success":true}
+ *   POST ?action=history_delete → body: name           → {"success":true}
  *
  * Storage: MySQL database.  Connection credentials are read from config.php
  * (DB_HOST, DB_NAME, DB_USER, DB_PASS).  Run generate_token.php to create
@@ -312,6 +313,9 @@ switch ($action) {
         break;
     case 'history_add':
         historyAdd($db, $boardId);
+        break;
+    case 'history_delete':
+        historyDelete($db, $boardId);
         break;
     default:
         http_response_code(400);
@@ -1090,6 +1094,35 @@ function historyAdd(PDO $db, string $boardId): void
     $stmt->bindValue(':board_id', $boardId,  PDO::PARAM_STR);
     $stmt->bindValue(':name',     $name,     PDO::PARAM_STR);
     $stmt->bindValue(':category', $category, PDO::PARAM_STR);
+    $stmt->execute();
+
+    echo json_encode(['success' => true]);
+}
+
+/**
+ * POST ?action=history_delete
+ *
+ * Body parameters:
+ *   name – item name to remove (required)
+ *
+ * Deletes the history entry for the given name scoped to the board.
+ * Response: {"success": true}
+ */
+function historyDelete(PDO $db, string $boardId): void
+{
+    $name = trim((string)($_POST['name'] ?? ''));
+
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Parameter "name" is required']);
+        return;
+    }
+
+    $stmt = $db->prepare(
+        'DELETE FROM item_history WHERE board_id = :board_id AND name = :name'
+    );
+    $stmt->bindValue(':board_id', $boardId, PDO::PARAM_STR);
+    $stmt->bindValue(':name',     $name,    PDO::PARAM_STR);
     $stmt->execute();
 
     echo json_encode(['success' => true]);
