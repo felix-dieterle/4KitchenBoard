@@ -299,7 +299,8 @@ public class MainActivity extends AppCompatActivity {
             TextView overlay = findViewById(R.id.version_overlay);
             if (overlay == null) return;
             overlay.setText(getString(R.string.version_display,
-                    BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
+                    BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE,
+                    BuildConfig.API_VERSION));
             versionOverlayRunnable = () -> {
                 if (overlay.isAttachedToWindow()) {
                     overlay.animate()

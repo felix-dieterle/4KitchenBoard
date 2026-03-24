@@ -38,9 +38,14 @@
  * Error log endpoint:
  *   POST ?action=log_error  → body: message, level[, timestamp] → {"success":true}
  *
+ * API-version endpoint:
+ *   GET  ?action=api_info           → {"api_version": <int>}
+ *                                     Returns the API_VERSION constant of this backend.
+ *                                     Clients can use this to detect incompatible backends.
+ *
  * Update endpoints:
  *   GET  ?action=check_update       → returns the latest backend update entry:
- *                                     {build_number, sub_number, download_url, tag}
+ *                                     {build_number, sub_number, download_url, tag, api_version}
  *                                     Returns {"build_number":0} when no entry exists.
  *   POST ?action=publish_update     → body: build_number, sub_number[, download_url, tag]
  *                                     Publishes a new update entry. → {"success":true, "id":N}
@@ -82,6 +87,14 @@ if (file_exists($configFile)) {
 }
 if (!defined('API_TOKEN')) {
     define('API_TOKEN', '');
+}
+
+// ── API version ───────────────────────────────────────────────────────────────
+// Increment this constant whenever a breaking change is made to the API contract
+// (removed/renamed fields, changed semantics).  The Android app exposes the same
+// value via BuildConfig.API_VERSION so both sides can detect a version mismatch.
+if (!defined('API_VERSION')) {
+    define('API_VERSION', 1);
 }
 
 // When a token is configured, every request must supply it in the
@@ -289,6 +302,9 @@ switch ($action) {
         break;
     case 'log_error':
         logErrorEntry($db, $boardId);
+        break;
+    case 'api_info':
+        echo json_encode(['api_version' => API_VERSION]);
         break;
     case 'check_update':
         checkUpdate($db);
@@ -814,6 +830,7 @@ function checkUpdate(PDO $db): void
             'sub_number'   => 0,
             'download_url' => '',
             'tag'          => '',
+            'api_version'  => API_VERSION,
         ]);
         return;
     }
@@ -823,6 +840,7 @@ function checkUpdate(PDO $db): void
         'sub_number'   => (int)$row['sub_number'],
         'download_url' => (string)$row['download_url'],
         'tag'          => (string)$row['tag'],
+        'api_version'  => API_VERSION,
     ]);
 }
 
