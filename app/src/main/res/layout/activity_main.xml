@@ -37,18 +37,71 @@
         android:fontFamily="sans-serif"
         android:visibility="visible"/>
 
-    <!-- Global account / sync setup button (bottom-start corner) -->
-    <ImageButton
-        android:id="@+id/btn_account_setup"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
+    <!-- Bottom-start toolbar: account setup, chat, dark-phase toggle -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
-        android:layout_marginBottom="4dp"
-        android:layout_marginStart="6dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@android:drawable/ic_menu_preferences"
-        android:contentDescription="@string/account_setup_title"
-        android:alpha="0.45"/>
+        android:orientation="horizontal"
+        android:layout_marginBottom="2dp"
+        android:layout_marginStart="4dp"
+        android:gravity="center_vertical">
+
+        <!-- Global account / sync setup button -->
+        <ImageButton
+            android:id="@+id/btn_account_setup"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_preferences"
+            android:contentDescription="@string/account_setup_title"
+            android:alpha="0.45"/>
+
+        <!-- Chat button with unread-count badge -->
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp">
+
+            <ImageButton
+                android:id="@+id/btn_chat"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_chat"
+                android:contentDescription="@string/chat_title"
+                android:alpha="0.45"/>
+
+            <TextView
+                android:id="@+id/tv_chat_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:background="@drawable/bg_notification_badge"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:paddingStart="3dp"
+                android:paddingEnd="3dp"
+                android:paddingTop="1dp"
+                android:paddingBottom="1dp"
+                android:minWidth="14dp"
+                android:gravity="center"
+                android:visibility="gone"/>
+        </FrameLayout>
+
+        <!-- Dark phase / night-mode toggle button -->
+        <ImageButton
+            android:id="@+id/btn_dark_phase_toggle"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_active_phase"
+            android:contentDescription="@string/dark_phase_toggle_desc"
+            android:alpha="0.45"/>
+
+    </LinearLayout>
 
     <!-- Active profile avatar button (top-start corner) -->
     <FrameLayout
@@ -69,54 +122,6 @@
             android:alpha="0.55"
             android:clickable="true"
             android:focusable="true"/>
-    </FrameLayout>
-
-    <!-- Dark phase toggle button (top-end, left of chat button) -->
-    <ImageButton
-        android:id="@+id/btn_dark_phase_toggle"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="0dp"
-        android:layout_marginEnd="92dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@drawable/ic_active_phase"
-        android:contentDescription="@string/dark_phase_toggle_desc"
-        android:alpha="0.45"/>
-
-    <!-- Chat button with unread-count badge (top-end, left of notification bell) -->
-    <FrameLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="6dp"
-        android:layout_marginEnd="50dp">
-
-        <ImageButton
-            android:id="@+id/btn_chat"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_chat"
-            android:contentDescription="@string/chat_title"
-            android:alpha="0.45"/>
-
-        <TextView
-            android:id="@+id/tv_chat_badge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top|end"
-            android:background="@drawable/bg_notification_badge"
-            android:textColor="#FFFFFF"
-            android:textSize="9sp"
-            android:textStyle="bold"
-            android:paddingStart="3dp"
-            android:paddingEnd="3dp"
-            android:paddingTop="1dp"
-            android:paddingBottom="1dp"
-            android:minWidth="14dp"
-            android:gravity="center"
-            android:visibility="gone"/>
     </FrameLayout>
 
     <!-- Global notification bell with unread-count badge (top-end corner) -->

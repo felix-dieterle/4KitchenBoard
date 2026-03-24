@@ -708,7 +708,7 @@ public class MainActivity extends AppCompatActivity {
 
     // ── Dark phase toggle ─────────────────────────────────────────────────────
 
-    /** Initialises the dark-phase toggle button (moon/sun icon in the top-end toolbar area). */
+    /** Initialises the dark-phase toggle button (moon/sun icon in the bottom-start toolbar). */
     private void setupDarkPhaseToggle() {
         btnDarkPhaseToggle = findViewById(R.id.btn_dark_phase_toggle);
         if (btnDarkPhaseToggle == null) return;
