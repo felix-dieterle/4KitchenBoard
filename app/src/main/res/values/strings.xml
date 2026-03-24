@@ -237,6 +237,7 @@
     <string name="known_stores_button">🏪 Liste</string>
     <string name="category_icon_desc">Kategorie-Icon</string>
     <string name="store_icon_desc">Shop-Icon</string>
+    <string name="collapse_expand_desc">Gruppe ein-/ausklappen</string>
 
     <!-- Manage shop locations dialog -->
     <string name="manage_shops_title">Shop-Standorte verwalten</string>

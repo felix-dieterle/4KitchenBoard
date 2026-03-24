@@ -47,8 +47,10 @@ import com.kitchenboard.R;
 import com.kitchenboard.feedback.FeatureRequestHelper;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.TreeSet;
 
 public class ShoppingFragment extends Fragment {
@@ -64,6 +66,8 @@ public class ShoppingFragment extends Fragment {
     private static final String DEFAULT_BASEPATH = "/apps/kitchenboard/api.php";
     private static final String PREF_PENDING_QR_NAME = "pending_qr_name";
     private static final String PREF_PENDING_QR_CATEGORY = "pending_qr_category";
+    /** Preference key for storing collapsed group names as a StringSet. */
+    private static final String PREF_COLLAPSED_GROUPS = "shopping_collapsed_groups";
 
     private static final int QR_SIZE_PX = 512;
 
@@ -130,8 +134,9 @@ public class ShoppingFragment extends Fragment {
                 new ShoppingItemTouchCallback(adapter, new ShoppingItemTouchCallback.OnDropListener() {
                     @Override
                     public void onDrop() {
-                        // Persist the new order to the database
-                        db.batchUpdateSortOrders(adapter.getItems());
+                        // Persist the new order to the database; include items from collapsed
+                        // groups so their sort_order values do not overlap with visible items.
+                        db.batchUpdateSortOrders(adapter.getAllItemsInDisplayOrder());
                     }
                 }));
         itemTouchHelper.attachToRecyclerView(recyclerView);
@@ -271,13 +276,20 @@ public class ShoppingFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        // Restore collapsed group state from SharedPreferences
+        SharedPreferences prefs = requireContext()
+                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        Set<String> raw = prefs.getStringSet(PREF_COLLAPSED_GROUPS, null);
+        Set<String> collapsed = (raw != null) ? new HashSet<>(raw) : new HashSet<String>();
+        adapter.setCollapsedGroups(collapsed);
         // Re-read server URL in case it was updated
         initApiClient();
         if (apiClient != null) {
             syncHandler.removeCallbacks(syncRunnable);
             syncHandler.postDelayed(syncRunnable, SYNC_INTERVAL_MS);
-            refreshList();
         }
+        // Always refresh the list so the restored collapse state is applied to the data
+        refreshList();
         checkPendingQrItem();
         // Load stores with GPS coordinates and register proximity alerts.
         cachedStoreLocations = db.getStoresWithLocation();
@@ -287,6 +299,12 @@ public class ShoppingFragment extends Fragment {
     @Override
     public void onPause() {
         super.onPause();
+        // Persist collapsed group state so it survives fragment/activity lifecycle
+        requireContext()
+                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putStringSet(PREF_COLLAPSED_GROUPS, adapter.getCollapsedGroups())
+                .apply();
         syncHandler.removeCallbacks(syncRunnable);
         // Remove proximity alerts to avoid stale registrations when stores change.
         StoreGeofenceHelper.unregisterAll(requireContext(), cachedStoreLocations);
@@ -540,10 +558,13 @@ public class ShoppingFragment extends Fragment {
                 @Override
                 public void onError(String message) {
                     showSyncError();
-                    // Fall back to local data so the UI is never empty on error
-                    List<ShoppingItem> localItems = db.getActiveItems();
-                    adapter.setItems(localItems);
-                    tvEmpty.setVisibility(localItems.isEmpty() ? View.VISIBLE : View.GONE);
+                    // Keep currently displayed items if available; fall back to local DB
+                    // only when the adapter is empty to avoid blanking the list on sync failure.
+                    if (adapter.getItems().isEmpty()) {
+                        List<ShoppingItem> localItems = db.getActiveItems();
+                        adapter.setItems(localItems);
+                        tvEmpty.setVisibility(localItems.isEmpty() ? View.VISIBLE : View.GONE);
+                    }
                 }
             });
         } else {
