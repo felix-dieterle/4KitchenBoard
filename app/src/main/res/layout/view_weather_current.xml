@@ -106,6 +106,29 @@
                 android:textColor="@color/text_primary"/>
         </LinearLayout>
 
+        <!-- Next-hour rain indicator -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="@dimen/spacing_normal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⏱  "
+                android:textSize="@dimen/body_text_size"
+                android:importanceForAccessibility="no"/>
+
+            <TextView
+                android:id="@+id/tv_next_hour_rain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textSize="@dimen/body_text_size"
+                android:textColor="@color/text_primary"/>
+        </LinearLayout>
+
         <!-- Wind -->
         <LinearLayout
             android:layout_width="match_parent"

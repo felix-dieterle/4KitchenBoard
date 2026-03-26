@@ -65,11 +65,13 @@ public class WeatherApiClient {
 
                     JSONObject hourly = weatherJson.optJSONObject("hourly");
                     int todayRainStartHour = findTodayRainStartHour(hourly);
+                    boolean rainInNextHour = findRainInNextHour(hourly);
 
                     WeatherData.WeekendDay[] weekend = parseWeekendDays(daily, hourly);
 
                     final WeatherData data = new WeatherData(
                             currentTemp, currentWind, highTemp, precipMm, todayRainStartHour,
+                            rainInNextHour,
                             weatherCode, cityName,
                             weekend[0], weekend[1]);
                     mainHandler.post(new Runnable() {
@@ -127,11 +129,13 @@ public class WeatherApiClient {
 
                     JSONObject hourly = weatherJson.optJSONObject("hourly");
                     int todayRainStartHour = findTodayRainStartHour(hourly);
+                    boolean rainInNextHour = findRainInNextHour(hourly);
 
                     WeatherData.WeekendDay[] weekend = parseWeekendDays(daily, hourly);
 
                     final WeatherData data = new WeatherData(
                             currentTemp, currentWind, highTemp, precipMm, todayRainStartHour,
+                            rainInNextHour,
                             weatherCode, resolvedCity,
                             weekend[0], weekend[1]);
                     mainHandler.post(new Runnable() {
@@ -238,6 +242,25 @@ public class WeatherApiClient {
             }
         } catch (Exception ignored) {}
         return -1;
+    }
+
+    /**
+     * Returns true if precipitation is expected in the next hour slot (currentHour+1 in today's data).
+     */
+    private static boolean findRainInNextHour(JSONObject hourly) {
+        if (hourly == null) return false;
+        try {
+            JSONArray hourlyPrecipArr = hourly.optJSONArray("precipitation");
+            if (hourlyPrecipArr == null) return false;
+            // nextHour may be 24 (midnight of next day); the hourly array covers 14 days so
+            // index 24 is the first hour of tomorrow – still a valid check.
+            int nextHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY) + 1;
+            if (nextHour >= hourlyPrecipArr.length()) return false;
+            return !hourlyPrecipArr.isNull(nextHour) && hourlyPrecipArr.getDouble(nextHour) > 0.0;
+        } catch (Exception e) {
+            android.util.Log.w("WeatherApiClient", "findRainInNextHour: " + e.getMessage());
+        }
+        return false;
     }
 
     private static String httpGet(String urlString) throws Exception {

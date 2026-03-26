@@ -30,6 +30,8 @@ public class WeatherData {
     private final double precipitationMm;
     /** Hour of day (0–23) when rain next starts today (from current time); -1 if none. */
     private final int todayRainStartHour;
+    /** True if precipitation is expected within the next hour. */
+    private final boolean rainInNextHour;
     private final int weatherCode;
     private final String cityName;
     private final WeekendDay nextSaturday;
@@ -37,6 +39,7 @@ public class WeatherData {
 
     public WeatherData(double currentTemperature, double currentWindSpeed,
                        double highTemperature, double precipitationMm, int todayRainStartHour,
+                       boolean rainInNextHour,
                        int weatherCode, String cityName,
                        WeekendDay nextSaturday, WeekendDay nextSunday) {
         this.currentTemperature = currentTemperature;
@@ -44,6 +47,7 @@ public class WeatherData {
         this.highTemperature = highTemperature;
         this.precipitationMm = precipitationMm;
         this.todayRainStartHour = todayRainStartHour;
+        this.rainInNextHour = rainInNextHour;
         this.weatherCode = weatherCode;
         this.cityName = cityName;
         this.nextSaturday = nextSaturday;
@@ -55,6 +59,8 @@ public class WeatherData {
     public double getHighTemperature() { return highTemperature; }
     public double getPrecipitationMm() { return precipitationMm; }
     public int getTodayRainStartHour() { return todayRainStartHour; }
+    /** Returns true if precipitation is expected within the next hour. */
+    public boolean isRainInNextHour() { return rainInNextHour; }
     public int getWeatherCode() { return weatherCode; }
     public String getCityName() { return cityName; }
     public WeekendDay getNextSaturday() { return nextSaturday; }
