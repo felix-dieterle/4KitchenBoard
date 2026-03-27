@@ -65,6 +65,7 @@ public class WeatherFragment extends Fragment {
     private TextView tvDescription;
     private TextView tvHighTemp;
     private TextView tvRain;
+    private TextView tvNextHourRain;
     private TextView tvWind;
     private TextView tvDate;
     private TextView tvStatus;
@@ -127,6 +128,7 @@ public class WeatherFragment extends Fragment {
         tvDescription = currentPage.findViewById(R.id.tv_weather_desc);
         tvHighTemp = currentPage.findViewById(R.id.tv_high_temp);
         tvRain = currentPage.findViewById(R.id.tv_rain);
+        tvNextHourRain = currentPage.findViewById(R.id.tv_next_hour_rain);
         tvWind = currentPage.findViewById(R.id.tv_wind);
         tvDate = currentPage.findViewById(R.id.tv_date);
         tvStatus = currentPage.findViewById(R.id.tv_status);
@@ -408,6 +410,10 @@ public class WeatherFragment extends Fragment {
         } else {
             tvRain.setText("No rain expected");
         }
+
+        tvNextHourRain.setText(data.isRainInNextHour()
+                ? getString(R.string.weather_next_hour_rain)
+                : getString(R.string.weather_next_hour_dry));
 
         tvWind.setText(String.format(getString(R.string.weather_wind), data.getCurrentWindSpeed()));
 

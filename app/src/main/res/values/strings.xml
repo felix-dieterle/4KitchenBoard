@@ -173,6 +173,8 @@
     <string name="weather_wind">Wind: %.0f km/h</string>
     <string name="weather_rain_start">Rain from %02d:00</string>
     <string name="weather_rain_start_with_amount">Rain from %02d:00 (%.1f mm)</string>
+    <string name="weather_next_hour_rain">🌧 Rain expected in the next hour</string>
+    <string name="weather_next_hour_dry">☀ Dry for the next hour</string>
     <!-- Cooking / Dishes page -->
     <string name="cooking_title">Gerichte</string>
     <string name="cooking_recently_cooked">Zuletzt gekocht</string>
