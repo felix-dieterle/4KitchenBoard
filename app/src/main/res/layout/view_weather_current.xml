@@ -118,7 +118,7 @@
                 android:layout_height="wrap_content"
                 android:text="⏱  "
                 android:textSize="@dimen/body_text_size"
-                android:importanceForAccessibility="no"/>
+                android:contentDescription=""/>
 
             <TextView
                 android:id="@+id/tv_next_hour_rain"
