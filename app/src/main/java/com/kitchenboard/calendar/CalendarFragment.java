@@ -173,6 +173,8 @@ public class CalendarFragment extends Fragment {
     private static final int DRAG_START_HOUR = 6;
     /** Number of hours covered by the day-strip column height (06:00–22:00). */
     private static final int DRAG_HOUR_RANGE = 16;
+    /** Default quick-reminder offset used by the appointment mini-button. */
+    private static final int DEFAULT_REMINDER_MINUTES = 15;
 
     /**
      * Active person/group filter.
@@ -267,7 +269,7 @@ public class CalendarFragment extends Fragment {
         adapter.setOnTimerListener(new AppointmentAdapter.OnTimerListener() {
             @Override
             public void onTimer(Appointment appointment) {
-                showReminderDialog(appointment);
+                onReminderMiniButtonClicked(appointment);
             }
         });
 
@@ -1623,6 +1625,37 @@ public class CalendarFragment extends Fragment {
         AlertDialog dialog = builder.create();
         dialog.setOnDismissListener(d -> resumeAutoAdvance());
         dialog.show();
+    }
+
+    private void onReminderMiniButtonClicked(final Appointment appointment) {
+        if (appointment.getReminderMinutes() > 0) {
+            showReminderDialog(appointment);
+            return;
+        }
+        if (!isAdded() || getContext() == null) return;
+        if (appointment.getTime() == null || appointment.getTime().isEmpty()) {
+            Toast.makeText(requireContext(),
+                    R.string.calendar_reminder_no_time, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        pauseAutoAdvance();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(requireContext(),
+                    android.Manifest.permission.POST_NOTIFICATIONS)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(
+                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 0);
+            }
+        }
+        ReminderReceiver.createNotificationChannel(requireContext());
+        db.setReminderForAppointment(appointment.getId(), DEFAULT_REMINDER_MINUTES);
+        ReminderScheduler.scheduleReminder(requireContext(),
+                appointment.withReminderMinutes(DEFAULT_REMINDER_MINUTES));
+        Toast.makeText(requireContext(),
+                getString(R.string.calendar_reminder_default_enabled, DEFAULT_REMINDER_MINUTES),
+                Toast.LENGTH_SHORT).show();
+        refreshAppointments();
+        resumeAutoAdvance();
     }
 
     // ── Manage templates dialog ───────────────────────────────────────────────

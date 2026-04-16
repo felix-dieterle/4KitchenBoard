@@ -18,6 +18,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.kitchenboard.R;
@@ -125,6 +126,16 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
                 if (timerListener != null) timerListener.onTimer(item);
             }
         });
+        holder.btnTimer.setImageResource(android.R.drawable.ic_lock_idle_alarm);
+        if (item.getReminderMinutes() > 0) {
+            holder.btnTimer.setAlpha(1f);
+            holder.btnTimer.setColorFilter(
+                    ContextCompat.getColor(holder.itemView.getContext(), R.color.module_calendar));
+        } else {
+            holder.btnTimer.setAlpha(0.55f);
+            holder.btnTimer.setColorFilter(
+                    ContextCompat.getColor(holder.itemView.getContext(), R.color.text_secondary));
+        }
 
         // Series indicator
         if (item.getSeriesId() != null) {
