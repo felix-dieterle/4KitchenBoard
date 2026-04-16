@@ -1626,13 +1626,18 @@ public class CalendarFragment extends Fragment {
 
     /**
      * Handles the appointment corner reminder button:
-     * enables a default 15-minute reminder if none exists, otherwise opens the reminder dialog.
+     * opens the existing reminder dialog when a reminder exists, otherwise opens
+     * a small quick-enable popup prefilled with 15 minutes.
      */
     private void onReminderMiniButtonClicked(final Appointment appointment) {
         if (appointment.getReminderMinutes() > 0) {
             showReminderDialog(appointment);
             return;
         }
+        showQuickEnableReminderDialog(appointment);
+    }
+
+    private void showQuickEnableReminderDialog(final Appointment appointment) {
         if (!isAdded() || getContext() == null) return;
         if (appointment.getTime() == null || appointment.getTime().isEmpty()) {
             Toast.makeText(requireContext(),
@@ -1645,14 +1650,44 @@ public class CalendarFragment extends Fragment {
             return;
         }
         ReminderReceiver.createNotificationChannel(requireContext());
-        db.setReminderForAppointment(appointment.getId(), DEFAULT_REMINDER_MINUTES);
-        ReminderScheduler.scheduleReminder(requireContext(),
-                appointment.withReminderMinutes(DEFAULT_REMINDER_MINUTES));
-        Toast.makeText(requireContext(),
-                getString(R.string.calendar_reminder_default_enabled, DEFAULT_REMINDER_MINUTES),
-                Toast.LENGTH_SHORT).show();
-        refreshAppointments();
-        resumeAutoAdvance();
+
+        final int[] currentMinutes = {DEFAULT_REMINDER_MINUTES};
+        final int step = 15;
+        final int minMinutes = 15;
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_timer, null);
+        final TextView tvValue = dialogView.findViewById(R.id.tv_timer_value);
+        final Button btnMinus  = dialogView.findViewById(R.id.btn_timer_minus);
+        final Button btnPlus   = dialogView.findViewById(R.id.btn_timer_plus);
+
+        tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+        btnMinus.setOnClickListener(v -> {
+            if (currentMinutes[0] - step >= minMinutes) {
+                currentMinutes[0] -= step;
+                tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+            }
+        });
+        btnPlus.setOnClickListener(v -> {
+            currentMinutes[0] += step;
+            tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+        });
+
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.calendar_quick_reminder_title)
+                .setView(dialogView)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.ok, (d, which) -> {
+                    db.setReminderForAppointment(appointment.getId(), currentMinutes[0]);
+                    ReminderScheduler.scheduleReminder(requireContext(),
+                            appointment.withReminderMinutes(currentMinutes[0]));
+                    Toast.makeText(requireContext(),
+                            getString(R.string.calendar_reminder_default_enabled, currentMinutes[0]),
+                            Toast.LENGTH_SHORT).show();
+                    refreshAppointments();
+                })
+                .create();
+        dialog.setOnDismissListener(d -> resumeAutoAdvance());
+        dialog.show();
     }
 
     /**

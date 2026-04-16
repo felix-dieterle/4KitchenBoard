@@ -127,7 +127,9 @@
 
     <!-- Timer / reminder popup -->
     <string name="calendar_timer_button_desc">Erinnerung festlegen</string>
+    <string name="calendar_timer_button_add_desc">Erinnerung hinzufügen</string>
     <string name="calendar_timer_title">Erinnerung (Minuten vorher)</string>
+    <string name="calendar_quick_reminder_title">Erinnerung aktivieren</string>
     <string name="calendar_timer_value">%d min vorher</string>
     <string name="calendar_timer_this_only">Nur diesen</string>
     <string name="calendar_timer_whole_series">Ganze Serie</string>
