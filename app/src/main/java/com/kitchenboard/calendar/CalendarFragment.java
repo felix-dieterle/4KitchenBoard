@@ -49,6 +49,7 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.kitchenboard.MainActivity;
 import com.kitchenboard.R;
@@ -92,6 +93,8 @@ public class CalendarFragment extends Fragment {
 
     /** Periodic sync interval: 5 minutes. */
     private static final long SYNC_INTERVAL_MS = 5 * 60 * 1000L;
+    /** Request code used when asking for POST_NOTIFICATIONS on Android 13+. */
+    private static final int REQUEST_CODE_POST_NOTIFICATIONS = 1001;
 
     private CalendarDatabaseHelper db;
     private AppointmentAdapter adapter;
@@ -173,6 +176,8 @@ public class CalendarFragment extends Fragment {
     private static final int DRAG_START_HOUR = 6;
     /** Number of hours covered by the day-strip column height (06:00–22:00). */
     private static final int DRAG_HOUR_RANGE = 16;
+    /** Default quick-reminder offset used by the appointment mini-button. */
+    private static final int DEFAULT_REMINDER_MINUTES = 15;
 
     /**
      * Active person/group filter.
@@ -267,7 +272,7 @@ public class CalendarFragment extends Fragment {
         adapter.setOnTimerListener(new AppointmentAdapter.OnTimerListener() {
             @Override
             public void onTimer(Appointment appointment) {
-                showReminderDialog(appointment);
+                onReminderMiniButtonClicked(appointment);
             }
         });
 
@@ -1552,14 +1557,9 @@ public class CalendarFragment extends Fragment {
 
         pauseAutoAdvance();
 
-        // On Android 13+ request the POST_NOTIFICATIONS permission if not yet granted
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ActivityCompat.checkSelfPermission(requireContext(),
-                    android.Manifest.permission.POST_NOTIFICATIONS)
-                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(
-                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 0);
-            }
+        if (!ensureNotificationPermissionOrRequest()) {
+            resumeAutoAdvance();
+            return;
         }
 
         // Ensure the notification channel exists
@@ -1623,6 +1623,89 @@ public class CalendarFragment extends Fragment {
         AlertDialog dialog = builder.create();
         dialog.setOnDismissListener(d -> resumeAutoAdvance());
         dialog.show();
+    }
+
+    /**
+     * Handles the appointment corner reminder button:
+     * opens the existing reminder dialog when a reminder exists, otherwise opens
+     * a small quick-enable popup prefilled with 15 minutes.
+     */
+    private void onReminderMiniButtonClicked(final Appointment appointment) {
+        if (appointment.getReminderMinutes() > 0) {
+            showReminderDialog(appointment);
+            return;
+        }
+        showQuickEnableReminderDialog(appointment);
+    }
+
+    private void showQuickEnableReminderDialog(final Appointment appointment) {
+        if (!isAdded() || getContext() == null) return;
+        if (appointment.getTime() == null || appointment.getTime().isEmpty()) {
+            Toast.makeText(requireContext(),
+                    R.string.calendar_reminder_no_time, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        pauseAutoAdvance();
+        if (!ensureNotificationPermissionOrRequest()) {
+            resumeAutoAdvance();
+            return;
+        }
+        ReminderReceiver.createNotificationChannel(requireContext());
+
+        final int[] currentMinutes = {DEFAULT_REMINDER_MINUTES};
+        final int step = 15;
+        final int minMinutes = 15;
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_timer, null);
+        final TextView tvValue = dialogView.findViewById(R.id.tv_timer_value);
+        final Button btnMinus  = dialogView.findViewById(R.id.btn_timer_minus);
+        final Button btnPlus   = dialogView.findViewById(R.id.btn_timer_plus);
+
+        tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+        btnMinus.setOnClickListener(v -> {
+            if (currentMinutes[0] - step >= minMinutes) {
+                currentMinutes[0] -= step;
+                tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+            }
+        });
+        btnPlus.setOnClickListener(v -> {
+            currentMinutes[0] += step;
+            tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
+        });
+
+        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.calendar_quick_reminder_title)
+                .setView(dialogView)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.ok, (d, which) -> {
+                    db.setReminderForAppointment(appointment.getId(), currentMinutes[0]);
+                    ReminderScheduler.scheduleReminder(requireContext(),
+                            appointment.withReminderMinutes(currentMinutes[0]));
+                    Toast.makeText(requireContext(),
+                            getString(R.string.calendar_reminder_default_enabled, currentMinutes[0]),
+                            Toast.LENGTH_SHORT).show();
+                    refreshAppointments();
+                })
+                .create();
+        dialog.setOnDismissListener(d -> resumeAutoAdvance());
+        dialog.show();
+    }
+
+    /**
+     * Returns true if notification permission is already granted (or not required on this API),
+     * otherwise requests it and returns false.
+     */
+    private boolean ensureNotificationPermissionOrRequest() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true;
+        if (ActivityCompat.checkSelfPermission(requireContext(),
+                android.Manifest.permission.POST_NOTIFICATIONS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return true;
+        }
+        requestPermissions(
+                new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                REQUEST_CODE_POST_NOTIFICATIONS);
+        return false;
     }
 
     // ── Manage templates dialog ───────────────────────────────────────────────

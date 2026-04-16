@@ -2,10 +2,17 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="@dimen/item_height"
+    android:layout_marginStart="@dimen/spacing_small"
+    android:layout_marginTop="@dimen/spacing_small"
+    android:layout_marginEnd="@dimen/spacing_small"
+    android:layout_marginBottom="@dimen/spacing_small"
     android:orientation="horizontal"
+    android:background="@drawable/bg_calendar_appointment_block"
     android:gravity="center_vertical"
-    android:paddingStart="@dimen/panel_padding"
-    android:paddingEnd="@dimen/spacing_small">
+    android:paddingStart="@dimen/spacing_normal"
+    android:paddingTop="@dimen/spacing_small"
+    android:paddingEnd="@dimen/spacing_small"
+    android:paddingBottom="@dimen/spacing_small">
 
     <!-- Person photo or color dot -->
     <ImageView
@@ -55,15 +62,6 @@
         android:visibility="gone"/>
 
     <ImageButton
-        android:id="@+id/btn_timer_appointment"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:src="@android:drawable/ic_menu_recent_history"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/calendar_timer_button_desc"
-        android:padding="10dp"/>
-
-    <ImageButton
         android:id="@+id/btn_delete_appointment"
         android:layout_width="48dp"
         android:layout_height="48dp"
@@ -71,5 +69,14 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/delete_item"
         android:padding="8dp"/>
+
+    <ImageButton
+        android:id="@+id/btn_timer_appointment"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@android:drawable/ic_menu_recent_history"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/calendar_timer_button_desc"
+        android:padding="12dp"/>
 
 </LinearLayout>

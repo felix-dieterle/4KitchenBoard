@@ -127,7 +127,9 @@
 
     <!-- Timer / reminder popup -->
     <string name="calendar_timer_button_desc">Erinnerung festlegen</string>
+    <string name="calendar_timer_button_add_desc">Erinnerung hinzufügen</string>
     <string name="calendar_timer_title">Erinnerung (Minuten vorher)</string>
+    <string name="calendar_quick_reminder_title">Erinnerung aktivieren</string>
     <string name="calendar_timer_value">%d min vorher</string>
     <string name="calendar_timer_this_only">Nur diesen</string>
     <string name="calendar_timer_whole_series">Ganze Serie</string>
@@ -139,6 +141,7 @@
     <string name="calendar_reminder_channel_name">Terminerinnerungen</string>
     <string name="calendar_reminder_channel_desc">Erinnerungen für bevorstehende Termine</string>
     <string name="calendar_reminder_no_time">Zeitbasierte Erinnerungen sind nur für Termine mit Uhrzeit möglich.</string>
+    <string name="calendar_reminder_default_enabled">Erinnerung aktiviert (%d min vorher).</string>
 
     <!-- Persons and groups -->
     <string name="calendar_manage_persons">Personen verwalten</string>

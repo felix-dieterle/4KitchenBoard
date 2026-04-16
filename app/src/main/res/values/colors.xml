@@ -17,6 +17,7 @@
     <!-- Module accent colors (header bar tint) -->
     <color name="module_calendar">#1565C0</color>
     <color name="module_calendar_light">#E3F2FD</color>
+    <color name="module_calendar_light_pressed">#CCE4ED</color>
     <color name="module_cooking">#E65100</color>
     <color name="module_cooking_light">#FBE9E7</color>
     <color name="module_tasks">#C62828</color>
