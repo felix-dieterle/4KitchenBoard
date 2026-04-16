@@ -92,6 +92,7 @@ public class CalendarFragment extends Fragment {
 
     /** Periodic sync interval: 5 minutes. */
     private static final long SYNC_INTERVAL_MS = 5 * 60 * 1000L;
+    private static final int REQUEST_CODE_POST_NOTIFICATIONS = 1001;
 
     private CalendarDatabaseHelper db;
     private AppointmentAdapter adapter;
@@ -1560,7 +1561,8 @@ public class CalendarFragment extends Fragment {
                     android.Manifest.permission.POST_NOTIFICATIONS)
                     != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(
-                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 0);
+                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                        REQUEST_CODE_POST_NOTIFICATIONS);
             }
         }
 
@@ -1644,7 +1646,8 @@ public class CalendarFragment extends Fragment {
                     android.Manifest.permission.POST_NOTIFICATIONS)
                     != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(
-                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 0);
+                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                        REQUEST_CODE_POST_NOTIFICATIONS);
             }
         }
         ReminderReceiver.createNotificationChannel(requireContext());
