@@ -1555,15 +1555,9 @@ public class CalendarFragment extends Fragment {
 
         pauseAutoAdvance();
 
-        // On Android 13+ request the POST_NOTIFICATIONS permission if not yet granted
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ActivityCompat.checkSelfPermission(requireContext(),
-                    android.Manifest.permission.POST_NOTIFICATIONS)
-                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(
-                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
-                        REQUEST_CODE_POST_NOTIFICATIONS);
-            }
+        if (!ensureNotificationPermissionOrRequest()) {
+            resumeAutoAdvance();
+            return;
         }
 
         // Ensure the notification channel exists
@@ -1641,14 +1635,9 @@ public class CalendarFragment extends Fragment {
             return;
         }
         pauseAutoAdvance();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ActivityCompat.checkSelfPermission(requireContext(),
-                    android.Manifest.permission.POST_NOTIFICATIONS)
-                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(
-                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
-                        REQUEST_CODE_POST_NOTIFICATIONS);
-            }
+        if (!ensureNotificationPermissionOrRequest()) {
+            resumeAutoAdvance();
+            return;
         }
         ReminderReceiver.createNotificationChannel(requireContext());
         db.setReminderForAppointment(appointment.getId(), DEFAULT_REMINDER_MINUTES);
@@ -1659,6 +1648,19 @@ public class CalendarFragment extends Fragment {
                 Toast.LENGTH_SHORT).show();
         refreshAppointments();
         resumeAutoAdvance();
+    }
+
+    private boolean ensureNotificationPermissionOrRequest() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true;
+        if (ActivityCompat.checkSelfPermission(requireContext(),
+                android.Manifest.permission.POST_NOTIFICATIONS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return true;
+        }
+        requestPermissions(
+                new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                REQUEST_CODE_POST_NOTIFICATIONS);
+        return false;
     }
 
     // ── Manage templates dialog ───────────────────────────────────────────────
