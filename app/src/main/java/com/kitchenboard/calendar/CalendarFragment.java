@@ -92,6 +92,7 @@ public class CalendarFragment extends Fragment {
 
     /** Periodic sync interval: 5 minutes. */
     private static final long SYNC_INTERVAL_MS = 5 * 60 * 1000L;
+    /** Request code used when asking for POST_NOTIFICATIONS on Android 13+. */
     private static final int REQUEST_CODE_POST_NOTIFICATIONS = 1001;
 
     private CalendarDatabaseHelper db;
@@ -1623,6 +1624,10 @@ public class CalendarFragment extends Fragment {
         dialog.show();
     }
 
+    /**
+     * Handles the appointment corner reminder button:
+     * enables a default 15-minute reminder if none exists, otherwise opens the reminder dialog.
+     */
     private void onReminderMiniButtonClicked(final Appointment appointment) {
         if (appointment.getReminderMinutes() > 0) {
             showReminderDialog(appointment);
@@ -1650,6 +1655,10 @@ public class CalendarFragment extends Fragment {
         resumeAutoAdvance();
     }
 
+    /**
+     * Returns true if notification permission is already granted (or not required on this API),
+     * otherwise requests it and returns false.
+     */
     private boolean ensureNotificationPermissionOrRequest() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true;
         if (ActivityCompat.checkSelfPermission(requireContext(),
