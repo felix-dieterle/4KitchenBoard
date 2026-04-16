@@ -49,6 +49,7 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.kitchenboard.MainActivity;
 import com.kitchenboard.R;
@@ -1672,7 +1673,7 @@ public class CalendarFragment extends Fragment {
             tvValue.setText(getString(R.string.calendar_timer_value, currentMinutes[0]));
         });
 
-        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.calendar_quick_reminder_title)
                 .setView(dialogView)
                 .setNegativeButton(R.string.cancel, null)

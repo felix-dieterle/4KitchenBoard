@@ -137,7 +137,7 @@ public class AppointmentAdapter extends RecyclerView.Adapter<AppointmentAdapter.
             holder.btnTimer.setImageResource(android.R.drawable.ic_input_add);
             holder.btnTimer.setContentDescription(
                     holder.itemView.getContext().getString(R.string.calendar_timer_button_add_desc));
-            holder.btnTimer.setAlpha(0.85f);
+            holder.btnTimer.setAlpha(0.55f);
             holder.btnTimer.setColorFilter(
                     ContextCompat.getColor(holder.itemView.getContext(), R.color.text_secondary));
         }
